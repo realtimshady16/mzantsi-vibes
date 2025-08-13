@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My First Render Site</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <h1>Hello from Render!</h1>
+    <p>This is my first deployed website.</p>
+
+    <h2>About This Project</h2>
+    <div id="readme-content">
+        Loading README content...
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const readmeContainer = document.getElementById('readme-content');
+            const githubUsername = 'realtimshady16'; 
+            const repoName = 'mzantsi-vibes'; 
+            const readmeUrl = `https://raw.githubusercontent.com/${githubUsername}/${repoName}/main/README.md`;
+
+            fetch(readmeUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(markdownText => {
+                    // Convert Markdown to HTML using Marked.js
+                    readmeContainer.innerHTML = marked.parse(markdownText);
+                })
+                .catch(error => {
+                    console.error('Error fetching or parsing README:', error);
+                    readmeContainer.innerHTML = '<p>Could not load README content.</p>';
+                });
+        });
+    </script>
+</body>
+</html>
