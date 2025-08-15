@@ -1,15 +1,84 @@
-# Mzantsi Vibes
-Accessibility to resources is a huge problem in South Africa and this repo is my way of trying to help solve that problem. Whatever cool, South African things I find that helped me out, I'll put up here for people to use/have access to.
+<hr/>
+<h1 align="center">JUST FOR STUDENTS ZA</h1>
+<hr/>
+<!--
+For Documents, Ask people who are still in high school for certain grades if you do not have any document to add. I still need time to upload my documents on GoogleDrive and stuff. Read until the end.
+ -->
 
-## Matric
-- [NBT Website](https://www.nbt.ac.za/)
-- [MyNSFAS Website](https://my.nsfas.org.za/)
+## Description
+    The purpose of the repo is to make resource accessible for students.
+
+<!-- Grade 10 resources must come here -->
+<h3 align="center"><u>Grade 10</u> </h3>
+
+* coming soon
+
+<!-- - [Siyavula](https://www.siyavula.com/) -->
+
+<!-- Add resources for Grade 11 here -->
+<h3 align="center"><u>Grade 11 </u> </h3>
+
+* coming soon
+
+<!-- - [Siyavula](https://www.siyavula.com/) -->
+
+
+<!-- grade 12 Resources must come here -->
+<h3 align="center"><u>Grade 12</u>  </h3>
+
+-   [NBT](https://www.nbt.ac.za/)
+
+    <h4>Description</h4>
+    <pre style="color:white">
+    National BenchMark Test are for testing whether a matric student is ready
+    for university/higher education.
+    </pre>
+
+- [NSFAS](https://my.nsfas.org.za/)
+  <h4>Description</h4>
+  <pre style="color:white">This is a financial aid in South Africa that aid/helps students who cannot afford to pay for higher education fees.
+  </pre>
+
 - [Siyavula](https://www.siyavula.com/)
-- [Matric Exam Guidelines](https://www.education.gov.za/2021Grade12ExamGuidelines.aspx)
-- [UCT Application Requirements](https://uct.ac.za/students/applications-admission-requirements/eligibility-admission)
-## Political Parties 
-- [ANC - African National Congress](https://www.anc1912.org.za/)
-- [DA - Democratic Alliance](https://www.da.org.za/)
-- [EFF - Economic Freedom Fighters](https://effonline.org/)
-- [IEC - Indepent Electoral Commission](https://www.elections.org.za/pw/)
 
+<!-- Link with the remote link where you will upload documents. -->
+- [DOCUMENTS]()
+
+<!-- use OneDrive or Google Drive to share files here -->
+<h3 align="center"><u>University</u></h3>
+
+- Commerce Faculty
+- Engineering Faculty
+- Science Faculty
+- Health Science Faculty
+- Humanities Faculty
+- Law Faculty
+
+<!-- People are lazy to look for bursaries so keep on editing this part each and every month, move with time, if they close, add ones which are yet to close. -->
+<h3 align="center"><u>Funding</u></h3>
+
+- [Commerce Bursaries]()
+- [Engineering Bursaries]()
+- [Science Bursaries]()
+- [Health Science Bursaries]()
+- [Humanities Bursaries]()
+- [Law Bursaries]()
+
+- [More Bursaries](https://www.zabursaries.co.za/)
+
+<h3 align="center"><u>Internships</u></h3>
+
+* coming soon
+
+<!-- You will choose Your community if you have one -->
+<h3 align="center"><u>Community</u></h3>
+
+- [Telegram]()
+- [Discord]()
+- [Whatsapp Channel]()
+
+<!-- Do not put your personal number but rather your social media account such as ones mentioned below. -->
+<h3 align="center"><u>Contact Us</u></h3>
+
+- [Instagram]()
+- [Linkedin]()
