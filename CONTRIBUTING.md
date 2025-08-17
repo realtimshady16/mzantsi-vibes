@@ -42,4 +42,4 @@ git clone https://github.com/your-username/mzantsi-vibes.git
 🛑 Any form of judgement or hate towards a person because of their race, religion, gender, sexual orientation or how anything to do with how they identify themselves - while criticism of an idea, an action and of published work is allowed (should give reasonable explanation when doing so), criticism of character is to be taken carefully and avoided in general. This bit at the end is to draw a line between genuine discrimination and people taking things personally that should not be taken personally.
 
 <!-- i do not think this was supposed to be here -->
-🛑 Any opinions - if you'd like to publish an opinion, make a Substack account and publish it there.
+🛑 Any opinionated pieces - the primary purpose of this repo is to provide objective, factual information to anyone who would like to use this repo. If you'd like to publish an opinion, make a Substack account and publish it there.
