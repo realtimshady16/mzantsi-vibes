@@ -8,6 +8,21 @@ For Documents, Ask people who are still in high school for certain grades if you
 ## Description
     The purpose of the repo is to make resources such as website links, documents, video links and text-based resources accessible to South African youth.
 
+# INDEX
+<a href="#high_school">High School</a>
+
+<a href="#matric">Matric</a>
+
+<a href="#university">University</a>
+
+<a href="#internships">Internships</a>
+
+<a href="#grad_programmes">Graduate Programmes</a>
+
+
+
+
+<h2 id="high_school">High School</h2>
 <!-- Grade 10 resources must come here -->
 <h3 align="center"><u>Grade 10</u> </h3>
 
@@ -24,7 +39,7 @@ For Documents, Ask people who are still in high school for certain grades if you
 
 
 <!-- grade 12 Resources must come here -->
-<h3 align="center"><u>Grade 12</u>  </h3>
+<h3 id="matric" align="center"><u>Matric</u>  </h3>
 
 -   [NBT](https://www.nbt.ac.za/)
 
@@ -45,7 +60,7 @@ For Documents, Ask people who are still in high school for certain grades if you
 - [DOCUMENTS]()
 
 <!-- use OneDrive or Google Drive to share files here -->
-<h3 align="center"><u>University</u></h3>
+<h3 align="center" id="university"><u>University</u></h3>
 
 - Commerce Faculty
 - Engineering Faculty
@@ -66,9 +81,11 @@ For Documents, Ask people who are still in high school for certain grades if you
 
 - [More Bursaries](https://www.zabursaries.co.za/)
 
-<h3 align="center"><u>Internships</u></h3>
+<h3 align="center" id="internships"><u>Internships</u></h3>
 
 * coming soon
+
+<h3 id="grad_programmes">Graduate Programmes</h2>
 
 <!-- You will choose Your community if you have one -->
 <h3 align="center"><u>Community</u></h3>
