@@ -1,12 +1,12 @@
 <hr/>
-<h1 align="center">JUST FOR STUDENTS ZA</h1>
+<h1 align="center">MZANTSI VIBES</h1>
 <hr/>
 <!--
 For Documents, Ask people who are still in high school for certain grades if you do not have any document to add. I still need time to upload my documents on GoogleDrive and stuff. Read until the end.
  -->
 
 ## Description
-    The purpose of the repo is to make resource accessible for students.
+    The purpose of the repo is to make resources such as website links, documents, video links and text-based resources accessible to South African youth.
 
 <!-- Grade 10 resources must come here -->
 <h3 align="center"><u>Grade 10</u> </h3>
