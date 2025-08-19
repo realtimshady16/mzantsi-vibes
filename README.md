@@ -22,7 +22,7 @@ For Documents, Ask people who are still in high school for certain grades if you
 
 
 
-<h2 id="high_school">High School</h2>
+<h2 id="high_school" align="center">High School</h2>
 <!-- Grade 10 resources must come here -->
 <h3 align="center"><u>Grade 10</u> </h3>
 
@@ -39,7 +39,7 @@ For Documents, Ask people who are still in high school for certain grades if you
 
 
 <!-- grade 12 Resources must come here -->
-<h3 id="matric" align="center"><u>Matric</u>  </h3>
+<h2 id="matric" align="center"><u>Matric</u>  </h2>
 
 -   [NBT](https://www.nbt.ac.za/)
 
@@ -83,7 +83,7 @@ For Documents, Ask people who are still in high school for certain grades if you
 
 <h3 align="center" id="internships"><u>Internships</u></h3>
 
-* coming soon
+- [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
 
 <h3 id="grad_programmes">Graduate Programmes</h2>
 
@@ -97,5 +97,5 @@ For Documents, Ask people who are still in high school for certain grades if you
 <!-- Do not put your personal number but rather your social media account such as ones mentioned below. -->
 <h3 align="center"><u>Contact Us</u></h3>
 
-- [Instagram]()
-- [Linkedin]()
+- [Instagram](https://www.instagram.com/mzantsivibes/)
+- [Linkedin](https://www.linkedin.com/company/mzantsi-vibes/)
