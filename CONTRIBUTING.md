@@ -1,6 +1,6 @@
 
 <h1 align="center"><u>CONTRIBUTION</u></h1>
-
+<p>Contributions are taken either via the traditional way on Github (see below) or via the <a href="https://realtimshady16.github.io/GitTool/index.html"> contributer tool</a></p>
 <h3 align="center"><u>GUIDELINE</u></h3>
 
 - Fork The Repo
