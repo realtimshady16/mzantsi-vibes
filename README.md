@@ -21,9 +21,9 @@ INDEX
 
 [Graduate Programmes](#grad_programmes)
 
-Skills and Training
+[Skills and Training](#training)
 
-How do I adult?
+[How do I adult?](#adult)
 
   
 
@@ -96,7 +96,7 @@ Internships
 **Graduate Programmes**
 -----------------------
 
-Skills and Training
+<h2 id="training">Skills and Training</h2>
 -------------------
 
 *   Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
@@ -108,7 +108,7 @@ Skills and Training
 
   
 
-How do I adult?
+<h2 id="adult">How do I adult?</h2> 
 ---------------
 
 *   [Do I need to submit a tax return?]( https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
