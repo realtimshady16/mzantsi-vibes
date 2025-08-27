@@ -97,7 +97,6 @@ Internships
 -----------------------
 
 <h2 id="training">Skills and Training</h2>
--------------------
 
 *   Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
 *   Learn to code with [FreeCodeCamp](https://www.freecodecamp.org/)
@@ -109,7 +108,6 @@ Internships
   
 
 <h2 id="adult">How do I adult?</h2> 
----------------
 
 *   [Do I need to submit a tax return?]( https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
 *   [How do I submit a tax return for SARS efiling](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
