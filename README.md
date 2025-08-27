@@ -6,6 +6,8 @@ Description
 
 The purpose of the repo is to make resources such as website links, documents, video links and text-based resources accessible to South African youth.
 
+  
+
 INDEX
 =====
 
@@ -18,6 +20,10 @@ INDEX
 [Internships](#internships)
 
 [Graduate Programmes](#grad_programmes)
+
+Skills and Training
+
+How do I adult?
 
   
 
@@ -36,21 +42,20 @@ Matric
 ------
 
 *   [NBT](https://www.nbt.ac.za/)
-*     
-    
 
 #### Description
 
-National BenchMark Test are for testing whether a matric student is ready
-for university/higher education.
+National BenchMark Test are for testing whether a matric student is ready for university/higher education.
+
+  
 
 *   [NSFAS](https://my.nsfas.org.za/)
-*     
-    
 
 #### Description
 
 This is a financial aid in South Africa that aid/helps students who cannot afford to pay for higher education fees.
+
+  
 
 *   [Siyavula](https://www.siyavula.com/)
 *   DOCUMENTS
@@ -75,13 +80,40 @@ University
 *   Law Bursaries
 *   [More Bursaries](https://www.zabursaries.co.za/)
 
+### Textbooks
+
+*     
+    
+
 Internships
 -----------
 
 *   [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
+*   [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
+*     
+    
 
 **Graduate Programmes**
 -----------------------
+
+Skills and Training
+-------------------
+
+*   Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
+*   Learn to code with [FreeCodeCamp](https://www.freecodecamp.org/)
+*   Guide to [Webflow](https://university.webflow.com/courses/getting-started-with-webflow)
+*   Guide to [Bubble](https://build.airdev.co/bootcamp_dashboard)
+*   Learn to code on [W3Schools](https://www.w3schools.com/)
+*   Learn to code with [Boot.dev](https://www.youtube.com/playlist?list=PLw1W1TeNPmy5psU4VrWYVu3j1frw30m9I )
+
+  
+
+How do I adult?
+---------------
+
+*   [Do I need to submit a tax return?]( https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
+*   [How do I submit a tax return for SARS efiling](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
+*   [Investing for South Africans using EasyEquities](https://youtu.be/luh3jEqy4HI?si=dczWk3LISPvCbTKv)
 
 Community
 ---------
