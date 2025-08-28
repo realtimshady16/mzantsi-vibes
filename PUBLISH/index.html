@@ -3,36 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mzantsi Vibes Homepage</title>
+    <title>Mzantsi Vibes</title>
+    <!-- Use Tailwind CSS for rapid and responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Link to our custom stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Use Marked.js for converting Markdown to HTML -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
-<body>
-    <div id="readme-content">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4">
+
+    <!-- The welcome text container -->
+    <h1 id="welcomeText" class="text-4xl sm:text-5xl md:text-6xl font-bold mb-16"></h1>
+
+    <!-- The container for the main panels -->
+    <div id="panelsContainer" class="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-8 w-full max-w-4xl opacity-0 transition-opacity duration-1000">
+        <!-- Panels will be dynamically inserted here by JavaScript -->
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const readmeContainer = document.getElementById('readme-content');
-            const githubUsername = 'realtimshady16'; 
-            const repoName = 'mzantsi-vibes'; 
-            const readmeUrl = `https://raw.githubusercontent.com/${githubUsername}/${repoName}/main/README.md`;
+    <!-- Container for section content when a panel is clicked -->
+    <div id="contentSection" class="w-full max-w-4xl mt-16 p-4 md:p-8 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 hidden">
+        <button id="backButton" class="text-orange-500 font-bold mb-4 hover:underline">&larr; Back to Home</button>
+        <h2 id="sectionTitle" class="text-3xl sm:text-4xl font-bold mb-8"></h2>
+        <div id="linkContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamically created iframes will be inserted here -->
+        </div>
+    </div>
+    
+    <!-- Link our main JavaScript file -->
+    <script src="script.js"></script>
 
-            fetch(readmeUrl)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.text();
-                })
-                .then(markdownText => {
-                    // Convert Markdown to HTML using Marked.js
-                    readmeContainer.innerHTML = marked.parse(markdownText);
-                })
-                .catch(error => {
-                    console.error('Error fetching or parsing README:', error);
-                    readmeContainer.innerHTML = '<p>Could not load README content.</p>';
-                });
-        });
-    </script>
 </body>
 </html>

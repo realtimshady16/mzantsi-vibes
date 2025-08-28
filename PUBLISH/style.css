@@ -1,0 +1,77 @@
+/* Custom CSS for the typing effect and panel animation */
+
+/* Import a custom font to override Tailwind's default */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Typing effect styles */
+.typing-text-container {
+    border-right: .15em solid orange;
+    white-space: nowrap;
+    overflow: hidden;
+    letter-spacing: .15em;
+    animation: 
+        typing 3.5s steps(40, end),
+        blink-caret .75s step-end infinite;
+}
+
+/* The typing animation */
+@keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+}
+
+/* The blinking cursor animation */
+@keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: orange; }
+}
+
+/* Panel animation styles */
+.panel {
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 0.8s ease-out, opacity 0.8s ease-out;
+    cursor: pointer;
+}
+
+/* State for when the panel should be visible */
+.panel-visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Hover effect for panels */
+.panel:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+/* Styles for the dynamically added iframes */
+.iframe-container {
+    border: 1px solid #374151; /* gray-700 */
+    border-radius: 0.75rem; /* rounded-xl */
+    overflow: hidden;
+    padding: 0.5rem; /* p-2 */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background-color: #1f2937; /* gray-800 */
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 0.8s ease-out, opacity 0.8s ease-out;
+}
+
+.iframe-container.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.iframe-container iframe {
+    width: 100%;
+    height: 300px;
+    border: none;
+    border-radius: 0.5rem;
+}
