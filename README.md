@@ -90,26 +90,53 @@ Internships
 
 *   [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
 *   [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
-*     
-    
 
 **Graduate Programmes**
 -----------------------
 
-<h2 id="training">Skills and Training</h2>
+Skills and Training
+-------------------
+
+### Coding
 
 *   Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
 *   Learn to code with [FreeCodeCamp](https://www.freecodecamp.org/)
 *   Guide to [Webflow](https://university.webflow.com/courses/getting-started-with-webflow)
 *   Guide to [Bubble](https://build.airdev.co/bootcamp_dashboard)
 *   Learn to code on [W3Schools](https://www.w3schools.com/)
-*   Learn to code with [Boot.dev](https://www.youtube.com/playlist?list=PLw1W1TeNPmy5psU4VrWYVu3j1frw30m9I )
+*   Learn to code with [Boot.dev](https://www.youtube.com/playlist?list=PLw1W1TeNPmy5psU4VrWYVu3j1frw30m9I)
 
   
 
-<h2 id="adult">How do I adult?</h2> 
+### Writing and Writing Online
 
-*   [Do I need to submit a tax return?]( https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
+*   Learn [technical writing](https://youtu.be/vT5pcc30Ffw?si=xfDq5bKKn0D3IoRc)
+*   [Generating Ideas for Writing Online](https://youtu.be/iH5V9y82jHE?si=RRhXMNVpoWtcIiir) - Ship 30 for 30
+*   [Why you should write online](https://www.youtube.com/watch?v=vyVpRiqOvt4) - Ali Abdaal
+*   [Writing Online with Email Newsletters - Ali Abdaal](https://youtu.be/ozWseKZV6Ac?si=Ipxhg8MFdGJ5vjcK)
+
+  
+
+### Design
+
+*   Guide to [Canva](https://youtu.be/Llnmf5BXLBA?si=6qxv76SEU3pfGfia)
+*   Guide to [Figma](https://youtu.be/HoKD1qIcchQ?si=GHdv7tTvHCmmR1BU)
+*   [Web Design for Beginners](https://youtu.be/B-ytMSuwbf8?si=jCbuxnSjO-MaAv1H)
+
+  
+
+### Professional Development
+
+*   [Sales Training with Alex Hormozi](https://youtu.be/NcD2t9qt-fM?si=nfQ_V-ghCTtVVQYO)
+*   [Speaking with Power](https://youtu.be/Unzc731iCUY?si=ax3k10qM0bm0TVPS) - MIT OpenCourseWare
+*   [Writing a Good CV](https://youtu.be/AEbvoIQHOXw?si=C-QpMjQn3Z-oEw2I) - Students for a Better Future
+
+  
+
+How do I adult?
+---------------
+
+*   [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
 *   [How do I submit a tax return for SARS efiling](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
 *   [Investing for South Africans using EasyEquities](https://youtu.be/luh3jEqy4HI?si=dczWk3LISPvCbTKv)
 
