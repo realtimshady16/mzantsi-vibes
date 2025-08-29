@@ -7,7 +7,86 @@
     <!-- Use Tailwind CSS for rapid and responsive styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Link to our custom stylesheet -->
-    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Custom CSS for the typing effect and panel animation */
+
+/* Import a custom font to override Tailwind's default */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Typing effect styles */
+.typing-text-container {
+    border-right: .15em solid orange;
+    white-space: nowrap;
+    overflow: hidden;
+    letter-spacing: .15em;
+    animation: 
+        typing 3.5s steps(40, end),
+        blink-caret .75s step-end infinite;
+}
+
+/* The typing animation */
+@keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+}
+
+/* The blinking cursor animation */
+@keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: orange; }
+}
+
+/* Panel animation styles */
+.panel {
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 0.8s ease-out, opacity 0.8s ease-out;
+    cursor: pointer;
+}
+
+/* State for when the panel should be visible */
+.panel-visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Hover effect for panels */
+.panel:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+/* Styles for the dynamically added iframes */
+.iframe-container {
+    border: 1px solid #374151; /* gray-700 */
+    border-radius: 0.75rem; /* rounded-xl */
+    overflow: hidden;
+    padding: 0.5rem; /* p-2 */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background-color: #1f2937; /* gray-800 */
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 0.8s ease-out, opacity 0.8s ease-out;
+}
+
+.iframe-container.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.iframe-container iframe {
+    width: 100%;
+    height: 300px;
+    border: none;
+    border-radius: 0.5rem;
+}
+
+    </style>
     <!-- Use Marked.js for converting Markdown to HTML -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -31,7 +110,198 @@
     </div>
     
     <!-- Link our main JavaScript file -->
-    <script src="script.js"></script>
+    <script>
+   
+    document.addEventListener('DOMContentLoaded', () => {
+    // DOM elements
+    const welcomeTextElement = document.getElementById('welcomeText');
+    const panelsContainer = document.getElementById('panelsContainer');
+    const contentSection = document.getElementById('contentSection');
+    const backButton = document.getElementById('backButton');
+    const sectionTitleElement = document.getElementById('sectionTitle');
+    const linkContainer = document.getElementById('linkContainer');
+
+    // Constants for the README file
+    const GITHUB_USERNAME = 'realtimshady16'; 
+    const REPO_NAME = 'mzantsi-vibes';
+    const README_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/main/README.md`;
+
+    // State variables
+    let allReadmeContent = {};
+
+    // Function to parse Markdown to get the index and content
+    const parseReadme = (markdown) => {
+        const sections = {};
+        const lines = markdown.split('\n');
+        let currentSection = null;
+        let links = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+
+            // This new logic correctly identifies main sections.
+            if (nextLine.startsWith('---')) {
+                // If we have a previous section, save it first
+                if (currentSection) {
+                    sections[currentSection] = { links: links };
+                }
+                // The current line is a new section heading
+                currentSection = line;
+                links = [];
+                // Skip the next line which is the `---` separator
+                i++;
+            } else if (line.startsWith('*') && line.includes('http')) {
+                // Now, only if we are in a valid section, we look for links.
+                if (currentSection) {
+                    const match = line.match(/\[(.*?)\]\((.*?)\)/);
+                    if (match) {
+                        const text = match[1];
+                        const url = match[2];
+                        links.push({ text, url });
+                    }
+                }
+            }
+        }
+        // Add the very last section after the loop finishes.
+        if (currentSection) {
+            sections[currentSection] = { links: links };
+        }
+
+        return sections;
+    };
+
+
+    // Function to trigger the welcome text fade-in
+    const fadeInWelcomeText = (text) => {
+        welcomeTextElement.textContent = text;
+        return new Promise(resolve => {
+            setTimeout(() => {
+                welcomeTextElement.style.opacity = '1';
+                resolve();
+            }, 500); // Wait for half a second before fading in
+        });
+    };
+
+    // Function to create and slide up panels for each section
+    const createPanels = (sections) => {
+        panelsContainer.innerHTML = '';
+        const panelData = [
+            { text: "High School", link: "High School" },
+            { text: "Matric", link: "Matric" },
+            { text: "University", link: "University" },
+            { text: "Internships", link: "Internships" },
+            { text: "Graduate Programmes", link: "Graduate Programmes" },
+            { text: "Skills and Training", link: "Skills and Training" },
+            { text: "How do I adult?", link: "How do I adult?" }
+        ];
+
+        panelsContainer.style.opacity = '1';
+
+        panelData.forEach((item, index) => {
+            const panel = document.createElement('a');
+            panel.href = `#${item.link.replace(/\s+/g, '-').toLowerCase()}`;
+            panel.className = 'panel flex-1 bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 hover:border-orange-500 hover:text-orange-500 transition-colors duration-300';
+            panel.innerHTML = `<h2 class="text-2xl font-semibold mb-2 text-center">${item.text}</h2><p class="text-gray-400 text-center">Explore resources for ${item.text.toLowerCase()}.</p>`;
+            panelsContainer.appendChild(panel);
+            
+            // Add click listener to handle SPA-like navigation
+            panel.addEventListener('click', (e) => {
+                e.preventDefault();
+                showSection(item.link);
+                history.pushState({ section: item.link }, '', panel.href);
+            });
+            // Trigger the animation for each panel with a staggered delay
+            setTimeout(() => {
+                panel.classList.add('panel-visible');
+            }, 100 + (index * 200));
+        });
+    };
+    
+
+    // Function to display the content for a specific section
+    const showSection = (sectionName) => {
+        panelsContainer.style.display = 'none';
+        welcomeTextElement.style.display = 'none';
+        contentSection.style.display = 'block';
+        
+        sectionTitleElement.textContent = sectionName;
+        linkContainer.innerHTML = '';
+        
+        const sectionContent = allReadmeContent[sectionName] || { links: [] };
+        
+        if (sectionContent.links.length > 0) {
+            sectionContent.links.forEach((link, index) => {
+                const iframeWrapper = document.createElement('div');
+                iframeWrapper.className = 'iframe-container';
+
+                const linkTitle = document.createElement('h3');
+                linkTitle.className = 'text-lg font-medium text-orange-400 mb-2 truncate';
+                linkTitle.textContent = link.text;
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = link.url;
+                iframe.setAttribute('allowfullscreen', 'true');
+                iframe.setAttribute('loading', 'lazy');
+                iframe.title = link.text;
+
+                iframeWrapper.appendChild(linkTitle);
+                iframeWrapper.appendChild(iframe);
+                linkContainer.appendChild(iframeWrapper);
+                
+                setTimeout(() => {
+                    iframeWrapper.classList.add('visible');
+                }, index * 100);
+            });
+        } else {
+            linkContainer.innerHTML = `<p class="text-center text-gray-400">No resources found for this section yet.</p>`;
+        }
+    };
+
+    // Function to show the home page
+    const showHomePage = () => {
+        welcomeTextElement.style.display = 'block';
+        panelsContainer.style.display = 'flex';
+        contentSection.style.display = 'none';
+        history.pushState({}, '', '/');
+    };
+
+    // Handle back button clicks
+    backButton.addEventListener('click', showHomePage);
+
+    // Handle browser history navigation (back/forward buttons)
+    window.addEventListener('popstate', (event) => {
+        if (event.state && event.state.section) {
+            showSection(event.state.section);
+        } else {
+            showHomePage();
+        }
+    });
+
+    // Main initialization function
+    const init = async () => {
+        try {
+            const response = await fetch(README_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const markdownText = await response.text();
+            allReadmeContent = parseReadme(markdownText);
+            
+            await fadeInWelcomeText('Mzantsi Vibes');
+            createPanels(allReadmeContent);
+        } catch (error) {
+            console.error('Error initializing application:', error);
+            welcomeTextElement.textContent = 'Failed to load content. Please check the console for details.';
+            welcomeTextElement.style.opacity = '1';
+        }
+    };
+    
+    // Start the application
+    init();
+
+});
+    </script>
 
 </body>
 </html>
