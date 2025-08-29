@@ -1,118 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mzantsi Vibes</title>
-    <!-- Use Tailwind CSS for rapid and responsive styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Link to our custom stylesheet -->
-    <style>
-        /* Custom CSS for the typing effect and panel animation */
-
-/* Import a custom font to override Tailwind's default */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-
-body {
-    font-family: 'Inter', sans-serif;
-}
-
-/* Typing effect styles */
-.typing-text-container {
-    border-right: .15em solid orange;
-    white-space: nowrap;
-    overflow: hidden;
-    letter-spacing: .15em;
-    animation: 
-        typing 3.5s steps(40, end),
-        blink-caret .75s step-end infinite;
-}
-
-/* The typing animation */
-@keyframes typing {
-    from { width: 0 }
-    to { width: 100% }
-}
-
-/* The blinking cursor animation */
-@keyframes blink-caret {
-    from, to { border-color: transparent }
-    50% { border-color: orange; }
-}
-
-/* Panel animation styles */
-.panel {
-    transform: translateY(100%);
-    opacity: 0;
-    transition: transform 0.8s ease-out, opacity 0.8s ease-out;
-    cursor: pointer;
-}
-
-/* State for when the panel should be visible */
-.panel-visible {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-/* Hover effect for panels */
-.panel:hover {
-    transform: scale(1.05);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-}
-
-/* Styles for the dynamically added iframes */
-.iframe-container {
-    border: 1px solid #374151; /* gray-700 */
-    border-radius: 0.75rem; /* rounded-xl */
-    overflow: hidden;
-    padding: 0.5rem; /* p-2 */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    background-color: #1f2937; /* gray-800 */
-    transform: translateY(100%);
-    opacity: 0;
-    transition: transform 0.8s ease-out, opacity 0.8s ease-out;
-}
-
-.iframe-container.visible {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-.iframe-container iframe {
-    width: 100%;
-    height: 300px;
-    border: none;
-    border-radius: 0.5rem;
-}
-
-    </style>
-    <!-- Use Marked.js for converting Markdown to HTML -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4">
-
-    <!-- The welcome text container -->
-    <h1 id="welcomeText" class="text-4xl sm:text-5xl md:text-6xl font-bold mb-16"></h1>
-
-    <!-- The container for the main panels -->
-    <div id="panelsContainer" class="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-8 w-full max-w-4xl opacity-0 transition-opacity duration-1000">
-        <!-- Panels will be dynamically inserted here by JavaScript -->
-    </div>
-
-    <!-- Container for section content when a panel is clicked -->
-    <div id="contentSection" class="w-full max-w-4xl mt-16 p-4 md:p-8 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 hidden">
-        <button id="backButton" class="text-orange-500 font-bold mb-4 hover:underline">&larr; Back to Home</button>
-        <h2 id="sectionTitle" class="text-3xl sm:text-4xl font-bold mb-8"></h2>
-        <div id="linkContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Dynamically created iframes will be inserted here -->
-        </div>
-    </div>
-    
-    <!-- Link our main JavaScript file -->
-    <script>
-   
-    document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
     // DOM elements
     const welcomeTextElement = document.getElementById('welcomeText');
     const panelsContainer = document.getElementById('panelsContainer');
@@ -131,61 +17,75 @@ body {
 
     // Function to parse Markdown to get the index and content
     const parseReadme = (markdown) => {
+        // Use a simple, custom parser to get the sections
         const sections = {};
         const lines = markdown.split('\n');
         let currentSection = null;
         let links = [];
 
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
-
-            // This new logic correctly identifies main sections.
-            if (nextLine.startsWith('---')) {
-                // If we have a previous section, save it first
+        for (const line of lines) {
+            // Find the main section headings (e.g., "High School", "Matric")
+            if (line.trim().startsWith('---')) {
+                // A common pattern for horizontal rules, we can use this to end a section
                 if (currentSection) {
                     sections[currentSection] = { links: links };
                 }
-                // The current line is a new section heading
-                currentSection = line;
+                currentSection = null;
                 links = [];
-                // Skip the next line which is the `---` separator
-                i++;
-            } else if (line.startsWith('*') && line.includes('http')) {
-                // Now, only if we are in a valid section, we look for links.
+            } else if (line.trim().startsWith('###')) {
+                // Ignore subheadings
+            } else if (line.trim().endsWith('---')) {
+                const heading = line.replace('---', '').trim();
+                // This pattern seems to be the one we need for the main headings
                 if (currentSection) {
-                    const match = line.match(/\[(.*?)\]\((.*?)\)/);
-                    if (match) {
-                        const text = match[1];
-                        const url = match[2];
+                    sections[currentSection] = { links: links };
+                }
+                currentSection = heading;
+                links = [];
+            } else if (line.trim().startsWith('*') && line.includes('http')) {
+                // Find all list items that contain links
+                const match = line.match(/\[(.*?)\]\((.*?)\)/);
+                if (match) {
+                    const text = match[1];
+                    const url = match[2];
+                    if (currentSection) {
                         links.push({ text, url });
                     }
                 }
             }
         }
-        // Add the very last section after the loop finishes.
+        // Add the last section
         if (currentSection) {
             sections[currentSection] = { links: links };
         }
-
         return sections;
     };
 
 
-    // Function to trigger the welcome text fade-in
-    const fadeInWelcomeText = (text) => {
-        welcomeTextElement.textContent = text;
+    // Function to type out the welcome text
+    const typeWriter = (text) => {
+        let i = 0;
+        welcomeTextElement.textContent = ''; // Clear content first
+        welcomeTextElement.classList.add('typing-text-container');
         return new Promise(resolve => {
-            setTimeout(() => {
-                welcomeTextElement.style.opacity = '1';
-                resolve();
-            }, 500); // Wait for half a second before fading in
+            function type() {
+                if (i < text.length) {
+                    welcomeTextElement.textContent += text.charAt(i);
+                    i++;
+                    setTimeout(type, 100); // Adjust typing speed here
+                } else {
+                    welcomeTextElement.classList.remove('typing-text-container');
+                    welcomeTextElement.style.borderRight = 'none';
+                    resolve();
+                }
+            }
+            type();
         });
     };
 
     // Function to create and slide up panels for each section
     const createPanels = (sections) => {
-        panelsContainer.innerHTML = '';
+        panelsContainer.innerHTML = ''; // Clear any existing panels
         const panelData = [
             { text: "High School", link: "High School" },
             { text: "Matric", link: "Matric" },
@@ -193,9 +93,12 @@ body {
             { text: "Internships", link: "Internships" },
             { text: "Graduate Programmes", link: "Graduate Programmes" },
             { text: "Skills and Training", link: "Skills and Training" },
-            { text: "How do I adult?", link: "How do I adult?" }
+            { text: "How do I adult?", link: "How do I adult?" },
+            { text: "Community", link: "Community" },
+            { text: "Contact Us", link: "Contact Us" }
         ];
 
+        // Ensure the panelsContainer is visible
         panelsContainer.style.opacity = '1';
 
         panelData.forEach((item, index) => {
@@ -203,6 +106,7 @@ body {
             panel.href = `#${item.link.replace(/\s+/g, '-').toLowerCase()}`;
             panel.className = 'panel flex-1 bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 hover:border-orange-500 hover:text-orange-500 transition-colors duration-300';
             panel.innerHTML = `<h2 class="text-2xl font-semibold mb-2 text-center">${item.text}</h2><p class="text-gray-400 text-center">Explore resources for ${item.text.toLowerCase()}.</p>`;
+            panel.style.transitionDelay = `${index * 50}ms`; // Stagger the animation
             panelsContainer.appendChild(panel);
             
             // Add click listener to handle SPA-like navigation
@@ -211,10 +115,10 @@ body {
                 showSection(item.link);
                 history.pushState({ section: item.link }, '', panel.href);
             });
-            // Trigger the animation for each panel with a staggered delay
+            // Trigger the animation for each panel
             setTimeout(() => {
                 panel.classList.add('panel-visible');
-            }, 100 + (index * 200));
+            }, index * 200);
         });
     };
     
@@ -230,6 +134,7 @@ body {
         
         const sectionContent = allReadmeContent[sectionName] || { links: [] };
         
+        // Create an iframe for each link in the section
         if (sectionContent.links.length > 0) {
             sectionContent.links.forEach((link, index) => {
                 const iframeWrapper = document.createElement('div');
@@ -249,6 +154,7 @@ body {
                 iframeWrapper.appendChild(iframe);
                 linkContainer.appendChild(iframeWrapper);
                 
+                // Trigger staggered animation for iframes
                 setTimeout(() => {
                     iframeWrapper.classList.add('visible');
                 }, index * 100);
@@ -288,12 +194,12 @@ body {
             const markdownText = await response.text();
             allReadmeContent = parseReadme(markdownText);
             
-            await fadeInWelcomeText('Mzantsi Vibes');
-            createPanels(allReadmeContent);
+            await typeWriter('Mzantsi Vibes'); // Start the typing animation
+            createPanels(allReadmeContent); // Create the panels after typing is done
         } catch (error) {
             console.error('Error initializing application:', error);
             welcomeTextElement.textContent = 'Failed to load content. Please check the console for details.';
-            welcomeTextElement.style.opacity = '1';
+            welcomeTextElement.classList.remove('typing-text-container');
         }
     };
     
@@ -301,7 +207,3 @@ body {
     init();
 
 });
-    </script>
-
-</body>
-</html>
