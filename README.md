@@ -143,7 +143,7 @@ Graduate Programmes
 
   
 
-<h2 id="mental">Mental Health 101</h2>
+<h2 id="mental_health">Mental Health 101</h2>
 -----------------
 
 *   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) - Youtube Playlist
