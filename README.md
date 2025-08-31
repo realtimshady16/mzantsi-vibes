@@ -135,7 +135,6 @@ Graduate Programmes
 *   [Writing a Good CV](https://youtu.be/AEbvoIQHOXw?si=C-QpMjQn3Z-oEw2I) - Students for a Better Future
 
 <h2 id="adult">How do I adult?</h2>
----------------
 
 *   [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
 *   [How do I submit a tax return for SARS efiling](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
@@ -144,14 +143,12 @@ Graduate Programmes
   
 
 <h2 id="mental_health">Mental Health 101</h2>
------------------
 
 *   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) - Youtube Playlist
 
   
 
 <h2 id="healthy">Being Healthy 101</h2>
------------------
 
 *   [Working Out at Home](https://www.youtube.com/playlist?list=PLbpi6ZahtOH4OqtS9rvYW_jf-agPEMEsP)
 
