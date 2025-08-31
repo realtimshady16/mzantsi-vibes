@@ -95,10 +95,10 @@ Internships
 *   [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
 *   [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
 
-**Graduate Programmes**
+Graduate Programmes
 -----------------------
 
-Skills and Training
+<h2 id="training">Skills and Training</h2>
 -------------------
 
 ### Coding
@@ -134,7 +134,7 @@ Skills and Training
 *   [Speaking with Power](https://youtu.be/Unzc731iCUY?si=ax3k10qM0bm0TVPS) - MIT OpenCourseWare
 *   [Writing a Good CV](https://youtu.be/AEbvoIQHOXw?si=C-QpMjQn3Z-oEw2I) - Students for a Better Future
 
-How do I adult?
+<h2 id="adult">How do I adult?</h2>
 ---------------
 
 *   [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
@@ -143,14 +143,14 @@ How do I adult?
 
   
 
-Mental Health 101
+<h2 id="mental">Mental Health 101</h2>
 -----------------
 
 *   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) - Youtube Playlist
 
   
 
-Being Healthy 101
+<h2 id="healthy">Being Healthy 101</h2>
 -----------------
 
 *   [Working Out at Home](https://www.youtube.com/playlist?list=PLbpi6ZahtOH4OqtS9rvYW_jf-agPEMEsP)
