@@ -25,6 +25,10 @@ INDEX
 
 [How do I adult?](#adult)
 
+[Mental Health 101](#mental_health)
+
+[Being Healthy 101](#healthy)
+
   
 
 High School
