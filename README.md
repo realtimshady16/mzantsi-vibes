@@ -29,6 +29,12 @@ INDEX
 
 [Being Healthy 101](#healthy)
 
+Books
+
+Book Summaries
+
+TED Talks and Other Speeches
+
   
 
 High School
@@ -86,8 +92,8 @@ University
 
 ### Textbooks
 
-*     
-    
+*   [OpenLibrary](https://openlibrary.org/subjects/textbooks)
+*   [OpenEdu](https://open.umn.edu/opentextbooks)
 
 Internships
 -----------
@@ -96,9 +102,9 @@ Internships
 *   [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
 
 Graduate Programmes
------------------------
+-------------------
 
-<h2 id="training">Skills and Training</h2>
+Skills and Training
 -------------------
 
 ### Coding
@@ -134,23 +140,49 @@ Graduate Programmes
 *   [Speaking with Power](https://youtu.be/Unzc731iCUY?si=ax3k10qM0bm0TVPS) - MIT OpenCourseWare
 *   [Writing a Good CV](https://youtu.be/AEbvoIQHOXw?si=C-QpMjQn3Z-oEw2I) - Students for a Better Future
 
-<h2 id="adult">How do I adult?</h2>
+How do I adult?
+---------------
 
 *   [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
 *   [How do I submit a tax return for SARS efiling](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
 *   [Investing for South Africans using EasyEquities](https://youtu.be/luh3jEqy4HI?si=dczWk3LISPvCbTKv)
 
-  
-
-<h2 id="mental_health">Mental Health 101</h2>
+Mental Health 101
+-----------------
 
 *   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) - Youtube Playlist
 
-  
-
-<h2 id="healthy">Being Healthy 101</h2>
+Being Healthy 101
+-----------------
 
 *   [Working Out at Home](https://www.youtube.com/playlist?list=PLbpi6ZahtOH4OqtS9rvYW_jf-agPEMEsP)
+
+  
+
+Books
+-----
+
+  
+
+Book Summaries
+--------------
+
+*   [The Subtle Art of Not Giving a F\*ck](https://youtu.be/lz8sUiXAnbs?si=P886_YGBRrDj32QQ)
+*   [How to Win Friends and Influence People](https://youtu.be/Xo2Q4PQqqWU?si=vjthkL6YCmrVOD6Y)
+*   [Deep Work](https://youtu.be/xJYlhhT7hyE?si=fsBDrQVuDIv3R8lz)
+
+TED Talks and Other Speeches
+----------------------------
+
+*   [Extreme Ownership by Jocko Willink](https://youtu.be/ljqra3BcqWM?si=k85ss4qBjXqNMjTY), former US Navy on taking responsibility
+*   [Never Split the Difference by Chris Voss](https://youtu.be/MjhDkNmtjy0?si=xVoCH4w0VuXIEZPe), former FBI Hostage Negotiator
+*   [Inside the Mind of a Master Procrastinator by Tim Urban](https://youtu.be/arj7oStGLkU?si=pUQPmT-Zy0raB_z5)
+*   [How to Spot Fake AI Photos by Hany Farid](https://youtu.be/q5_PrTvNypY?si=B7TIOcBGg-WshxF2)
+*   [How to Spot a Liar by Pamela Meyer](https://youtu.be/P_6vDLq64gE?si=Zkcfl_D3e7z88nzS)
+*   [How to Speak So That People Want to Listen](https://youtu.be/eIho2S0ZahI?si=SLbm7Skl9pDW6UhB) by Julian Treasure
+*   [7 Ways to Make a Conversation with Anyone](https://youtu.be/F4Zu5ZZAG7I?si=xfTFr6pJ-OKCtkcb) by Malavika Varadan
+*   [How to stop screwing yourself over by Mel Robbins](https://youtu.be/Lp7E973zozc?si=DpcygzjBElf2ogv5)
+*   [How to draw with Graham Shaw](https://youtu.be/7TXEZ4tP06c?si=0xyIIwhhr3tHNW4p)
 
   
 
