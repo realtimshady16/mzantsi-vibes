@@ -151,18 +151,17 @@ Mental Health 101
 -----------------
 
 *   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) - Youtube Playlist
+*   [Writing anxieties away with Liz Filips](https://youtu.be/ALfGh3-4JUo?si=l9lH9nLJ3IJ2zBbe)
+*   [Mental hygiene routine](https://youtu.be/JSOJDVugIQ0?si=9e9YelkLnKUQKvS2)
+*   [Journaling with Andrew Huberman](https://youtu.be/wAZn9dF3XTo?si=zg6b9hvOdWSPbn9-)
 
 Being Healthy 101
 -----------------
 
 *   [Working Out at Home](https://www.youtube.com/playlist?list=PLbpi6ZahtOH4OqtS9rvYW_jf-agPEMEsP)
 
-  
-
 Books
 -----
-
-  
 
 Book Summaries
 --------------
@@ -170,6 +169,8 @@ Book Summaries
 *   [The Subtle Art of Not Giving a F\*ck](https://youtu.be/lz8sUiXAnbs?si=P886_YGBRrDj32QQ)
 *   [How to Win Friends and Influence People](https://youtu.be/Xo2Q4PQqqWU?si=vjthkL6YCmrVOD6Y)
 *   [Deep Work](https://youtu.be/xJYlhhT7hyE?si=fsBDrQVuDIv3R8lz)
+*   [Atomic Habits](https://youtu.be/PZ7lDrwYdZc?si=TsOPxuSr1JmWbGtJ)
+*   [48 Laws of Power](https://youtu.be/Su36tpkuo1I?si=8T-ag8FIEuCLuCNS )
 
 TED Talks and Other Speeches
 ----------------------------
@@ -183,8 +184,9 @@ TED Talks and Other Speeches
 *   [7 Ways to Make a Conversation with Anyone](https://youtu.be/F4Zu5ZZAG7I?si=xfTFr6pJ-OKCtkcb) by Malavika Varadan
 *   [How to stop screwing yourself over by Mel Robbins](https://youtu.be/Lp7E973zozc?si=DpcygzjBElf2ogv5)
 *   [How to draw with Graham Shaw](https://youtu.be/7TXEZ4tP06c?si=0xyIIwhhr3tHNW4p)
-
-  
+*   [Making a profit and making a difference](https://youtu.be/y7l5QHRY_AI?si=CSUna1GGAUB7mD73) by Audrey Choi
+*   [Creative thinking - how to get out of the box and generate ideas](https://youtu.be/bEusrD8g-dM?si=hCOT12bE6YSOefir)
+*   [How to protect your brain from stress](https://youtu.be/Nz9eAaXRzGg?si=XSROHHKpyVGA034i) - Niki Korteweg
 
 Community
 ---------
