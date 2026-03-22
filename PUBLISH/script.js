@@ -17,49 +17,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to parse Markdown to get the index and content
     const parseReadme = (markdown) => {
-        // Use a simple, custom parser to get the sections
-        const sections = {};
-        const lines = markdown.split('\n');
-        let currentSection = null;
-        let links = [];
+    const sections = {};
+    // Split by lines but keep track of the full text for regex
+    const lines = markdown.split('\n');
+    
+    // Regex to match:
+    // 1. ATX Headers: ### Heading
+    // 2. Setext Headers: Heading followed by --- or ===
+    let currentSection = null;
 
-        for (const line of lines) {
-            // Find the main section headings (e.g., "High School", "Matric")
-            if (line.trim().startsWith('---')) {
-                // A common pattern for horizontal rules, we can use this to end a section
-                if (currentSection) {
-                    sections[currentSection] = { links: links };
-                }
-                currentSection = null;
-                links = [];
-            } else if (line.trim().startsWith('###')) {
-                // Ignore subheadings
-            } else if (line.trim().endsWith('---')) {
-                const heading = line.replace('---', '').trim();
-                // This pattern seems to be the one we need for the main headings
-                if (currentSection) {
-                    sections[currentSection] = { links: links };
-                }
-                currentSection = heading;
-                links = [];
-            } else if (line.trim().startsWith('*') && line.includes('http')) {
-                // Find all list items that contain links
-                const match = line.match(/\[(.*?)\]\((.*?)\)/);
-                if (match) {
-                    const text = match[1];
-                    const url = match[2];
-                    if (currentSection) {
-                        links.push({ text, url });
-                    }
-                }
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+        
+        let foundHeader = null;
+
+        // Check for ATX style (### Heading)
+        if (line.startsWith('#')) {
+            foundHeader = line.replace(/^#+\s*/, '');
+        } 
+        // Check for Setext style (Underlined)
+        else if (nextLine.startsWith('---') || nextLine.startsWith('===')) {
+            if (line.length > 0) {
+                foundHeader = line;
+                i++; // Skip the underline line
             }
         }
-        // Add the last section
-        if (currentSection) {
-            sections[currentSection] = { links: links };
+
+        if (foundHeader) {
+            // Clean up header name (remove links if they exist in the header)
+            currentSection = foundHeader.replace(/\[(.*?)\]\(.*?\)/g, '$1').trim();
+            // Don't overwrite if section already exists, just prepare to add links
+            if (!sections[currentSection]) {
+                sections[currentSection] = { links: [] };
+            }
+            continue;
         }
-        return sections;
-    };
+
+        // Identify links: [Text](URL)
+        if (currentSection && line.includes('http')) {
+            const linkMatch = line.match(/\[(.*?)\]\((.*?)\)/);
+            if (linkMatch) {
+                sections[currentSection].links.push({
+                    text: linkMatch[1],
+                    url: linkMatch[2]
+                });
+            }
+        }
+    }
+
+    // Filter out empty sections like "Description" or "Index" to keep the UI clean
+    const filteredSections = {};
+    const ignoreList = ['INDEX', 'Description', 'MZANTSI VIBES', 'Contact Us', 'Community'];
+    
+    for (const key in sections) {
+        if (!ignoreList.includes(key) && sections[key].links.length > 0) {
+            filteredSections[key] = sections[key];
+        }
+    }
+
+    return filteredSections;
+};
 
 
     // Function to type out the welcome text
@@ -83,44 +101,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Function to create and slide up panels for each section
     const createPanels = (sections) => {
-        panelsContainer.innerHTML = ''; // Clear any existing panels
-        const panelData = [
-            { text: "High School", link: "High School" },
-            { text: "Matric", link: "Matric" },
-            { text: "University", link: "University" },
-            { text: "Internships", link: "Internships" },
-            { text: "Graduate Programmes", link: "Graduate Programmes" },
-            { text: "Skills and Training", link: "Skills and Training" },
-            { text: "How do I adult?", link: "How do I adult?" },
-            { text: "Community", link: "Community" },
-            { text: "Contact Us", link: "Contact Us" }
-        ];
+    panelsContainer.innerHTML = '';
+    const sectionNames = Object.keys(sections);
 
-        // Ensure the panelsContainer is visible
-        panelsContainer.style.opacity = '1';
+    // Update CSS to allow wrapping so the UI doesn't break with many sections
+    panelsContainer.classList.add('flex-wrap', 'justify-center', 'gap-6');
+    panelsContainer.style.opacity = '1';
 
-        panelData.forEach((item, index) => {
-            const panel = document.createElement('a');
-            panel.href = `#${item.link.replace(/\s+/g, '-').toLowerCase()}`;
-            panel.className = 'panel flex-1 bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 hover:border-orange-500 hover:text-orange-500 transition-colors duration-300';
-            panel.innerHTML = `<h2 class="text-2xl font-semibold mb-2 text-center">${item.text}</h2><p class="text-gray-400 text-center">Explore resources for ${item.text.toLowerCase()}.</p>`;
-            panel.style.transitionDelay = `${index * 50}ms`; // Stagger the animation
-            panelsContainer.appendChild(panel);
-            
-            // Add click listener to handle SPA-like navigation
-            panel.addEventListener('click', (e) => {
-                e.preventDefault();
-                showSection(item.link);
-                history.pushState({ section: item.link }, '', panel.href);
-            });
-            // Trigger the animation for each panel
-            setTimeout(() => {
-                panel.classList.add('panel-visible');
-            }, index * 200);
+    sectionNames.forEach((name, index) => {
+        const panel = document.createElement('a');
+        panel.href = `#${name.replace(/\s+/g, '-').toLowerCase()}`;
+        // Standardize panel size for a clean grid
+        panel.className = 'panel w-full sm:w-64 bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700 hover:border-orange-500 hover:text-orange-500 transition-all duration-300';
+        
+        panel.innerHTML = `
+            <h2 class="text-xl font-bold mb-2 text-center">${name}</h2>
+            <p class="text-gray-400 text-sm text-center">View ${sections[name].links.length} resources</p>
+        `;
+
+        panel.addEventListener('click', (e) => {
+            e.preventDefault();
+            showSection(name);
+            history.pushState({ section: name }, '', panel.href);
         });
-    };
+
+        panelsContainer.appendChild(panel);
+
+        setTimeout(() => {
+            panel.classList.add('panel-visible');
+        }, index * 100);
+    });
+};
     
 
     // Function to display the content for a specific section
