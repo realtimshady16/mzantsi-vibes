@@ -22,6 +22,10 @@ const CONTENT = {
 
   /* ---- HEADER ---- */
   header: {
+    tasksLabel: 'Tasks',
+    tasksUrl: '/tasks',
+    allStarsLabel: 'All Stars',
+    allStarsUrl: '/allstars',
     githubLabel: 'GitHub',
     contributeLabel: 'Contribute',
     contributeUrl: '/contribute',
@@ -170,6 +174,10 @@ function populateContent() {
   document.querySelectorAll('[data-content="site.flag"]').forEach(el => el.textContent = c.site.flag);
 
   /* Header */
+  set('header-tasks-label', c.header.tasksLabel);
+  attr('header-tasks-link', 'href', c.header.tasksUrl);
+  set('header-allstars-label', c.header.allStarsLabel);
+  attr('header-allstars-link', 'href', c.header.allStarsUrl);
   set('header-github-label', c.header.githubLabel);
   set('header-contribute-label', c.header.contributeLabel);
   attr('header-contribute-link', 'href', c.header.contributeUrl);

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tasks — Mzantsi Vibes</title>
+  <meta name="description" content="Open tasks for Mzantsi Vibes. Pick something up and contribute." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span>🇿🇦</span>
+        <span>Mzantsi Vibes</span>
+      </a>
+      <nav class="header-links">
+        <a href="/">Back to site</a>
+        <a href="/contribute">Contribute</a>
+        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-eyebrow">Open source · All welcome</p>
+      <h1 class="hero-title">Things that<br /><em>need doing.</em></h1>
+      <p class="hero-sub">Pick up a task, make a contribution, reference the task number in your PR. No experience needed for most of these.</p>
+    </div>
+  </section>
+
+  <main class="main-content">
+    <div class="container">
+
+      <!-- FILTERS -->
+      <div class="filters">
+        <div class="filter-group">
+          <span class="filter-label">Status</span>
+          <div class="filter-pills" id="status-filters">
+            <button class="filter-pill active" data-filter="status" data-value="all" onclick="applyFilter(this)">All</button>
+            <button class="filter-pill" data-filter="status" data-value="needs-doing" onclick="applyFilter(this)">🔴 Needs doing</button>
+            <button class="filter-pill" data-filter="status" data-value="in-progress" onclick="applyFilter(this)">🟡 In progress</button>
+            <button class="filter-pill" data-filter="status" data-value="done" onclick="applyFilter(this)">🟢 Done</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Difficulty</span>
+          <div class="filter-pills">
+            <button class="filter-pill active" data-filter="difficulty" data-value="all" onclick="applyFilter(this)">All</button>
+            <button class="filter-pill" data-filter="difficulty" data-value="easy" onclick="applyFilter(this)">Easy</button>
+            <button class="filter-pill" data-filter="difficulty" data-value="medium" onclick="applyFilter(this)">Medium</button>
+            <button class="filter-pill" data-filter="difficulty" data-value="hard" onclick="applyFilter(this)">Hard</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <div class="filter-pills">
+            <button class="filter-pill active" data-filter="type" data-value="all" onclick="applyFilter(this)">All</button>
+            <button class="filter-pill" data-filter="type" data-value="content" onclick="applyFilter(this)">Content</button>
+            <button class="filter-pill" data-filter="type" data-value="translation" onclick="applyFilter(this)">Translation</button>
+            <button class="filter-pill" data-filter="type" data-value="code" onclick="applyFilter(this)">Code</button>
+            <button class="filter-pill" data-filter="type" data-value="design" onclick="applyFilter(this)">Design</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TASK COUNT -->
+      <p class="task-count" id="task-count"></p>
+
+      <!-- LOADING -->
+      <div id="loading-state" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading tasks...</p>
+      </div>
+
+      <!-- ERROR -->
+      <div id="error-state" class="error-state hidden">
+        <p>⚠️ Couldn't load tasks. <a href="https://github.com/realtimshady16/mzantsi-vibes/blob/main/TASKS.md" target="_blank">View them on GitHub instead</a>.</p>
+      </div>
+
+      <!-- TASKS LIST -->
+      <div id="tasks-container"></div>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span>🇿🇦</span>
+        <span>Mzantsi Vibes</span>
+      </div>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
+      </div>
+      <p class="footer-note">MIT licensed. Free forever.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

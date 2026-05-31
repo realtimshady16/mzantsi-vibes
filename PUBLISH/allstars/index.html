@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>All Stars — Mzantsi Vibes</title>
+  <meta name="description" content="The people who help make Mzantsi Vibes what it is." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span>🇿🇦</span>
+        <span>Mzantsi Vibes</span>
+      </a>
+      <nav class="header-links">
+        <a href="/">Back to site</a>
+        <a href="/contribute">Contribute</a>
+        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-eyebrow">The people behind the project</p>
+      <h1 class="hero-title">All Stars ⭐</h1>
+      <p class="hero-sub">Everyone who has contributed to Mzantsi Vibes — through code, content, translation, or community. This project exists because of people like these.</p>
+    </div>
+  </section>
+
+  <main class="main-content">
+    <div class="container">
+
+      <!-- GITHUB CONTRIBUTORS -->
+      <section class="contributors-section">
+        <h2 class="section-heading">GitHub Contributors</h2>
+        <p class="section-sub">People who have had code or content merged into the project.</p>
+
+        <div id="github-loading" class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading contributors...</p>
+        </div>
+        <div id="github-error" class="error-state hidden">
+          <p>⚠️ Couldn't load GitHub contributors. <a href="https://github.com/realtimshady16/mzantsi-vibes/graphs/contributors" target="_blank">View on GitHub instead</a>.</p>
+        </div>
+        <div id="github-contributors" class="contributor-grid"></div>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- COMMUNITY CONTRIBUTORS -->
+      <section class="contributors-section">
+        <h2 class="section-heading">Community Contributors</h2>
+        <p class="section-sub">People who have contributed in ways that don't show up in git history — research, outreach, translation, moral support.</p>
+
+        <div id="community-loading" class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading...</p>
+        </div>
+        <div id="community-error" class="error-state hidden">
+          <p>⚠️ Couldn't load community contributors. <a href="https://github.com/realtimshady16/mzantsi-vibes/blob/main/ALL-STARS.md" target="_blank">View on GitHub instead</a>.</p>
+        </div>
+        <div id="community-contributors"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span>🇿🇦</span>
+        <span>Mzantsi Vibes</span>
+      </div>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
+      </div>
+      <p class="footer-note">MIT licensed. Free forever.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
