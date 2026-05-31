@@ -1,202 +1,210 @@
-MZANTSI VIBES
-=============
+# MZANTSI VIBES 🇿🇦
 
-Description
------------
+A survival guide for South African youth navigating the years after matric that nobody prepares you for — whether you're going to study, going to work, or still figuring it out.
 
-The purpose of the repo is to make resources such as website links, documents, video links and text-based resources accessible to South African youth.
+Most resources online assume you have fast internet, a credit card, and grew up in America. This one doesn't.
 
-  
+---
 
-INDEX
-=====
+## Where are you right now?
 
-[High School](#high_school)
+- [🎓 I'm going to study](#-im-going-to-study)
+- [💼 I'm going to work](#-im-going-to-work)
+- [🤷 I don't know yet](#-i-dont-know-yet)
+- [📋 For everyone](#-for-everyone)
 
-[Matric](#matric)
+---
 
-[University](#university)
+## 🎓 I'm Going to Study
 
-[Internships](#internships)
+### Before You Apply
 
-[Graduate Programmes](#grad_programmes)
+- [NBT (National Benchmark Tests)](https://www.nbt.ac.za/) — Tests that assess whether you're ready for university/higher education. Most universities require these alongside your matric results.
+- [NSFAS](https://my.nsfas.org.za/) — Financial aid for students who can't afford higher education fees. Apply as early as possible.
+- [Siyavula](https://www.siyavula.com/) — Free study materials for Maths and Science to help you prepare.
 
-[Skills and Training](#training)
+### Paying for It
 
-[How do I adult?](#adult)
+- [NSFAS](https://my.nsfas.org.za/) — If you qualify, NSFAS covers tuition, accommodation, and a living allowance.
+- [More Bursaries](https://www.zabursaries.co.za/) — A broad database of bursaries across all fields of study.
+- Commerce Bursaries — *coming soon*
+- Engineering Bursaries — *coming soon*
+- Science Bursaries — *coming soon*
+- Health Sciences Bursaries — *coming soon*
+- Humanities Bursaries — *coming soon*
+- Law Bursaries — *coming soon*
 
-[Mental Health 101](#mental_health)
+### Getting There
 
-[Being Healthy 101](#healthy)
+- Commerce Faculty — *coming soon*
+- Engineering Faculty — *coming soon*
+- Science Faculty — *coming soon*
+- Health Sciences Faculty — *coming soon*
+- Humanities Faculty — *coming soon*
+- Law Faculty — *coming soon*
 
-Books
+### While You're There
 
-Book Summaries
+- [OpenLibrary](https://openlibrary.org/subjects/textbooks) — Free textbooks online.
+- [OpenEdu](https://open.umn.edu/opentextbooks) — More free open-access textbooks.
 
-TED Talks and Other Speeches
+### After Your Degree
 
-  
+- [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
+- [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
 
-High School
------------
+---
 
-### Grade 10
+## 💼 I'm Going to Work
 
-*   coming soon
+### Getting Work-Ready
 
-### Grade 11
+**CV and Professional Skills**
+- [Writing a Good CV](https://youtu.be/AEbvoIQHOXw?si=C-QpMjQn3Z-oEw2I) — Students for a Better Future
+- [Sales Training with Alex Hormozi](https://youtu.be/NcD2t9qt-fM?si=nfQ_V-ghCTtVVQYO)
+- [Speaking with Power](https://youtu.be/Unzc731iCUY?si=ax3k10qM0bm0TVPS) — MIT OpenCourseWare
 
-*   coming soon
+**Coding**
+- Learn to code with [FreeCodeCamp](https://www.freecodecamp.org/)
+- Learn to code on [W3Schools](https://www.w3schools.com/)
+- Learn to code with [Boot.dev](https://www.youtube.com/playlist?list=PLw1W1TeNPmy5psU4VrWYVu3j1frw30m9I)
+- Learn to code with [Bro Code](https://www.youtube.com/@BroCodez)
+- [Harvard CS50](https://youtu.be/vzGllw18DkA?si=Sha2l_XbL84zBEYH) for Web Programming
+- [Python Programming](https://youtu.be/nLRL_NcnK-4?si=n-n-e2nVRJtRtIxn) — Harvard CS50
+- [Docker and Kubernetes](https://youtu.be/kTp5xUtcalw?si=_QHM-DLFYW4HGgMI) — FreeCodeCamp
+- Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
+- Guide to [Webflow](https://university.webflow.com/courses/getting-started-with-webflow)
+- Guide to [Bubble](https://build.airdev.co/bootcamp_dashboard)
 
-Matric
-------
+**Design**
+- Guide to [Canva](https://youtu.be/Llnmf5BXLBA?si=6qxv76SEU3pfGfia)
+- Guide to [Figma](https://youtu.be/HoKD1qIcchQ?si=GHdv7tTvHCmmR1BU)
+- [Web Design for Beginners](https://youtu.be/B-ytMSuwbf8?si=jCbuxnSjO-MaAv1H)
+- [Web Design 101](https://youtu.be/j6Ule7GXaRs?si=RRVoyMKX_9iDYgEI) by Flux Academy
 
-*   [NBT](https://www.nbt.ac.za/)
+**Writing**
+- Learn [technical writing](https://youtu.be/vT5pcc30Ffw?si=xfDq5bKKn0D3IoRc)
+- [Generating Ideas for Writing Online](https://youtu.be/iH5V9y82jHE?si=RRhXMNVpoWtcIiir) — Ship 30 for 30
+- [Why you should write online](https://www.youtube.com/watch?v=vyVpRiqOvt4) — Ali Abdaal
+- [Writing Online with Email Newsletters](https://youtu.be/ozWseKZV6Ac?si=Ipxhg8MFdGJ5vjcK) — Ali Abdaal
 
-#### Description
+### Finding Work
 
-National BenchMark Test are for testing whether a matric student is ready for university/higher education.
+- [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
+- [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
+- Learnerships — *coming soon*
+- SETA Programmes — *coming soon*
+- Job Portals — *coming soon*
 
-  
+### Starting Something
 
-*   [NSFAS](https://my.nsfas.org.za/)
+- Registering a Business in SA — *coming soon*
+- Small Business Basics — *coming soon*
 
-#### Description
+### Understanding Your Money
 
-This is a financial aid in South Africa that aid/helps students who cannot afford to pay for higher education fees.
+- [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
+- [How to submit a SARS eFiling tax return](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
+- [Investing for South Africans using EasyEquities](https://youtu.be/luh3jEqy4HI?si=dczWk3LISPvCbTKv)
+- Understanding your payslip — *coming soon*
+- Opening a bank account — *coming soon*
 
-  
+---
 
-*   [Siyavula](https://www.siyavula.com/)
-*   DOCUMENTS
+## 🤷 I Don't Know Yet
 
-University
-----------
+That's okay. Most people won't tell you that "I don't know" is the most honest answer a lot of 18-year-olds have — and it doesn't mean you're behind.
 
-*   Commerce Faculty
-*   Engineering Faculty
-*   Science Faculty
-*   Health Science Faculty
-*   Humanities Faculty
-*   Law Faculty
+This section isn't here to push you in a direction. It's here to make your options visible so you can make your own call.
 
-### Funding
+### Questions to help you decide
 
-*   Commerce Bursaries
-*   Engineering Bursaries
-*   Science Bursaries
-*   Health Science Bursaries
-*   Humanities Bursaries
-*   Law Bursaries
-*   [More Bursaries](https://www.zabursaries.co.za/)
+Start here. Three questions that narrow things down fast:
 
-### Textbooks
+1. **Do you need to earn money soon, or do you have some time?**
+   If you need income in the next few months, studying full-time may not be realistic right now — but learnerships and part-time options might be.
 
-*   [OpenLibrary](https://openlibrary.org/subjects/textbooks)
-*   [OpenEdu](https://open.umn.edu/opentextbooks)
+2. **Do you have your matric certificate?**
+   This opens and closes certain doors. If you don't have it, that doesn't mean you're stuck — but it's worth knowing what it affects.
 
-Internships
------------
+3. **Do you prefer working with people, things, or ideas?**
+   Not a personality test — just a starting point for thinking about what kind of work you'd actually want to show up for.
 
-*   [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
-*   [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
-
-Graduate Programmes
--------------------
-
-Skills and Training
--------------------
-
-### Coding
-
-*   Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
-*   Learn to code with [FreeCodeCamp](https://www.freecodecamp.org/)
-*   Guide to [Webflow](https://university.webflow.com/courses/getting-started-with-webflow)
-*   Guide to [Bubble](https://build.airdev.co/bootcamp_dashboard)
-*   Learn to code on [W3Schools](https://www.w3schools.com/)
-*   Learn to code with [Boot.dev](https://www.youtube.com/playlist?list=PLw1W1TeNPmy5psU4VrWYVu3j1frw30m9I)
-*   [Docker and Kubernetes](https://youtu.be/kTp5xUtcalw?si=_QHM-DLFYW4HGgMI) with FreeCodeCamp
-*   Learn to code with [Bro Code](https://www.youtube.com/@BroCodez)
-*   [Harvard CS50](https://youtu.be/vzGllw18DkA?si=Sha2l_XbL84zBEYH) for Web Programming
-*   [Python Programming](https://youtu.be/nLRL_NcnK-4?si=n-n-e2nVRJtRtIxn) for Harvard CS50
-
-### Writing and Writing Online
-
-*   Learn [technical writing](https://youtu.be/vT5pcc30Ffw?si=xfDq5bKKn0D3IoRc)
-*   [Generating Ideas for Writing Online](https://youtu.be/iH5V9y82jHE?si=RRhXMNVpoWtcIiir) - Ship 30 for 30
-*   [Why you should write online](https://www.youtube.com/watch?v=vyVpRiqOvt4) - Ali Abdaal
-*   [Writing Online with Email Newsletters - Ali Abdaal](https://youtu.be/ozWseKZV6Ac?si=Ipxhg8MFdGJ5vjcK)
-
-### Design
-
-*   Guide to [Canva](https://youtu.be/Llnmf5BXLBA?si=6qxv76SEU3pfGfia)
-*   Guide to [Figma](https://youtu.be/HoKD1qIcchQ?si=GHdv7tTvHCmmR1BU)
-*   [Web Design for Beginners](https://youtu.be/B-ytMSuwbf8?si=jCbuxnSjO-MaAv1H)
-*   [Web Design 101](https://youtu.be/j6Ule7GXaRs?si=RRVoyMKX_9iDYgEI) by Flux Academy
-
-### Professional Development
-
-*   [Sales Training with Alex Hormozi](https://youtu.be/NcD2t9qt-fM?si=nfQ_V-ghCTtVVQYO)
-*   [Speaking with Power](https://youtu.be/Unzc731iCUY?si=ax3k10qM0bm0TVPS) - MIT OpenCourseWare
-*   [Writing a Good CV](https://youtu.be/AEbvoIQHOXw?si=C-QpMjQn3Z-oEw2I) - Students for a Better Future
-
-How do I adult?
----------------
-
-*   [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
-*   [How do I submit a tax return for SARS efiling](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
-*   [Investing for South Africans using EasyEquities](https://youtu.be/luh3jEqy4HI?si=dczWk3LISPvCbTKv)
-
-Mental Health 101
------------------
-
-*   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) - Youtube Playlist
-*   [Writing anxieties away with Liz Filips](https://youtu.be/ALfGh3-4JUo?si=l9lH9nLJ3IJ2zBbe)
-*   [Mental hygiene routine](https://youtu.be/JSOJDVugIQ0?si=9e9YelkLnKUQKvS2)
-*   [Journaling with Andrew Huberman](https://youtu.be/wAZn9dF3XTo?si=zg6b9hvOdWSPbn9-)
-
-Being Healthy 101
------------------
-
-*   [Working Out at Home](https://www.youtube.com/playlist?list=PLbpi6ZahtOH4OqtS9rvYW_jf-agPEMEsP)
-
-Books
------
-
-Book Summaries
---------------
-
-*   [The Subtle Art of Not Giving a F\*ck](https://youtu.be/lz8sUiXAnbs?si=P886_YGBRrDj32QQ)
-*   [How to Win Friends and Influence People](https://youtu.be/Xo2Q4PQqqWU?si=vjthkL6YCmrVOD6Y)
-*   [Deep Work](https://youtu.be/xJYlhhT7hyE?si=fsBDrQVuDIv3R8lz)
-*   [Atomic Habits](https://youtu.be/PZ7lDrwYdZc?si=TsOPxuSr1JmWbGtJ)
-*   [48 Laws of Power](https://youtu.be/Su36tpkuo1I?si=8T-ag8FIEuCLuCNS )
-
-TED Talks and Other Speeches
-----------------------------
-
-*   [Extreme Ownership by Jocko Willink](https://youtu.be/ljqra3BcqWM?si=k85ss4qBjXqNMjTY), former US Navy on taking responsibility
-*   [Never Split the Difference by Chris Voss](https://youtu.be/MjhDkNmtjy0?si=xVoCH4w0VuXIEZPe), former FBI Hostage Negotiator
-*   [Inside the Mind of a Master Procrastinator by Tim Urban](https://youtu.be/arj7oStGLkU?si=pUQPmT-Zy0raB_z5)
-*   [How to Spot Fake AI Photos by Hany Farid](https://youtu.be/q5_PrTvNypY?si=B7TIOcBGg-WshxF2)
-*   [How to Spot a Liar by Pamela Meyer](https://youtu.be/P_6vDLq64gE?si=Zkcfl_D3e7z88nzS)
-*   [How to Speak So That People Want to Listen](https://youtu.be/eIho2S0ZahI?si=SLbm7Skl9pDW6UhB) by Julian Treasure
-*   [7 Ways to Make a Conversation with Anyone](https://youtu.be/F4Zu5ZZAG7I?si=xfTFr6pJ-OKCtkcb) by Malavika Varadan
-*   [How to stop screwing yourself over by Mel Robbins](https://youtu.be/Lp7E973zozc?si=DpcygzjBElf2ogv5)
-*   [How to draw with Graham Shaw](https://youtu.be/7TXEZ4tP06c?si=0xyIIwhhr3tHNW4p)
-*   [Making a profit and making a difference](https://youtu.be/y7l5QHRY_AI?si=CSUna1GGAUB7mD73) by Audrey Choi
-*   [Creative thinking - how to get out of the box and generate ideas](https://youtu.be/bEusrD8g-dM?si=hCOT12bE6YSOefir)
-*   [How to protect your brain from stress](https://youtu.be/Nz9eAaXRzGg?si=XSROHHKpyVGA034i) - Niki Korteweg
-
-Community
----------
-
-*   Telegram
-*   Discord
-*   Whatsapp Channel
-
-Contact Us
-----------
-
-*   [Instagram](https://www.instagram.com/mzantsivibes/)
-*   [Linkedin](https://www.linkedin.com/company/mzantsi-vibes/)
+### Understanding your options
+
+**Studying** means committing 3–4+ years to a qualification. It can open doors, but it costs time and money, and university isn't the only path to a good career.
+
+**Working / learnerships** means earning while learning. Learnerships are structured programmes where you get paid a stipend, learn on the job, and come out with a qualification. They're underused and underrated.
+
+**Short courses** keep your options open. A few months of learning a skill — coding, design, bookkeeping — can get you earning without locking you into a 4-year degree.
+
+**Gap time** isn't wasted if it's intentional. Volunteering, building something, or getting work experience can be more valuable than rushing into a decision you're not ready for.
+
+### Things you can do right now
+
+- Look into learnerships in your area — *resources coming soon*
+- Take a free short course (see [Getting Work-Ready](#getting-work-ready) above)
+- Community programmes — *coming soon*
+
+---
+
+## 📋 For Everyone
+
+### How Do I Adult?
+
+- [Do I need to submit a tax return?](https://www.sars.gov.za/types-of-tax/personal-income-tax/do-you-need-to-submit-a-return/)
+- [How to submit a SARS eFiling tax return](https://youtu.be/p0RsKsiJyAc?si=1bmx2I7rGYuSj8NO)
+- [Investing for South Africans using EasyEquities](https://youtu.be/luh3jEqy4HI?si=dczWk3LISPvCbTKv)
+- Getting a South African ID — *coming soon*
+- Opening a bank account — *coming soon*
+- Renting your first place — *coming soon*
+
+### Mental Health 101
+
+- [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) — YouTube Playlist
+- [Writing anxieties away with Liz Filips](https://youtu.be/ALfGh3-4JUo?si=l9lH9nLJ3IJ2zBbe)
+- [Mental hygiene routine](https://youtu.be/JSOJDVugIQ0?si=9e9YelkLnKUQKvS2)
+- [Journaling with Andrew Huberman](https://youtu.be/wAZn9dF3XTo?si=zg6b9hvOdWSPbn9-)
+
+### Being Healthy 101
+
+- [Working Out at Home](https://www.youtube.com/playlist?list=PLbpi6ZahtOH4OqtS9rvYW_jf-agPEMEsP)
+
+### Book Summaries
+
+- [The Subtle Art of Not Giving a F*ck](https://youtu.be/lz8sUiXAnbs?si=P886_YGBRrDj32QQ)
+- [How to Win Friends and Influence People](https://youtu.be/Xo2Q4PQqqWU?si=vjthkL6YCmrVOD6Y)
+- [Deep Work](https://youtu.be/xJYlhhT7hyE?si=fsBDrQVuDIv3R8lz)
+- [Atomic Habits](https://youtu.be/PZ7lDrwYdZc?si=TsOPxuSr1JmWbGtJ)
+- [48 Laws of Power](https://youtu.be/Su36tpkuo1I?si=8T-qa8FIEuCLuCNS)
+
+### TED Talks & Speeches
+
+- [Extreme Ownership by Jocko Willink](https://youtu.be/ljqra3BcqWM?si=k85ss4qBjXqNMjTY) — former US Navy SEAL on taking responsibility
+- [Never Split the Difference by Chris Voss](https://youtu.be/MjhDkNmtjy0?si=xVoCH4w0VuXIEZPe) — former FBI Hostage Negotiator
+- [Inside the Mind of a Master Procrastinator by Tim Urban](https://youtu.be/arj7oStGLkU?si=pUQPmT-Zy0raB_z5)
+- [How to Spot Fake AI Photos by Hany Farid](https://youtu.be/q5_PrTvNypY?si=B7TIOcBGg-WshxF2)
+- [How to Spot a Liar by Pamela Meyer](https://youtu.be/P_6vDLq64gE?si=Zkcfl_D3e7z88nzS)
+- [How to Speak So That People Want to Listen by Julian Treasure](https://youtu.be/eIho2S0ZahI?si=SLbm7Skl9pDW6UhB)
+- [7 Ways to Make a Conversation with Anyone by Malavika Varadan](https://youtu.be/F4Zu5ZZAG7I?si=xfTFr6pJ-OKCtkcb)
+- [How to Stop Screwing Yourself Over by Mel Robbins](https://youtu.be/Lp7E973zozc?si=DpcygzjBElf2ogv5)
+- [How to Draw with Graham Shaw](https://youtu.be/7TXEZ4tP06c?si=0xyIIwhhr3tHNW4p)
+- [Making a Profit and Making a Difference by Audrey Choi](https://youtu.be/y7l5QHRY_AI?si=CSUna1GGAUB7mD73)
+- [Creative Thinking — How to Get Out of the Box and Generate Ideas](https://youtu.be/bEusrD8g-dM?si=hCOT12bE6YSOefir)
+- [How to Protect Your Brain from Stress by Niki Korteweg](https://youtu.be/Nz9eAaXRzGg?si=XSROHHKpyVGA034i)
+
+---
+
+## Contributing
+
+Want to add a resource, fix something, or translate a section? See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved — no technical experience needed.
+
+---
+
+## Community & Contact
+
+- [Instagram](https://www.instagram.com/mzantsivibes/)
+- [LinkedIn](https://www.linkedin.com/company/mzantsi-vibes/)
+- Telegram — *coming soon*
+- Discord — *coming soon*
+- WhatsApp Channel — *coming soon*
