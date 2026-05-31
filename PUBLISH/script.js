@@ -1,12 +1,132 @@
 /* =============================================
-   MZANTSI VIBES — script.js
-   Fetches README from GitHub, parses markdown,
-   renders resources into the four sections.
+   MZANTSI VIBES — mzantsi-vibes-script.js
+
+   ✏️  CONTENT CONFIG
+   All website copy lives in the CONTENT object
+   below. Change any text here and it updates
+   across the whole site automatically.
+   No need to touch index.html or style.css.
+   ============================================= */
+
+const CONTENT = {
+
+  /* ---- SITE-WIDE ---- */
+  site: {
+    name: 'Mzantsi Vibes',
+    flag: '🇿🇦',
+    githubUrl: 'https://github.com/realtimshady16/mzantsi-vibes',
+    instagramUrl: 'https://www.instagram.com/mzantsivibes/',
+    linkedinUrl: 'https://www.linkedin.com/company/mzantsi-vibes/',
+    footerTagline: 'Built with ❤️ for South African youth. MIT licensed. Free forever.',
+  },
+
+  /* ---- HEADER ---- */
+  header: {
+    githubLabel: 'GitHub',
+    contributeLabel: 'Contribute',
+    contributeUrl: '/contribute',
+  },
+
+  /* ---- HERO ---- */
+  hero: {
+    eyebrow: 'Open source · Free · SA-built',
+    titleLine1: 'The years after matric',
+    titleEmphasis: 'nobody prepares you for.',
+    subtitle: 'Resources for South African youth aged 18–25 — studying, working, or still figuring it out. No Western assumptions. No paywalls.',
+  },
+
+  /* ---- PATH SELECTOR ---- */
+  paths: {
+    label: 'Where are you right now?',
+    study: {
+      icon: '🎓',
+      heading: "I'm going to study",
+      description: 'University, bursaries, NSFAS, textbooks, life after your degree',
+    },
+    work: {
+      icon: '💼',
+      heading: "I'm going to work",
+      description: 'CVs, learnerships, skills, starting something, your money',
+    },
+    unsure: {
+      icon: '🤷',
+      heading: "I don't know yet",
+      description: "That's okay. Start here to understand your options",
+    },
+    everyone: {
+      icon: '📋',
+      heading: 'For everyone',
+      description: 'Adulting, mental health, books, talks, staying healthy',
+    },
+  },
+
+  /* ---- "I DON'T KNOW YET" SECTION ---- */
+  unsure: {
+    callout: "That's okay. Most people won't tell you that \"I don't know\" is the most honest answer a lot of 18-year-olds have — and it doesn't mean you're behind.",
+    assessHeading: 'Three questions to help you decide',
+    questions: [
+      {
+        text: 'Do you need to earn money soon, or do you have some time?',
+        options: ['I need income soon', 'I have a few months', 'Not sure yet'],
+      },
+      {
+        text: 'Do you have your matric certificate?',
+        options: ['Yes', 'No', 'Writing this year'],
+      },
+      {
+        text: 'Do you prefer working with people, things, or ideas?',
+        options: ['People', 'Things / hands-on', 'Ideas / thinking', 'Honestly no idea'],
+      },
+    ],
+    optionsHeading: 'Understanding your options',
+    options: [
+      {
+        title: 'Studying',
+        body: '3–4+ years committed to a qualification. Opens certain doors but costs time and money. University is not the only path to a good career.',
+      },
+      {
+        title: 'Learnerships',
+        body: 'Earn a stipend while learning on the job and come out with a qualification. Underused and underrated in South Africa.',
+      },
+      {
+        title: 'Short courses',
+        body: 'A few months to learn a skill — coding, design, bookkeeping — and start earning without committing to a 4-year degree.',
+      },
+      {
+        title: 'Intentional gap time',
+        body: 'Volunteering, building something, or getting work experience can be more valuable than rushing into a decision you\'re not ready for.',
+      },
+    ],
+  },
+
+  /* ---- CONTRIBUTE BANNER ---- */
+  contribute: {
+    heading: 'Know something that should be here?',
+    body: "This is an open-source project. If you've found a resource that helped you, add it. No technical experience needed — we built a tool that makes it easy.",
+    cta: 'Add a resource →',
+    url: '/contribute',
+  },
+
+  /* ---- LOADING / ERROR STATES ---- */
+  states: {
+    loading: 'Loading resources...',
+    errorMessage: "⚠️ Couldn't load resources right now.",
+    errorLinkLabel: 'View them on GitHub instead',
+    emptySection: 'Resources coming soon —',
+    emptySectionLinkLabel: 'want to contribute?',
+    emptySectionUrl: 'https://github.com/realtimshady16/mzantsi-vibes/blob/main/CONTRIBUTING.md',
+    fallbackMessage: "Couldn't load resources.",
+    fallbackLinkLabel: 'View on GitHub →',
+  },
+
+};
+
+/* =============================================
+   CONFIG — edit these if the repo moves
    ============================================= */
 
 const README_URL = 'https://raw.githubusercontent.com/realtimshady16/mzantsi-vibes/main/README.md';
 
-/* Map README section headings to site sections */
 const SECTION_MAP = {
   study: [
     "I'm Going to Study",
@@ -14,19 +134,19 @@ const SECTION_MAP = {
     "Paying for It",
     "Getting There",
     "While You're There",
-    "After Your Degree"
+    "After Your Degree",
   ],
   work: [
     "I'm Going to Work",
     "Getting Work-Ready",
     "Finding Work",
     "Starting Something",
-    "Understanding Your Money"
+    "Understanding Your Money",
   ],
   unsure: [
     "I Don't Know Yet",
     "Things You Can Do Right Now",
-    "Community Programmes"
+    "Community Programmes",
   ],
   everyone: [
     "For Everyone",
@@ -34,11 +154,227 @@ const SECTION_MAP = {
     "Mental Health 101",
     "Being Healthy 101",
     "Book Summaries",
-    "TED Talks & Speeches"
-  ]
+    "TED Talks & Speeches",
+  ],
 };
 
-/* Icon map for resource types */
+/* =============================================
+   POPULATE — writes CONTENT into the HTML
+   ============================================= */
+
+function populateContent() {
+  const c = CONTENT;
+
+  /* Site name instances */
+  document.querySelectorAll('[data-content="site.name"]').forEach(el => el.textContent = c.site.name);
+  document.querySelectorAll('[data-content="site.flag"]').forEach(el => el.textContent = c.site.flag);
+
+  /* Header */
+  set('header-github-label', c.header.githubLabel);
+  set('header-contribute-label', c.header.contributeLabel);
+  attr('header-contribute-link', 'href', c.header.contributeUrl);
+  attr('header-github-link', 'href', c.site.githubUrl);
+
+  /* Hero */
+  set('hero-eyebrow', c.hero.eyebrow);
+  set('hero-title-line1', c.hero.titleLine1);
+  set('hero-title-emphasis', c.hero.titleEmphasis);
+  set('hero-subtitle', c.hero.subtitle);
+
+  /* Path selector label */
+  set('path-label', c.paths.label);
+
+  /* Path cards */
+  ['study', 'work', 'unsure', 'everyone'].forEach(key => {
+    set(`path-icon-${key}`, c.paths[key].icon);
+    set(`path-heading-${key}`, c.paths[key].heading);
+    set(`path-desc-${key}`, c.paths[key].description);
+  });
+
+  /* "I don't know yet" section */
+  set('unsure-callout', c.unsure.callout);
+  set('unsure-assess-heading', c.unsure.assessHeading);
+
+  /* Self-assessment questions */
+  const questionsContainer = document.getElementById('unsure-questions');
+  if (questionsContainer) {
+    questionsContainer.innerHTML = c.unsure.questions.map(q => `
+      <div class="question-group">
+        <p class="question-text">${escHtml(q.text)}</p>
+        <div class="pill-group">
+          ${q.options.map(o => `<button class="pill" onclick="togglePill(this)">${escHtml(o)}</button>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  /* Options cards */
+  set('unsure-options-heading', c.unsure.optionsHeading);
+  const optionsContainer = document.getElementById('unsure-options');
+  if (optionsContainer) {
+    optionsContainer.innerHTML = c.unsure.options.map(o => `
+      <div class="option-card">
+        <div class="option-title">${escHtml(o.title)}</div>
+        <p>${escHtml(o.body)}</p>
+      </div>
+    `).join('');
+  }
+
+  /* Contribute banner */
+  set('contribute-heading', c.contribute.heading);
+  set('contribute-body', c.contribute.body);
+  set('contribute-cta', c.contribute.cta);
+  attr('contribute-cta-link', 'href', c.contribute.url);
+
+  /* Footer */
+  document.querySelectorAll('[data-content="site.flag"]').forEach(el => el.textContent = c.site.flag);
+  set('footer-tagline', c.site.footerTagline);
+  attr('footer-github-link', 'href', c.site.githubUrl);
+  attr('footer-instagram-link', 'href', c.site.instagramUrl);
+  attr('footer-linkedin-link', 'href', c.site.linkedinUrl);
+}
+
+/* Helpers */
+function set(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+function attr(id, attribute, value) {
+  const el = document.getElementById(id);
+  if (el) el.setAttribute(attribute, value);
+}
+
+/* =============================================
+   PARSER — README markdown → structured data
+   ============================================= */
+
+function stripMarkdown(str) {
+  return str
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\s*\[#[^\]]*\]/g, '')
+    .trim();
+}
+
+function cleanUrl(url) {
+  return url.replace(/[.)]+$/, '').trim();
+}
+
+function isBareUrl(str) {
+  return /^https?:\/\/\S+/.test(str.trim());
+}
+
+function parseLinks(line) {
+  const results = [];
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let match;
+  while ((match = regex.exec(line)) !== null) {
+    results.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
+  }
+  return results;
+}
+
+function parseReadme(markdown) {
+  const lines = markdown.split('\n');
+  const sections = {};
+  let currentSection = null;
+  let lastResourceKey = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (/^#{2,4}\s/.test(trimmed)) {
+      let heading = trimmed
+        .replace(/^#+\s*/, '')
+        .replace(/\s*\[#[^\]]*\]/g, '')
+        .trim();
+      heading = stripMarkdown(heading);
+      if (heading) {
+        currentSection = heading;
+        if (!sections[currentSection]) sections[currentSection] = [];
+        lastResourceKey = null;
+      }
+      continue;
+    }
+
+    if (!currentSection) continue;
+
+    if (/^[-*]\s/.test(trimmed) && trimmed.includes('[')) {
+      const content = trimmed.replace(/^[-*]\s+/, '').trim();
+      const links = parseLinks(content);
+
+      if (links.length > 0) {
+        const rawName = content
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .replace(/\s*[-–—]\s*/g, ' ')
+          .trim();
+        const name = stripMarkdown(rawName) || links[0].name;
+        const item = { name, url: links[0].url, desc: '' };
+        sections[currentSection].push(item);
+        lastResourceKey = sections[currentSection].length - 1;
+
+        for (let j = i + 1; j < lines.length && j <= i + 3; j++) {
+          const next = lines[j].trim();
+          if (!next) continue;
+          if (/^[-*#]/.test(next) || isBareUrl(next) || next.includes('](')) break;
+          item.desc = stripMarkdown(next);
+          i = j;
+          break;
+        }
+      } else if (/coming soon/i.test(trimmed)) {
+        const name = stripMarkdown(content.replace(/^[-*]\s*/, '').replace(/\*coming soon\*/i, '').trim());
+        sections[currentSection].push({ name, url: null, desc: 'Coming soon' });
+        lastResourceKey = null;
+      }
+      continue;
+    }
+
+    if (isBareUrl(trimmed) && lastResourceKey !== null) {
+      const lastItem = sections[currentSection][lastResourceKey];
+      if (lastItem && !lastItem.url) lastItem.url = cleanUrl(trimmed);
+      continue;
+    }
+
+    if (/^#{4,5}\s*Description/i.test(trimmed)) {
+      for (let j = i + 1; j < lines.length && j < i + 5; j++) {
+        const descLine = lines[j].trim();
+        if (descLine && !descLine.startsWith('#')) {
+          if (lastResourceKey !== null && sections[currentSection][lastResourceKey]) {
+            sections[currentSection][lastResourceKey].desc = stripMarkdown(descLine);
+          }
+          i = j;
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (/^[-*]\s/.test(trimmed) && !trimmed.includes('[')) {
+      const content = trimmed.replace(/^[-*]\s+/, '').trim();
+      if (/coming soon/i.test(content)) {
+        sections[currentSection].push({
+          name: stripMarkdown(content.replace(/\*?coming soon\*?/i, '').trim()) || 'Coming soon',
+          url: null,
+          desc: 'Coming soon',
+        });
+        lastResourceKey = null;
+      }
+    }
+  }
+
+  return sections;
+}
+
+/* =============================================
+   RENDERER — structured data → HTML
+   ============================================= */
+
 function iconFor(name, url) {
   const n = name.toLowerCase();
   const u = (url || '').toLowerCase();
@@ -56,199 +392,20 @@ function iconFor(name, url) {
   return '🔗';
 }
 
-/* -----------------------------------------------
-   TURNDOWN/QUILL OUTPUT QUIRKS THIS PARSER HANDLES
-   ------------------------------------------------
-   1. Headings with bold markers: ## **Section Name**
-      Turndown wraps heading text in ** when Quill
-      applies bold formatting inside a heading node.
-   2. Bare URLs on their own line after a list item:
-      Quill sometimes separates link text and href,
-      producing "- Resource Name\nhttps://url.com"
-      instead of "- [Resource Name](https://url.com)"
-   3. Extra blank lines between list items from Quill's
-      paragraph wrapping — handled by skipping empties.
-   4. Links with trailing punctuation inside parens:
-      Turndown occasionally includes a trailing ) or .
-      inside the URL capture group.
-   5. Anchor fragments in headings: ## Heading [#anchor]
-      The GitHub README renderer appends these; strip them.
-   ----------------------------------------------- */
-
-/* Strip all markdown formatting from a string,
-   leaving only plain readable text */
-function stripMarkdown(str) {
-  return str
-    .replace(/\*\*([^*]+)\*\*/g, '$1')   /* **bold** */
-    .replace(/\*([^*]+)\*/g, '$1')        /* *italic* */
-    .replace(/__([^_]+)__/g, '$1')        /* __bold__ */
-    .replace(/_([^_]+)_/g, '$1')          /* _italic_ */
-    .replace(/`([^`]+)`/g, '$1')          /* `code` */
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') /* [text](url) → text */
-    .replace(/\s*\[#[^\]]*\]/g, '')       /* [#anchor] fragments */
-    .trim();
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-/* Clean a URL — remove trailing punctuation that Turndown
-   sometimes captures inside the parens */
-function cleanUrl(url) {
-  return url.replace(/[.)]+$/, '').trim();
-}
-
-/* Check whether a string looks like a bare URL */
-function isBareUrl(str) {
-  return /^https?:\/\/\S+/.test(str.trim());
-}
-
-/* Parse all markdown links from a line: [text](url) */
-function parseLinks(line) {
-  const results = [];
-  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
-  let match;
-  while ((match = regex.exec(line)) !== null) {
-    results.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
-  }
-  return results;
-}
-
-/* Parse README markdown into a structured object:
-   { sectionName: [ { name, url, desc } ] }
-
-   Handles both hand-written markdown and Turndown output
-   from the GitTool contributor interface. */
-function parseReadme(markdown) {
-  const lines = markdown.split('\n');
-  const sections = {};
-  let currentSection = null;
-  let lastResourceKey = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    /* Skip empty lines — Quill/Turndown adds extra blanks */
-    if (!trimmed) {
-      continue;
-    }
-
-    /* ---- HEADINGS (## and ###) ----
-       Handle both clean headings and Turndown's bold-wrapped variant:
-         ## Section Name          (hand-written)
-         ## **Section Name**      (Turndown from Quill bold heading)
-         ## Section Name [#anchor] (GitHub README anchor suffix) */
-    if (/^#{2,4}\s/.test(trimmed)) {
-      let heading = trimmed
-        .replace(/^#+\s*/, '')           /* strip leading # chars */
-        .replace(/\s*\[#[^\]]*\]/g, '') /* strip [#anchor] */
-        .trim();
-      heading = stripMarkdown(heading);  /* strip **bold** etc */
-
-      if (heading) {
-        currentSection = heading;
-        if (!sections[currentSection]) sections[currentSection] = [];
-        lastResourceKey = null;
-      }
-      continue;
-    }
-
-    if (!currentSection) continue;
-
-    /* ---- LIST ITEMS with markdown links ----
-       Standard: - [Name](url) — description
-       Turndown: - [Name](url)\n  description on next line */
-    if (/^[-*]\s/.test(trimmed) && trimmed.includes('[')) {
-      const content = trimmed.replace(/^[-*]\s+/, '').trim();
-      const links = parseLinks(content);
-
-      if (links.length > 0) {
-        /* Build display name from full line, stripping link syntax */
-        const rawName = content
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') /* keep link text */
-          .replace(/\s*[-–—]\s*/g, ' ')             /* clean separators */
-          .trim();
-        const name = stripMarkdown(rawName) || links[0].name;
-
-        const item = { name, url: links[0].url, desc: '' };
-        sections[currentSection].push(item);
-        lastResourceKey = sections[currentSection].length - 1;
-
-        /* Look ahead for a description on the very next non-empty line
-           (Turndown indented continuation or plain paragraph) */
-        for (let j = i + 1; j < lines.length && j <= i + 3; j++) {
-          const next = lines[j].trim();
-          if (!next) continue; /* skip blanks */
-          /* Stop if it's another list item, heading, or link */
-          if (/^[-*#]/.test(next) || isBareUrl(next) || next.includes('](')) break;
-          /* It's a description */
-          item.desc = stripMarkdown(next);
-          i = j;
-          break;
-        }
-      } else if (/coming soon/i.test(trimmed)) {
-        /* Placeholder item with no link yet */
-        const name = stripMarkdown(content.replace(/^[-*]\s*/, '').replace(/\*coming soon\*/i, '').trim());
-        sections[currentSection].push({ name, url: null, desc: 'Coming soon' });
-        lastResourceKey = null;
-      }
-      continue;
-    }
-
-    /* ---- BARE URL on its own line (Turndown quirk) ----
-       When Quill separates link text and URL, Turndown outputs:
-         - Resource Name
-         https://example.com
-       We attach the URL to the last resource that has no URL yet. */
-    if (isBareUrl(trimmed) && lastResourceKey !== null) {
-      const lastItem = sections[currentSection][lastResourceKey];
-      if (lastItem && !lastItem.url) {
-        lastItem.url = cleanUrl(trimmed);
-      }
-      continue;
-    }
-
-    /* ---- INLINE DESCRIPTION (#### Description pattern) ----
-       Old README format — keep supporting it for backwards compat */
-    if (/^#{4,5}\s*Description/i.test(trimmed)) {
-      for (let j = i + 1; j < lines.length && j < i + 5; j++) {
-        const descLine = lines[j].trim();
-        if (descLine && !descLine.startsWith('#')) {
-          if (lastResourceKey !== null && sections[currentSection][lastResourceKey]) {
-            sections[currentSection][lastResourceKey].desc = stripMarkdown(descLine);
-          }
-          i = j;
-          break;
-        }
-      }
-      continue;
-    }
-
-    /* ---- PLAIN LIST ITEM with no link (e.g. "- Coming soon") ---- */
-    if (/^[-*]\s/.test(trimmed) && !trimmed.includes('[')) {
-      const content = trimmed.replace(/^[-*]\s+/, '').trim();
-      if (/coming soon/i.test(content)) {
-        sections[currentSection].push({
-          name: stripMarkdown(content.replace(/\*?coming soon\*?/i, '').trim()) || 'Coming soon',
-          url: null,
-          desc: 'Coming soon'
-        });
-        lastResourceKey = null;
-      }
-      /* Other plain list items (sub-headings, notes) are skipped */
-    }
-  }
-
-  return sections;
-}
-
-/* Render a list of resources as HTML */
-function renderResourceList(resources, sectionTitle) {
+function renderResourceList(resources) {
   if (!resources || resources.length === 0) return '';
-
   const items = resources.map(r => {
     const icon = iconFor(r.name, r.url);
     const descHtml = r.desc ? `<div class="resource-desc">${escHtml(r.desc)}</div>` : '';
-
-    if (!r.url || r.url === null) {
+    if (!r.url) {
       return `
         <div class="resource-item coming-soon">
           <div class="resource-icon">${icon}</div>
@@ -258,7 +415,6 @@ function renderResourceList(resources, sectionTitle) {
           </div>
         </div>`;
     }
-
     return `
       <a class="resource-item" href="${escHtml(r.url)}" target="_blank" rel="noopener">
         <div class="resource-icon">${icon}</div>
@@ -269,29 +425,18 @@ function renderResourceList(resources, sectionTitle) {
         <div class="resource-arrow">↗</div>
       </a>`;
   }).join('');
-
   return `<div class="resource-list">${items}</div>`;
 }
 
-/* Escape HTML special chars */
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/* Render a full section from parsed data */
 function renderSection(targetId, headingKeys, parsedData) {
   const container = document.getElementById(targetId);
   if (!container) return;
 
   let html = '';
   let hasContent = false;
+  const s = CONTENT.states;
 
   headingKeys.forEach(key => {
-    /* Try exact match first, then case-insensitive */
     let resources = parsedData[key];
     if (!resources) {
       const lkey = key.toLowerCase();
@@ -299,36 +444,42 @@ function renderSection(targetId, headingKeys, parsedData) {
       if (found) resources = parsedData[found];
     }
     if (!resources || resources.length === 0) return;
-
     hasContent = true;
     html += `<div class="subsection-label">${escHtml(key)}</div>`;
-    html += renderResourceList(resources, key);
+    html += renderResourceList(resources);
   });
 
   container.innerHTML = hasContent
     ? html
-    : '<p style="color: var(--text-muted); font-size: 0.9rem;">Resources coming soon — <a href="https://github.com/realtimshady16/mzantsi-vibes/blob/main/CONTRIBUTING.md" target="_blank">want to contribute?</a></p>';
+    : `<p style="color: var(--text-muted); font-size: 0.9rem;">${escHtml(s.emptySection)} <a href="${s.emptySectionUrl}" target="_blank">${escHtml(s.emptySectionLinkLabel)}</a></p>`;
 }
 
-/* Switch visible section */
+/* =============================================
+   INTERACTIONS
+   ============================================= */
+
 function switchSection(sectionId, btn) {
   document.querySelectorAll('.content-section').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.path-card').forEach(el => el.classList.remove('active'));
-
   const target = document.getElementById('section-' + sectionId);
   if (target) target.classList.remove('hidden');
   if (btn) btn.classList.add('active');
 }
 
-/* Toggle pill selection */
 function togglePill(el) {
   el.classList.toggle('selected');
 }
 
-/* Main init */
+/* =============================================
+   INIT
+   ============================================= */
+
 async function init() {
+  populateContent();
+
   const loadingEl = document.getElementById('loading-state');
   const errorEl = document.getElementById('error-state');
+  const s = CONTENT.states;
 
   try {
     const res = await fetch(README_URL);
@@ -336,13 +487,11 @@ async function init() {
     const markdown = await res.text();
     const parsed = parseReadme(markdown);
 
-    /* Render each section */
     renderSection('study-content', SECTION_MAP.study, parsed);
     renderSection('work-content', SECTION_MAP.work, parsed);
     renderSection('unsure-content', SECTION_MAP.unsure, parsed);
     renderSection('everyone-content', SECTION_MAP.everyone, parsed);
 
-    /* Hide loader, show first section */
     loadingEl.classList.add('hidden');
     document.getElementById('section-study').classList.remove('hidden');
 
@@ -351,11 +500,10 @@ async function init() {
     loadingEl.classList.add('hidden');
     errorEl.classList.remove('hidden');
 
-    /* Still show sections with fallback empty state */
     document.getElementById('section-study').classList.remove('hidden');
     ['study-content', 'work-content', 'unsure-content', 'everyone-content'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">Couldn\'t load resources. <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank">View on GitHub →</a></p>';
+      if (el) el.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">${escHtml(s.fallbackMessage)} <a href="${escHtml(CONTENT.site.githubUrl)}" target="_blank">${escHtml(s.fallbackLinkLabel)}</a></p>`;
     });
   }
 }

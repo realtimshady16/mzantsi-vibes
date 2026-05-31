@@ -19,12 +19,12 @@
   <header class="site-header">
     <div class="header-inner">
       <div class="logo">
-        <span class="logo-flag">🇿🇦</span>
-        <span class="logo-text">Mzantsi Vibes</span>
+        <span class="logo-flag" data-content="site.flag"></span>
+        <span class="logo-text" data-content="site.name"></span>
       </div>
       <nav class="header-links">
-        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/realtimshady16/mzantsi-vibes/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener" class="btn-contribute">Contribute</a>
+        <a id="header-github-link" target="_blank" rel="noopener"><span id="header-github-label"></span></a>
+        <a id="header-contribute-link" class="btn-contribute"><span id="header-contribute-label"></span></a>
       </nav>
     </div>
   </header>
@@ -32,36 +32,39 @@
   <!-- HERO -->
   <section class="hero">
     <div class="hero-inner">
-      <p class="hero-eyebrow">Open source · Free · SA-built</p>
-      <h1 class="hero-title">The years after matric<br /><em>nobody prepares you for.</em></h1>
-      <p class="hero-sub">Resources for South African youth aged 18–25 — studying, working, or still figuring it out. No Western assumptions. No paywalls.</p>
+      <p class="hero-eyebrow" id="hero-eyebrow"></p>
+      <h1 class="hero-title">
+        <span id="hero-title-line1"></span><br />
+        <em id="hero-title-emphasis"></em>
+      </h1>
+      <p class="hero-sub" id="hero-subtitle"></p>
     </div>
   </section>
 
   <!-- PATH SELECTOR -->
   <section class="path-section">
     <div class="container">
-      <p class="path-label">Where are you right now?</p>
+      <p class="path-label" id="path-label"></p>
       <div class="path-grid">
         <button class="path-card active" data-section="study" onclick="switchSection('study', this)">
-          <span class="path-icon">🎓</span>
-          <h2>I'm going to study</h2>
-          <p>University, bursaries, NSFAS, textbooks, life after your degree</p>
+          <span class="path-icon" id="path-icon-study"></span>
+          <h2 id="path-heading-study"></h2>
+          <p id="path-desc-study"></p>
         </button>
         <button class="path-card" data-section="work" onclick="switchSection('work', this)">
-          <span class="path-icon">💼</span>
-          <h2>I'm going to work</h2>
-          <p>CVs, learnerships, skills, starting something, your money</p>
+          <span class="path-icon" id="path-icon-work"></span>
+          <h2 id="path-heading-work"></h2>
+          <p id="path-desc-work"></p>
         </button>
         <button class="path-card" data-section="unsure" onclick="switchSection('unsure', this)">
-          <span class="path-icon">🤷</span>
-          <h2>I don't know yet</h2>
-          <p>That's okay. Start here to understand your options</p>
+          <span class="path-icon" id="path-icon-unsure"></span>
+          <h2 id="path-heading-unsure"></h2>
+          <p id="path-desc-unsure"></p>
         </button>
         <button class="path-card" data-section="everyone" onclick="switchSection('everyone', this)">
-          <span class="path-icon">📋</span>
-          <h2>For everyone</h2>
-          <p>Adulting, mental health, books, talks, staying healthy</p>
+          <span class="path-icon" id="path-icon-everyone"></span>
+          <h2 id="path-heading-everyone"></h2>
+          <p id="path-desc-everyone"></p>
         </button>
       </div>
     </div>
@@ -73,12 +76,15 @@
     <!-- LOADING STATE -->
     <div id="loading-state" class="loading-state">
       <div class="loading-spinner"></div>
-      <p>Loading resources...</p>
+      <p id="loading-message">Loading resources...</p>
     </div>
 
     <!-- ERROR STATE -->
     <div id="error-state" class="error-state hidden">
-      <p>⚠️ Couldn't load resources right now. <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank">View them on GitHub instead</a>.</p>
+      <p>
+        <span id="error-message"></span>
+        <a id="error-link" target="_blank"></a>
+      </p>
     </div>
 
     <!-- STUDY SECTION -->
@@ -93,58 +99,15 @@
 
     <!-- UNSURE SECTION -->
     <div id="section-unsure" class="content-section hidden">
-      <div class="callout-warm">
-        <strong>That's okay.</strong> Most people won't tell you that "I don't know" is the most honest answer a lot of 18-year-olds have — and it doesn't mean you're behind. This section isn't here to push you anywhere. It's here to make your options visible.
-      </div>
+      <div class="callout-warm" id="unsure-callout"></div>
 
       <div class="assess-block">
-        <h3 class="section-heading">Three questions to help you decide</h3>
-        <div class="question-group">
-          <p class="question-text">Do you need to earn money soon, or do you have some time?</p>
-          <div class="pill-group">
-            <button class="pill" onclick="togglePill(this)">I need income soon</button>
-            <button class="pill" onclick="togglePill(this)">I have a few months</button>
-            <button class="pill" onclick="togglePill(this)">Not sure yet</button>
-          </div>
-        </div>
-        <div class="question-group">
-          <p class="question-text">Do you have your matric certificate?</p>
-          <div class="pill-group">
-            <button class="pill" onclick="togglePill(this)">Yes</button>
-            <button class="pill" onclick="togglePill(this)">No</button>
-            <button class="pill" onclick="togglePill(this)">Writing this year</button>
-          </div>
-        </div>
-        <div class="question-group">
-          <p class="question-text">Do you prefer working with people, things, or ideas?</p>
-          <div class="pill-group">
-            <button class="pill" onclick="togglePill(this)">People</button>
-            <button class="pill" onclick="togglePill(this)">Things / hands-on</button>
-            <button class="pill" onclick="togglePill(this)">Ideas / thinking</button>
-            <button class="pill" onclick="togglePill(this)">Honestly no idea</button>
-          </div>
-        </div>
+        <h3 class="section-heading" id="unsure-assess-heading"></h3>
+        <div id="unsure-questions"></div>
       </div>
 
-      <h3 class="section-heading">Understanding your options</h3>
-      <div class="option-cards">
-        <div class="option-card">
-          <div class="option-title">Studying</div>
-          <p>3–4+ years committed to a qualification. Opens certain doors but costs time and money. University is not the only path to a good career.</p>
-        </div>
-        <div class="option-card">
-          <div class="option-title">Learnerships</div>
-          <p>Earn a stipend while learning on the job and come out with a qualification. Underused and underrated in South Africa.</p>
-        </div>
-        <div class="option-card">
-          <div class="option-title">Short courses</div>
-          <p>A few months to learn a skill — coding, design, bookkeeping — and start earning without committing to a 4-year degree.</p>
-        </div>
-        <div class="option-card">
-          <div class="option-title">Intentional gap time</div>
-          <p>Volunteering, building something, or getting work experience can be more valuable than rushing into a decision you're not ready for.</p>
-        </div>
-      </div>
+      <h3 class="section-heading" id="unsure-options-heading"></h3>
+      <div class="option-cards" id="unsure-options"></div>
 
       <div id="unsure-content"></div>
     </div>
@@ -161,10 +124,10 @@
     <div class="container">
       <div class="contribute-inner">
         <div class="contribute-text">
-          <h3>Know something that should be here?</h3>
-          <p>This is an open-source project. If you've found a resource that helped you, add it. No technical experience needed — we built a tool that makes it easy.</p>
+          <h3 id="contribute-heading"></h3>
+          <p id="contribute-body"></p>
         </div>
-        <a href="/contribute" class="contribute-cta">Add a resource →</a>
+        <a id="contribute-cta-link" class="contribute-cta"><span id="contribute-cta"></span></a>
       </div>
     </div>
   </section>
@@ -173,15 +136,15 @@
   <footer class="site-footer">
     <div class="container footer-inner">
       <div class="footer-brand">
-        <span class="logo-flag">🇿🇦</span>
-        <span>Mzantsi Vibes</span>
+        <span data-content="site.flag"></span>
+        <span data-content="site.name"></span>
       </div>
       <div class="footer-links">
-        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
-        <a href="https://www.linkedin.com/company/mzantsi-vibes/" target="_blank" rel="noopener">LinkedIn</a>
+        <a id="footer-github-link" target="_blank" rel="noopener">GitHub</a>
+        <a id="footer-instagram-link" target="_blank" rel="noopener">Instagram</a>
+        <a id="footer-linkedin-link" target="_blank" rel="noopener">LinkedIn</a>
       </div>
-      <p class="footer-note">Built with ❤️ for South African youth. MIT licensed. Free forever.</p>
+      <p class="footer-note" id="footer-tagline"></p>
     </div>
   </footer>
 
