@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contribute — Mzantsi Vibes</title>
+  <meta name="description" content="Add a resource to Mzantsi Vibes. No technical experience needed." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
+  <link rel="stylesheet" href="contribute-style.css" />
+
+  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+  <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-flag">🇿🇦</span>
+        <span class="logo-text">Mzantsi Vibes</span>
+      </a>
+      <nav class="header-links">
+        <a href="/">Back to site</a>
+        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-eyebrow">Open source · No technical experience needed</p>
+      <h1 class="hero-title">Add something<br /><em>that helped you.</em></h1>
+      <p class="hero-sub">Found a resource that would have helped you navigate life after matric? Add it here. This tool handles the GitHub stuff so you don't have to.</p>
+    </div>
+  </section>
+
+  <main class="main-content">
+    <div class="container">
+
+      <!-- HOW IT WORKS -->
+      <div class="how-it-works">
+        <h2 class="section-heading">How it works</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-text">
+              <strong>Get a GitHub PAT</strong>
+              <p>Create a free GitHub account, then generate a Personal Access Token with <code>repo</code> scope. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener">Instructions here →</a></p>
+              <p class="note">Go to: Profile icon → Settings → Developer Settings → Personal access tokens → Tokens (classic) → Generate new token → tick <code>repo</code> → copy the token. Store it somewhere safe — you only see it once.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-text">
+              <strong>Load and edit the README</strong>
+              <p>Click "Load README" to pull in the current content. Edit it using the rich text editor — no markdown knowledge needed.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-text">
+              <strong>Submit your contribution</strong>
+              <p>Click "Commit & Create Pull Request". The tool forks the repo, commits your change, and opens a PR automatically. A maintainer reviews and merges it.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- PROJECT INFO -->
+      <div class="form-section">
+        <h2 class="section-heading">Project details</h2>
+        <p class="field-note">These are pre-filled — you don't need to change them.</p>
+
+        <label for="owner">Repository owner</label>
+        <input type="text" id="owner" value="realtimshady16" />
+
+        <label for="repo">Repository name</label>
+        <input type="text" id="repo" value="mzantsi-vibes" />
+
+        <label for="pat">Your GitHub Personal Access Token (PAT)</label>
+        <input type="text" id="pat" placeholder="ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" autocomplete="off" />
+        <p class="field-note warning-note">⚠️ Your PAT is sensitive. It is used only for this session and is never stored anywhere.</p>
+
+        <button id="loadReadmeBtn" class="btn-primary">Load README</button>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- EDITOR -->
+      <div class="form-section">
+        <h2 class="section-heading">Edit README.md</h2>
+        <p class="field-note">Make your changes below. Switch to the Markdown tab if you prefer to edit raw markdown.</p>
+
+        <div class="tabs">
+          <button class="tab-link active" data-tab="richtext">Rich text</button>
+          <button class="tab-link" data-tab="markdown">Markdown</button>
+        </div>
+        <div class="tab-content-container">
+          <div id="richtext-editor-container" class="tab-content active"></div>
+          <div id="markdown-editor-container" class="tab-content">
+            <textarea id="readmeContent"></textarea>
+          </div>
+        </div>
+        <p class="field-note">Only <code>README.md</code> is supported by this tool.</p>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- PR DETAILS -->
+      <div class="form-section">
+        <h2 class="section-heading">Describe your change</h2>
+
+        <label for="commitMessage">Commit message</label>
+        <p class="field-note">A short one-liner about what you changed, e.g. "Added learnership link to I'm Going to Work section"</p>
+        <input type="text" id="commitMessage" placeholder="Added new resource to README" value="README update via contributor tool" />
+
+        <label for="prTitle">Pull request title</label>
+        <p class="field-note">Give your contribution a meaningful title.</p>
+        <input type="text" id="prTitle" placeholder="Add: new resource in Working section" value="README Update from Contributor Tool" />
+
+        <label for="prBody">Pull request description <span style="font-weight:400; color: var(--text-muted);">(optional)</span></label>
+        <p class="field-note">Tell us why you added this resource and anything else we should know.</p>
+        <textarea id="prBody" placeholder="This PR adds a link to a learnership database that helped me find work after matric..."></textarea>
+
+        <button id="submitBtn" class="btn-primary">Commit &amp; Create Pull Request</button>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- STATUS -->
+      <div id="status" class="status-box hidden"></div>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span>🇿🇦</span>
+        <span>Mzantsi Vibes</span>
+      </div>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
+      </div>
+      <p class="footer-note">MIT licensed. Free forever.</p>
+    </div>
+  </footer>
+
+  <script src="gittool-script.js"></script>
+</body>
+</html>
