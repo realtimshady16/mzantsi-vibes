@@ -153,7 +153,8 @@
             try {
                 updateStatus('Loading README.md...', 'info');
                 const readmeData = await githubApiFetch(`https://api.github.com/repos/${owner}/${repo}/contents/README.md`);
-                const markdownContent = atob(readmeData.content);
+                const bytes = Uint8Array.from(atob(readmeData.content), c => c.charCodeAt(0));
+                const markdownContent = new TextDecoder().decode(bytes);
                 currentFileSha = readmeData.sha;
                 
                 // Load content into both editors
