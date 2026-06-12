@@ -131,36 +131,18 @@ const CONTENT = {
 
 const README_URL = 'https://raw.githubusercontent.com/realtimshady16/mzantsi-vibes/main/README.md';
 
-const SECTION_MAP = {
-  study: [
-    "I'm Going to Study",
-    "Before You Apply",
-    "Paying for It",
-    "Getting There",
-    "While You're There",
-    "After Your Degree",
-  ],
-  work: [
-    "I'm Going to Work",
-    "Getting Work-Ready",
-    "Finding Work",
-    "Starting Something",
-    "Understanding Your Money",
-  ],
-  unsure: [
-    "I Don't Know Yet",
-    "Things You Can Do Right Now",
-    "Community Programmes",
-  ],
-  everyone: [
-    "For Everyone",
-    "How Do I Adult?",
-    "Mental Health 101",
-    "Being Healthy 101",
-    "Book Summaries",
-    "TED Talks & Speeches",
-  ],
+/* PILLAR_MARKERS — maps each site pillar to keywords that identify
+   its ## heading in the README. Case-insensitive partial match.
+   If you rename a pillar heading in the README, update the keyword here. */
+const PILLAR_MARKERS = {
+  study:    ["going to study"],
+  work:     ["going to work"],
+  unsure:   ["don't know", "dont know"],
+  everyone: ["for everyone"],
 };
+
+/* STOP_HEADINGS — ## headings that are NOT pillars and should be skipped */
+const STOP_HEADINGS = ["where are you", "contributing", "community", "contact"];
 
 /* =============================================
    POPULATE — writes CONTENT into the HTML
@@ -251,9 +233,11 @@ function attr(id, attribute, value) {
   const el = document.getElementById(id);
   if (el) el.setAttribute(attribute, value);
 }
-
 /* =============================================
    PARSER — README markdown → structured data
+   Auto-discovers pillars and subsections from
+   ## and ### headings. No hardcoded section list.
+   New sections in the README appear automatically.
    ============================================= */
 
 function stripMarkdown(str) {
@@ -276,107 +260,121 @@ function isBareUrl(str) {
   return /^https?:\/\/\S+/.test(str.trim());
 }
 
-function parseLinks(line) {
-  const results = [];
-  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
-  let match;
-  while ((match = regex.exec(line)) !== null) {
-    results.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
+function identifyPillar(headingText) {
+  const lower = headingText.toLowerCase();
+  for (const [pillar, markers] of Object.entries(PILLAR_MARKERS)) {
+    if (markers.some(m => lower.includes(m))) return pillar;
   }
-  return results;
+  return null;
+}
+
+function isStopHeading(headingText) {
+  const lower = headingText.toLowerCase();
+  return STOP_HEADINGS.some(s => lower.includes(s));
 }
 
 function parseReadme(markdown) {
   const lines = markdown.split('\n');
-  const sections = {};
-  let currentSection = null;
-  let lastResourceKey = null;
+
+  /* pillars holds ordered subsections per pillar.
+     Each pillar is an object: { sectionName: [items] }
+     We also keep an ordered list of section names so render order matches README order. */
+  const pillars = { study: {}, work: {}, unsure: {}, everyone: {} };
+  const pillarOrder = { study: [], work: [], unsure: [], everyone: [] };
+
+  let currentPillar = null;
+  let parentSection = null; // the ### heading (resets bold sub-label back to)
+  let currentSection = null; // active bucket key
+
+  const ensureSection = (pillar, key) => {
+    if (!pillars[pillar][key]) {
+      pillars[pillar][key] = [];
+      pillarOrder[pillar].push(key);
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed === '---') continue;
 
-    if (/^#{2,4}\s/.test(trimmed)) {
-      let heading = trimmed
-        .replace(/^#+\s*/, '')
-        .replace(/\s*\[#[^\]]*\]/g, '')
-        .trim();
-      heading = stripMarkdown(heading);
-      if (heading) {
-        currentSection = heading;
-        if (!sections[currentSection]) sections[currentSection] = [];
-        lastResourceKey = null;
+    /* ## heading — identifies a pillar or stops parsing */
+    if (/^##\s/.test(trimmed)) {
+      const heading = stripMarkdown(trimmed.replace(/^##\s*/, ''));
+      if (isStopHeading(heading)) {
+        currentPillar = null; parentSection = null; currentSection = null;
+        continue;
       }
+      const pillar = identifyPillar(heading);
+      currentPillar = pillar || null;
+      parentSection = null;
+      currentSection = null;
       continue;
     }
 
-    if (!currentSection) continue;
+    /* ### heading — subsection within the current pillar */
+    if (/^###\s/.test(trimmed) && currentPillar) {
+      const heading = stripMarkdown(trimmed.replace(/^###\s*/, ''));
+      parentSection = heading;
+      currentSection = heading;
+      ensureSection(currentPillar, currentSection);
+      continue;
+    }
 
+    /* **Bold label** on its own line — sub-group within the current ### section.
+       Resets to parentSection so labels don't nest into each other. */
+    if (/^\*\*[^*]+\*\*$/.test(trimmed) && currentPillar && parentSection) {
+      const label = trimmed.replace(/\*\*/g, '').trim();
+      currentSection = `${parentSection} — ${label}`;
+      ensureSection(currentPillar, currentSection);
+      continue;
+    }
+
+    if (!currentPillar || !currentSection) continue;
+    const bucket = pillars[currentPillar][currentSection];
+
+    /* List item with a link */
     if (/^[-*]\s/.test(trimmed) && trimmed.includes('[')) {
       const content = trimmed.replace(/^[-*]\s+/, '').trim();
-      const links = parseLinks(content);
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let match;
+      const links = [];
+      while ((match = linkRegex.exec(content)) !== null) {
+        links.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
+      }
 
       if (links.length > 0) {
-        const rawName = content
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-          .replace(/\s*[-–—]\s*/g, ' ')
-          .trim();
-        const name = stripMarkdown(rawName) || links[0].name;
-        const item = { name, url: links[0].url, desc: '' };
-        sections[currentSection].push(item);
-        lastResourceKey = sections[currentSection].length - 1;
+        /* Name: replace link syntax with link text, then take everything before the — */
+        const withText = content.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+        const namePart = withText.split(/\s[—–]\s/)[0].trim();
+        const name = stripMarkdown(namePart) || links[0].name;
 
-        for (let j = i + 1; j < lines.length && j <= i + 3; j++) {
-          const next = lines[j].trim();
-          if (!next) continue;
-          if (/^[-*#]/.test(next) || isBareUrl(next) || next.includes('](')) break;
-          item.desc = stripMarkdown(next);
-          i = j;
-          break;
-        }
-      } else if (/coming soon/i.test(trimmed)) {
-        const name = stripMarkdown(content.replace(/^[-*]\s*/, '').replace(/\*coming soon\*/i, '').trim());
-        sections[currentSection].push({ name, url: null, desc: 'Coming soon' });
-        lastResourceKey = null;
+        /* Desc: everything after the — dash */
+        const descMatch = content.match(/\s[—–]\s(.+)$/);
+        const desc = descMatch ? stripMarkdown(descMatch[1]).trim() : '';
+
+        bucket.push({ name, url: links[0].url, desc });
+      } else if (/coming soon/i.test(content)) {
+        const name = stripMarkdown(
+          content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
+        );
+        bucket.push({ name: name || 'Coming soon', url: null, desc: 'Coming soon' });
       }
       continue;
     }
 
-    if (isBareUrl(trimmed) && lastResourceKey !== null) {
-      const lastItem = sections[currentSection][lastResourceKey];
-      if (lastItem && !lastItem.url) lastItem.url = cleanUrl(trimmed);
-      continue;
-    }
-
-    if (/^#{4,5}\s*Description/i.test(trimmed)) {
-      for (let j = i + 1; j < lines.length && j < i + 5; j++) {
-        const descLine = lines[j].trim();
-        if (descLine && !descLine.startsWith('#')) {
-          if (lastResourceKey !== null && sections[currentSection][lastResourceKey]) {
-            sections[currentSection][lastResourceKey].desc = stripMarkdown(descLine);
-          }
-          i = j;
-          break;
-        }
-      }
-      continue;
-    }
-
-    if (/^[-*]\s/.test(trimmed) && !trimmed.includes('[')) {
+    /* List item without a link — coming soon entries */
+    if (/^[-*]\s/.test(trimmed)) {
       const content = trimmed.replace(/^[-*]\s+/, '').trim();
       if (/coming soon/i.test(content)) {
-        sections[currentSection].push({
-          name: stripMarkdown(content.replace(/\*?coming soon\*?/i, '').trim()) || 'Coming soon',
-          url: null,
-          desc: 'Coming soon',
-        });
-        lastResourceKey = null;
+        const name = stripMarkdown(
+          content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
+        );
+        bucket.push({ name: name || 'Coming soon', url: null, desc: 'Coming soon' });
       }
     }
   }
 
-  return sections;
+  return { pillars, pillarOrder };
 }
 
 /* =============================================
@@ -436,24 +434,23 @@ function renderResourceList(resources) {
   return `<div class="resource-list">${items}</div>`;
 }
 
-function renderSection(targetId, headingKeys, parsedData) {
+function renderSection(targetId, pillarKey, parsedData) {
   const container = document.getElementById(targetId);
   if (!container) return;
 
-  let html = '';
-  let hasContent = false;
+  const { pillars, pillarOrder } = parsedData;
+  const sections = pillars[pillarKey];
+  const order = pillarOrder[pillarKey];
   const s = CONTENT.states;
 
-  headingKeys.forEach(key => {
-    let resources = parsedData[key];
-    if (!resources) {
-      const lkey = key.toLowerCase();
-      const found = Object.keys(parsedData).find(k => k.toLowerCase() === lkey);
-      if (found) resources = parsedData[found];
-    }
+  let html = '';
+  let hasContent = false;
+
+  order.forEach(sectionName => {
+    const resources = sections[sectionName];
     if (!resources || resources.length === 0) return;
     hasContent = true;
-    html += `<div class="subsection-label">${escHtml(key)}</div>`;
+    html += `<div class="subsection-label">${escHtml(sectionName)}</div>`;
     html += renderResourceList(resources);
   });
 
@@ -490,15 +487,18 @@ async function init() {
   const s = CONTENT.states;
 
   try {
-    const res = await fetch(README_URL);
+    const res = await fetch(README_URL, {
+      headers: { 'Accept': 'text/plain, */*' },
+      cache: 'no-cache',
+    });
     if (!res.ok) throw new Error('Failed to fetch README');
     const markdown = await res.text();
     const parsed = parseReadme(markdown);
 
-    renderSection('study-content', SECTION_MAP.study, parsed);
-    renderSection('work-content', SECTION_MAP.work, parsed);
-    renderSection('unsure-content', SECTION_MAP.unsure, parsed);
-    renderSection('everyone-content', SECTION_MAP.everyone, parsed);
+    renderSection('study-content',   'study',    parsed);
+    renderSection('work-content',    'work',     parsed);
+    renderSection('unsure-content',  'unsure',   parsed);
+    renderSection('everyone-content','everyone', parsed);
 
     loadingEl.classList.add('hidden');
     document.getElementById('section-study').classList.remove('hidden');

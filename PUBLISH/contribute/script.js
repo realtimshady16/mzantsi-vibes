@@ -291,7 +291,10 @@
 
                 // --- Step C: Commit the file change to the new branch ---
                 updateStatus('Committing changes to README.md...', 'info');
-                const contentEncoded = btoa(unescape(encodeURIComponent(newContent)));
+                const bytes = new TextEncoder().encode(newContent);
+                const binString = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
+                const contentEncoded = btoa(binString);
+
                 await githubApiFetch(`https://api.github.com/repos/${targetRepoOwner}/${targetRepoName}/contents/README.md`, {
                     method: 'PUT',
                     body: JSON.stringify({
