@@ -33,7 +33,7 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 ### Getting There
 
 -   [Commerce Faculty](https://uct.ac.za/students/study-uct-degrees-diplomas-commerce/commerce-undergraduate) — _coming soon_
--   Engineering Faculty — _coming soon_
+-   [Engineering Faculty](https://ebe.uct.ac.za/) — _coming soon_
 -   Science Faculty — _coming soon_
 -   Health Sciences Faculty — _coming soon_
 -   Humanities Faculty — _coming soon_
