@@ -16,7 +16,9 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 ### Before You Apply
 
 -   [NBT (National Benchmark Tests)](https://www.nbt.ac.za/) — Tests that assess whether you're ready for university/higher education. Most universities require these alongside your matric results.
--   [NSFAS](https://my.nsfas.org.za/) — Financial aid for students who can't afford higher education fees. Apply as early as possible.
+-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students who can't afford higher education fees. Apply as early as possible.
+-
+
 -   [Siyavula](https://www.siyavula.com/) — Free study materials for Maths and Science to help you prepare.
 
 ### Paying for It
