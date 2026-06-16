@@ -17,8 +17,6 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 
 -   [NBT (National Benchmark Tests)](https://www.nbt.ac.za/) — Tests that assess whether you're ready for university/higher education. Most universities require these alongside your matric results.
 -   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students who can't afford higher education fees. Apply as early as possible.
--
-
 -   [Siyavula](https://www.siyavula.com/) — Free study materials for Maths and Science to help you prepare.
 
 ### Paying for It
@@ -36,7 +34,7 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 
 -   [Commerce Faculty](https://uct.ac.za/students/study-uct-degrees-diplomas-commerce/commerce-undergraduate) — _coming soon_
 -   [Engineering Faculty](https://ebe.uct.ac.za/) — _coming soon_
--   Science Faculty — _coming soon_
+-   [Science Faculty](https://science.uct.ac.za/) — _coming soon_
 -   Health Sciences Faculty — _coming soon_
 -   Humanities Faculty — _coming soon_
 -   Law Faculty — _coming soon_
