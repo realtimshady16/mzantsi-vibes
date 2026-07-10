@@ -69,7 +69,7 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 -   [Python Programming](https://youtu.be/nLRL_NcnK-4?si=n-n-e2nVRJtRtIxn) — Harvard CS50
 -   [Docker and Kubernetes](https://youtu.be/kTp5xUtcalw?si=_QHM-DLFYW4HGgMI) — FreeCodeCamp
 -   Guide to Flutterflow by [Flutterflow University](https://youtube.com/playlist?list=PLsUp7t2vRqx-xMe6gucpfjeDgIj0tJRIm&si=vAqfU9PUADPBjnA0)
--   Guide to [Webflow](https://university.webflow.com/courses/getting-started-with-webflow)
+-   Guide to [Webflow](https://university.webflow.com/courses/getting-started-with-webflow) - this is a webflow guide
 -   Guide to [Bubble](https://build.airdev.co/bootcamp_dashboard)
 
 **Design**
