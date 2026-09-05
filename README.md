@@ -151,7 +151,7 @@ Start here. Three questions that narrow things down fast:
 ### Mental Health 101
 
 -   [Coping Techniques for Stressful Days](https://www.youtube.com/playlist?list=PLbpi6ZahtOH6bljmu-_jyG-Th3NH-vqcB) — YouTube Playlist
--   [Writing anxieties away with Liz Filips](https://youtu.be/ALfGh3-4JUo?si=l9lH9nLJ3IJ2zBbe)
+-   [Writing anxieties away with Liz Filips](https://youtu.be/ALfGh3-4JUo?si=l9lH9nLJ3IJ2zBbe) - YouTube Playlist
 -   [Mental hygiene routine](https://youtu.be/JSOJDVugIQ0?si=9e9YelkLnKUQKvS2)
 -   [Journaling with Andrew Huberman](https://youtu.be/wAZn9dF3XTo?si=zg6b9hvOdWSPbn9-)
 
