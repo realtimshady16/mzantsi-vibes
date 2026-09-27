@@ -1,328 +1,277 @@
-// Global variables for the rich text editor instance and a Turndown service
-    let quill = null;
-    let turndownService = null;
+/**
+ * Mzantsi Vibes — contribute form.
+ *
+ * No GitHub account, no token, no editor. The form loads the real section list
+ * from the Worker, posts to /api/submit, and shows the resulting PR link.
+ */
 
-    // A helper function to manage tab switching
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab-link').forEach(btn => btn.classList.remove('active'));
-        document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.getElementById(`${tabId}-editor-container`).classList.add('active');
-    }
+(function () {
+  'use strict';
 
-    // 1. Get authenticated user's username
-    async function getAuthenticatedUser() {
-        const patInput = document.getElementById('pat');
-        const statusDiv = document.getElementById('status');
+  var form = document.getElementById('contributeForm');
+  var sectionSelect = document.getElementById('section');
+  var sectionsNote = document.getElementById('sectionsNote');
+  var newSectionWrap = document.getElementById('newSectionWrap');
+  var newSectionName = document.getElementById('newSectionName');
+  var editFields = document.getElementById('editFields');
+  var newFields = document.getElementById('newFields');
+  var originalInput = document.getElementById('original');
+  var editReplacement = document.getElementById('editReplacement');
+  var contentInput = document.getElementById('content');
+  var handleInput = document.getElementById('handle');
+  var submitBtn = document.getElementById('submitBtn');
+  var statusBox = document.getElementById('status');
 
-        try {
-            updateStatus('Authenticating with GitHub...', 'info');
-            const userData = await githubApiFetch('https://api.github.com/user');
-            githubUsername = userData.login;
-            updateStatus(`Authenticated as: ${githubUsername}`, 'success');
-            return true;
-        } catch (error) {
-            githubUsername = '';
-            updateStatus(`Authentication failed. Check your PAT. ${error.message}`, 'error');
-            return false;
-        }
-    }
+  var NEW_SECTION = 'new';
+  var LIMITS = { content: 4000, original: 2000, handle: 60 };
 
-    // Function to update status messages
-    function updateStatus(message, type = 'info') {
-        const statusDiv = document.getElementById('status');
-        statusDiv.innerHTML = message;
-        statusDiv.className = `status-box ${type}`;
-    }
+  /* If /api/sections is unreachable the form still works, but the list may be
+   * behind the README. The Worker validates the choice and says so clearly. */
+  var FALLBACK_GROUPS = [
+    { pillar: "I'm Going to Study", sections: ['Before You Apply', 'Paying for It', 'Getting There', 'While You Are There', 'After Your Degree'] },
+    { pillar: "I'm Going to Work", sections: ['Getting Work-Ready', 'Finding Work', 'Starting Something', 'Understanding Your Money'] },
+    { pillar: "I Don't Know Yet", sections: ['Things you can do right now'] },
+    { pillar: 'For Everyone', sections: ['How Do I Adult?', 'Mental Health 101', 'Being Healthy 101', 'Book Summaries', 'TED Talks & Speeches'] },
+  ];
 
-    // Helper function for API requests
-    async function githubApiFetch(url, options = {}) {
-        const patInput = document.getElementById('pat');
-        const pat = patInput.value.trim();
-        if (!pat) {
-            updateStatus('Please enter your GitHub Personal Access Token.', 'error');
-            throw new Error('PAT missing');
-        }
+  function currentFlow() {
+    var checked = form.querySelector('input[name="flow"]:checked');
+    return checked ? checked.value : 'new';
+  }
 
-        const headers = {
-            'Authorization': `token ${pat}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-        };
+  function setStatus(message, kind) {
+    statusBox.className = 'status-box ' + kind;
+    statusBox.innerHTML = message;
+  }
 
-        const response = await fetch(url, { ...options, headers });
-        const data = await response.json();
+  function clearStatus() {
+    statusBox.className = 'status-box hidden';
+    statusBox.innerHTML = '';
+  }
 
-        if (!response.ok) {
-            updateStatus(`GitHub API Error: ${data.message || response.statusText}`, 'error');
-            throw new Error(data.message || response.statusText);
-        }
-        return data;
-    }
-    
-    let currentFileSha = '';
-    let githubUsername = '';
+  function currentGroup() {
+    var value = sectionSelect.value;
+    if (!value || value.indexOf(NEW_SECTION + '::') !== 0) return null;
+    return value.slice(NEW_SECTION.length + 2);
+  }
 
-    // Main event listeners
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- INITIALIZE LIBRARIES FIRST ---
-        const richtextEditorContainer = document.getElementById('richtext-editor-container');
-        if (richtextEditorContainer) {
-            quill = new Quill(richtextEditorContainer, {
-                theme: 'snow',
-                modules: {
-                    toolbar: [
-                        [{ 'header': [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        ['blockquote', 'code-block'],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                        [{ 'indent': '-1'}, { 'indent': '+1' }],
-                        ['link', 'image'],
-                        ['clean']
-                    ]
-                }
-            });
-        }
-        // Configure Turndown for clean, consistent markdown output.
-        // These settings ensure the README parser on the website
-        // can reliably read whatever contributors submit via this tool.
-        turndownService = new TurndownService({
-            headingStyle: 'atx',        // Always use ## style, never underline style
-            bulletListMarker: '-',      // Always use - for bullets, not * or +
-            codeBlockStyle: 'fenced'    // Use ``` fences, not indentation
-        });
+  /* --- flow switching --- */
+  function applyFlow() {
+    var isEdit = currentFlow() === 'edit';
+    editFields.hidden = isEdit;
+    newFields.hidden = !isEdit;
+    originalInput.required = isEdit;
+    editReplacement.required = isEdit;
+    contentInput.required = !isEdit;
+    updateCounters();
+  }
 
-        // Override heading rule to strip any bold/italic formatting that
-        // Quill injects inside heading nodes. Without this, a bold heading
-        // in Quill becomes ## **Heading** in markdown, which breaks parsing.
-        turndownService.addRule('cleanHeadings', {
-            filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-            replacement: function(content, node) {
-                const level = parseInt(node.nodeName.charAt(1));
-                const hashes = '#'.repeat(level);
-                // Strip any markdown bold/italic Quill put inside the heading
-                const cleanContent = content
-                    .replace(/\*\*([^*]+)\*\*/g, '$1')
-                    .replace(/\*([^*]+)\*/g, '$1')
-                    .replace(/__([^_]+)__/g, '$1')
-                    .replace(/_([^_]+)_/g, '$1')
-                    .trim();
-                return '\n\n' + hashes + ' ' + cleanContent + '\n\n';
-            }
-        });
+  /* --- section list --- */
+  function buildSectionList(groups, degraded) {
+    sectionSelect.innerHTML = '';
 
-        // Clean up trailing whitespace on each line after conversion
-        const originalTurndown = turndownService.turndown.bind(turndownService);
-        turndownService.turndown = function(html) {
-            return originalTurndown(html)
-                .split('\n')
-                .map(line => line.trimEnd())
-                .join('\n');
-        };
-        // --- END INITIALIZATION ---
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Choose a section…';
+    sectionSelect.appendChild(placeholder);
 
-        const ownerInput = document.getElementById('owner');
-        const repoInput = document.getElementById('repo');
-        const patInput = document.getElementById('pat');
-        const readmeContentInput = document.getElementById('readmeContent');
-        const commitMessageInput = document.getElementById('commitMessage');
-        const prTitleInput = document.getElementById('prTitle');
-        const prBodyInput = document.getElementById('prBody');
-        const loadReadmeBtn = document.getElementById('loadReadmeBtn');
-        const submitBtn = document.getElementById('submitBtn');
-        const statusDiv = document.getElementById('status');
-        
-        // Handle tab clicks
-        document.querySelectorAll('.tab-link').forEach(tab => {
-            tab.addEventListener('click', () => {
-                switchTab(tab.dataset.tab);
-            });
-        });
+    groups.forEach(function (group) {
+      var optgroup = document.createElement('optgroup');
+      optgroup.label = group.pillar;
 
-        // 2. Load README content
-        loadReadmeBtn.addEventListener('click', async () => {
-            const owner = ownerInput.value.trim();
-            const repo = repoInput.value.trim();
+      group.sections.forEach(function (name) {
+        var opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        optgroup.appendChild(opt);
+      });
 
-            if (!(await getAuthenticatedUser())) return;
-            if (!owner || !repo) {
-                updateStatus('Please enter repository owner and name.', 'warning');
-                return;
-            }
+      var add = document.createElement('option');
+      add.value = NEW_SECTION + '::' + group.pillar;
+      add.textContent = '+ New section under “' + group.pillar + '”';
+      optgroup.appendChild(add);
 
-            try {
-                updateStatus('Loading README.md...', 'info');
-                const readmeData = await githubApiFetch(`https://api.github.com/repos/${owner}/${repo}/contents/README.md`);
-                const bytes = Uint8Array.from(atob(readmeData.content), c => c.charCodeAt(0));
-                const markdownContent = new TextDecoder().decode(bytes);
-                currentFileSha = readmeData.sha;
-                
-                // Load content into both editors
-                readmeContentInput.value = markdownContent;
-                const htmlContent = marked.parse(markdownContent);
-
-                if (quill) {
-                    quill.clipboard.dangerouslyPasteHTML(0, htmlContent);
-                }
-                
-                updateStatus('README.md loaded successfully.', 'success');
-                switchTab('richtext');
-            } catch (error) {
-                updateStatus(`Failed to load README.md: ${error.message}`, 'error');
-                console.error('Error loading README:', error);
-            }
-        });
-
-        // 3. Fork, Commit, and Create PR
-        submitBtn.addEventListener('click', async () => {
-            const owner = ownerInput.value.trim();
-            const repo = repoInput.value.trim();
-            const commitMessage = commitMessageInput.value.trim();
-            const prTitle = prTitleInput.value.trim();
-            const prBody = prBodyInput.value.trim();
-            
-            let newContent = '';
-            const activeTab = document.querySelector('.tab-link.active').dataset.tab;
-
-            if (activeTab === 'richtext') {
-                const htmlContent = quill.root.innerHTML;
-                newContent = turndownService.turndown(htmlContent);
-            } else {
-                newContent = readmeContentInput.value;
-            }
-
-            if (!(await getAuthenticatedUser())) return;
-            if (!owner || !repo || !newContent || !commitMessage || !prTitle) {
-                updateStatus('Please fill in all required fields.', 'warning');
-                return;
-            }
-            if (!currentFileSha) {
-                updateStatus('Please load the README.md first.', 'warning');
-                return;
-            }
-
-            try {
-                updateStatus('Starting contribution process...', 'info');
-
-                // --- Step A: Check/Create Fork ---
-                const forkUrl = `https://api.github.com/repos/${owner}/${repo}/forks`;
-                let userForkedRepo = null;
-                let forkedRepoOwner = githubUsername;
-                let forkedRepoName = repo;
-                
-                const isOwner = githubUsername.toLowerCase() === owner.toLowerCase();
-
-                if (!isOwner) {
-                    try {
-                        const userRepos = await githubApiFetch(`https://api.github.com/users/${githubUsername}/repos`);
-                        userForkedRepo = userRepos.find(r => r.fork && r.source && r.source.owner.login === owner && r.source.name === repo);
-                    } catch (e) {
-                        console.warn('Could not list user repos to check for existing fork, proceeding to create fork attempt.');
-                    }
-                    
-                    if (!userForkedRepo) {
-                        updateStatus('Forking repository...', 'info');
-                        await githubApiFetch(forkUrl, { method: 'POST' });
-                        
-                        updateStatus('Request accepted. Waiting for the fork to be created...', 'info');
-
-                        let forkIsReady = false;
-                        let maxRetries = 20;
-                        let retryCount = 0;
-                        const forkCheckUrl = `https://api.github.com/repos/${githubUsername}/${repo}`;
-
-                        while (!forkIsReady && retryCount < maxRetries) {
-                            retryCount++;
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                            
-                            try {
-                                const response = await fetch(forkCheckUrl, {
-                                    headers: {
-                                        'Authorization': `token ${patInput.value.trim()}`,
-                                        'Accept': 'application/vnd.github.v3+json'
-                                    }
-                                });
-
-                                if (response.ok) {
-                                    const data = await response.json();
-                                    if (data.fork && data.source && data.source.owner.login === owner && data.source.name === repo) {
-                                        userForkedRepo = data;
-                                        forkIsReady = true;
-                                    }
-                                }
-                            } catch (error) {
-                                console.error(`Attempt ${retryCount} to check fork failed:`, error);
-                            }
-                        }
-
-                        if (!forkIsReady) {
-                            throw new Error('Fork was not created or ready after several attempts. Please check GitHub manually.');
-                        }
-                        updateStatus('Fork created successfully!', 'success');
-                    } else {
-                        updateStatus(`Found existing fork: ${forkedRepoOwner}/${forkedRepoName}`, 'info');
-                    }
-                } else {
-                    updateStatus('Authenticated user is the repository owner. Committing directly to a new branch.', 'info');
-                }
-
-                let targetRepoOwner = isOwner ? owner : forkedRepoOwner;
-                let targetRepoName = isOwner ? repo : forkedRepoName;
-                let targetDefaultBranch = userForkedRepo ? userForkedRepo.default_branch : null;
-
-                if (!targetDefaultBranch) {
-                    const repoInfo = await githubApiFetch(`https://api.github.com/repos/${targetRepoOwner}/${targetRepoName}`);
-                    targetDefaultBranch = repoInfo.default_branch;
-                }
-
-                // --- Step B: Create a new branch on the target repo (fork or main) ---
-                updateStatus('Getting latest branch info...', 'info');
-                const defaultBranchRef = await githubApiFetch(`https://api.github.com/repos/${targetRepoOwner}/${targetRepoName}/git/refs/heads/${targetDefaultBranch}`);
-                const baseBranchSha = defaultBranchRef.object.sha;
-                const newBranchName = `contribute-readme-${Date.now()}`;
-
-                updateStatus(`Creating new branch '${newBranchName}'...`, 'info');
-                await githubApiFetch(`https://api.github.com/repos/${targetRepoOwner}/${targetRepoName}/git/refs`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        ref: `refs/heads/${newBranchName}`,
-                        sha: baseBranchSha
-                    })
-                });
-
-                // --- Step C: Commit the file change to the new branch ---
-                updateStatus('Committing changes to README.md...', 'info');
-                const bytes = new TextEncoder().encode(newContent);
-                const binString = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
-                const contentEncoded = btoa(binString);
-
-                await githubApiFetch(`https://api.github.com/repos/${targetRepoOwner}/${targetRepoName}/contents/README.md`, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        message: commitMessage,
-                        content: contentEncoded,
-                        sha: currentFileSha,
-                        branch: newBranchName
-                    })
-                });
-                updateStatus('Changes committed successfully.', 'success');
-
-                // --- Step D: Create Pull Request ---
-                updateStatus('Creating pull request...', 'info');
-                const prData = await githubApiFetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        title: prTitle,
-                        head: `${targetRepoOwner}:${newBranchName}`,
-                        base: targetDefaultBranch,
-                        body: prBody
-                    })
-                });
-
-                updateStatus(`Pull Request created! 🎉 <a href="${prData.html_url}" target="_blank">View PR #${prData.number}</a>`, 'success');
-            } catch (error) {
-                updateStatus(`Contribution failed: ${error.message}`, 'error');
-                console.error('Full contribution error:', error);
-            }
-        });
+      sectionSelect.appendChild(optgroup);
     });
+
+    if (degraded) {
+      sectionsNote.textContent =
+        'Showing a saved copy of the sections — the live list could not be reached. ' +
+        'If your section is missing, reload the page in a moment.';
+    } else {
+      sectionsNote.textContent = 'These are the live sections from the README right now.';
+    }
+  }
+
+  function onSectionChange() {
+    var isNewSection = sectionSelect.value.indexOf(NEW_SECTION + '::') === 0;
+    newSectionWrap.classList.toggle('hidden', !isNewSection);
+    newSectionName.required = isNewSection && currentFlow() !== 'edit';
+    clearStatus();
+  }
+
+  function loadSections() {
+    fetch('/api/sections', { headers: { Accept: 'application/json' } })
+      .then(function (res) {
+        if (!res.ok) throw new Error('bad status ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok || !Array.isArray(data.groups) || !data.groups.length) {
+          throw new Error('no groups');
+        }
+        buildSectionList(data.groups, false);
+        sectionSelect.disabled = false;
+      })
+      .catch(function () {
+        buildSectionList(FALLBACK_GROUPS, true);
+        sectionSelect.disabled = false;
+      });
+  }
+
+  /* --- character counters --- */
+  var counters = [];
+
+  function paintCounter(entry) {
+    var len = entry.input.value.length;
+    entry.counter.textContent = len + ' / ' + entry.max;
+    entry.counter.classList.toggle('over', len > entry.max);
+  }
+
+  function updateCounters() {
+    counters.forEach(paintCounter);
+  }
+
+  function addCounter(input, max) {
+    var counter = document.createElement('span');
+    counter.className = 'counter';
+    counter.setAttribute('aria-hidden', 'true');
+    input.insertAdjacentElement('afterend', counter);
+
+    var entry = { input: input, counter: counter, max: max };
+    counters.push(entry);
+
+    input.addEventListener('input', function () { paintCounter(entry); });
+    paintCounter(entry);
+  }
+
+  /* --- submit --- */
+  function onSubmit(event) {
+    event.preventDefault();
+    clearStatus();
+
+    var flow = currentFlow();
+    var pillar = currentGroup();
+
+    /* The selected <option> lives inside an <optgroup> labelled with the
+     * pillar, so recover the pillar from the DOM rather than encoding it in
+     * the value for existing sections. */
+    if (!pillar && sectionSelect.selectedIndex >= 0) {
+      var group = sectionSelect.options[sectionSelect.selectedIndex].parentNode;
+      if (group && group.tagName === 'OPTGROUP') pillar = group.label;
+    }
+
+    if (!sectionSelect.value) {
+      setStatus('Please choose which section this belongs to.', 'warning');
+      return;
+    }
+    if (!pillar) {
+      setStatus('Could not work out which part of the site that is. Please reload and try again.', 'error');
+      return;
+    }
+    if (flow === 'new' && sectionSelect.value.indexOf(NEW_SECTION + '::') === 0 && !newSectionName.value.trim()) {
+      setStatus('Please give your new section a name.', 'warning');
+      return;
+    }
+    if (flow === 'edit' && !originalInput.value.trim()) {
+      setStatus('Please paste the text that needs fixing.', 'warning');
+      return;
+    }
+
+    var payload = {
+      flow: flow,
+      pillar: pillar,
+      section: sectionSelect.value,
+      content: flow === 'edit' ? editReplacement.value : contentInput.value,
+      handle: handleInput.value,
+      website: document.getElementById('website').value,
+    };
+    if (flow === 'edit') payload.original = originalInput.value;
+    if (sectionSelect.value.indexOf(NEW_SECTION + '::') === 0) {
+      payload.newSectionName = newSectionName.value;
+    }
+
+    submitBtn.classList.add('is-busy');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+    setStatus('Opening your pull request…', 'info');
+
+    fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          return { ok: res.ok, data: data || {} };
+        });
+      })
+      .then(function (result) {
+        if (!result.ok || !result.data.ok) {
+          throw new Error(result.data.error || 'Submission failed. Please try again.');
+        }
+
+        var d = result.data;
+        if (!d.prUrl) {
+          setStatus('Thanks — that went through.', 'success');
+          form.reset();
+          applyFlow();
+          onSectionChange();
+          updateCounters();
+          return;
+        }
+
+        setStatus(
+          '🎉 <span class="pr-number">Pull request #' + d.prNumber + ' opened!</span><br />' +
+            'A maintainer reviews it daily, and approved changes go live that evening. ' +
+            'You can watch it here:<br />' +
+            '<a href="' + d.prUrl + '" target="_blank" rel="noopener">' + d.prUrl + '</a>',
+          'success'
+        );
+        form.reset();
+        applyFlow();
+        onSectionChange();
+        updateCounters();
+      })
+      .catch(function (err) {
+        setStatus(err.message, 'error');
+      })
+      .then(function () {
+        submitBtn.classList.remove('is-busy');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send it in';
+      });
+  }
+
+  /* --- init --- */
+  document.addEventListener('DOMContentLoaded', function () {
+    addCounter(contentInput, LIMITS.content);
+    addCounter(editReplacement, LIMITS.content);
+    addCounter(originalInput, LIMITS.original);
+    addCounter(handleInput, LIMITS.handle);
+    addCounter(newSectionName, 80);
+
+    Array.prototype.forEach.call(form.querySelectorAll('input[name="flow"]'), function (radio) {
+      radio.addEventListener('change', function () {
+        applyFlow();
+        onSectionChange();
+      });
+    });
+
+    sectionSelect.addEventListener('change', onSectionChange);
+    form.addEventListener('submit', onSubmit);
+
+    applyFlow();
+    loadSections();
+  });
+})();

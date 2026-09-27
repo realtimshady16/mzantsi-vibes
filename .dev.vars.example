@@ -1,0 +1,25 @@
+# Local development secrets for `wrangler dev`.
+#
+# Copy this file to `.dev.vars` and fill it in. `.dev.vars` is gitignored —
+# never commit real values. In production use `wrangler secret put <NAME>`
+# instead, which stores the value encrypted and never touches the repo.
+#
+#   cp .dev.vars.example .dev.vars
+
+# Fine-grained PAT owned by a DEDICATED BOT ACCOUNT (not your personal one).
+# On the upstream repo it needs:
+#   Contents: read & write
+#   Pull requests: read & write
+# The bot account also needs its own fork of the repo — fork it once at
+# https://github.com/realtimshady16/mzantsi-vibes/fork
+BOT_GITHUB_PAT=
+
+# Signs the Approve/Reject links in the digest email. Any long random string.
+#   openssl rand -hex 32
+HMAC_SECRET=
+
+# Resend API key — https://resend.com/api-keys
+RESEND_API_KEY=
+
+# Where the daily digest is sent.
+REVIEWER_EMAIL=

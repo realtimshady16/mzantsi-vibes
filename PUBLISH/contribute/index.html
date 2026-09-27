@@ -4,18 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contribute — Mzantsi Vibes</title>
-  <meta name="description" content="Add a resource to Mzantsi Vibes. No technical experience needed." />
+  <meta name="description" content="Add a resource or fix something on Mzantsi Vibes. No GitHub account, no technical experience needed." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
 
-  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-
-  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-  <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -36,9 +31,9 @@
   <!-- HERO -->
   <section class="hero">
     <div class="hero-inner">
-      <p class="hero-eyebrow">Open source · No technical experience needed</p>
+      <p class="hero-eyebrow">No GitHub account · No technical experience needed</p>
       <h1 class="hero-title">Add something<br /><em>that helped you.</em></h1>
-      <p class="hero-sub">Found a resource that would have helped you navigate life after matric? Add it here. This tool handles the GitHub stuff so you don't have to.</p>
+      <p class="hero-sub">Found a resource that would have helped you after matric? Spotted something that has changed or broken? Send it in. We turn it into a pull request and a human reviews it — you never touch GitHub.</p>
     </div>
   </section>
 
@@ -52,23 +47,22 @@
           <div class="step">
             <div class="step-number">1</div>
             <div class="step-text">
-              <strong>Get a GitHub PAT</strong>
-              <p>Create a free GitHub account, then generate a Personal Access Token with <code>repo</code> scope. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" rel="noopener">Instructions here →</a></p>
-              <p class="note">Go to: Profile icon → Settings → Developer Settings → Personal access tokens → Tokens (classic) → Generate new token → tick <code>repo</code> → copy the token. Store it somewhere safe — you only see it once.</p>
+              <strong>You fill in the form below</strong>
+              <p>Pick where your addition belongs, paste the content, and optionally add your name so you get credit.</p>
             </div>
           </div>
           <div class="step">
             <div class="step-number">2</div>
             <div class="step-text">
-              <strong>Load and edit the README</strong>
-              <p>Click "Load README" to pull in the current content. Edit it using the rich text editor — no markdown knowledge needed.</p>
+              <strong>We open a pull request for you</strong>
+              <p>A bot account turns your submission into a proper change to the README and opens it for review. Your words are never lost.</p>
             </div>
           </div>
           <div class="step">
             <div class="step-number">3</div>
             <div class="step-text">
-              <strong>Submit your contribution</strong>
-              <p>Click "Commit & Create Pull Request". The tool forks the repo, commits your change, and opens a PR automatically. A maintainer reviews and merges it.</p>
+              <strong>A maintainer reviews it</strong>
+              <p>Approved changes go live with the nightly batch. Rejected ones are closed with a reason so you can try again.</p>
             </div>
           </div>
         </div>
@@ -76,69 +70,121 @@
 
       <hr class="divider" />
 
-      <!-- PROJECT INFO -->
-      <div class="form-section">
-        <h2 class="section-heading">Project details</h2>
-        <p class="field-note">These are pre-filled — you don't need to change them.</p>
+      <!-- FORM -->
+      <form id="contributeForm" novalidate>
 
-        <label for="owner">Repository owner</label>
-        <input type="text" id="owner" value="realtimshady16" />
+        <!-- FLOW -->
+        <div class="form-section">
+          <h2 class="section-heading">What are you doing?</h2>
 
-        <label for="repo">Repository name</label>
-        <input type="text" id="repo" value="mzantsi-vibes" />
+          <div class="choice-grid">
+            <label class="choice" for="flowNew">
+              <input type="radio" name="flow" id="flowNew" value="new" checked />
+              <span class="choice-body">
+                <span class="choice-title">Add something new</span>
+                <span class="choice-sub">A resource, guide, video or link that isn't listed yet.</span>
+              </span>
+            </label>
 
-        <label for="pat">Your GitHub Personal Access Token (PAT)</label>
-        <input type="text" id="pat" placeholder="ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" autocomplete="off" />
-        <p class="field-note warning-note">⚠️ Your PAT is sensitive. It is used only for this session and is never stored anywhere.</p>
-
-        <button id="loadReadmeBtn" class="btn-primary">Load README</button>
-      </div>
-
-      <hr class="divider" />
-
-      <!-- EDITOR -->
-      <div class="form-section">
-        <h2 class="section-heading">Edit README.md</h2>
-        <p class="field-note">Make your changes below. Switch to the Markdown tab if you prefer to edit raw markdown.</p>
-
-        <div class="tabs">
-          <button class="tab-link active" data-tab="richtext">Rich text</button>
-          <button class="tab-link" data-tab="markdown">Markdown</button>
-        </div>
-        <div class="tab-content-container">
-          <div id="richtext-editor-container" class="tab-content active"></div>
-          <div id="markdown-editor-container" class="tab-content">
-            <textarea id="readmeContent"></textarea>
+            <label class="choice" for="flowEdit">
+              <input type="radio" name="flow" id="flowEdit" value="edit" />
+              <span class="choice-body">
+                <span class="choice-title">Correct something</span>
+                <span class="choice-sub">A link has died, a detail is wrong, or something needs updating.</span>
+              </span>
+            </label>
           </div>
         </div>
-        <p class="field-note">Only <code>README.md</code> is supported by this tool.</p>
-      </div>
 
-      <hr class="divider" />
+        <hr class="divider" />
 
-      <!-- PR DETAILS -->
-      <div class="form-section">
-        <h2 class="section-heading">Describe your change</h2>
+        <!-- TARGET -->
+        <div class="form-section">
+          <h2 class="section-heading">Where does it belong?</h2>
 
-        <label for="commitMessage">Commit message</label>
-        <p class="field-note">A short one-liner about what you changed, e.g. "Added learnership link to I'm Going to Work section"</p>
-        <input type="text" id="commitMessage" placeholder="Added new resource to README" value="README update via contributor tool" />
+          <label for="section">Section</label>
+          <p class="field-note" id="sectionsNote">Loading the current sections…</p>
+          <select id="section" required>
+            <option value="">Choose a section…</option>
+          </select>
 
-        <label for="prTitle">Pull request title</label>
-        <p class="field-note">Give your contribution a meaningful title.</p>
-        <input type="text" id="prTitle" placeholder="Add: new resource in Working section" value="README Update from Contributor Tool" />
+          <div id="newSectionWrap" class="hidden">
+            <label for="newSectionName">Name of the new section</label>
+            <p class="field-note">It will appear as a heading under the part of the site you picked above.</p>
+            <input type="text" id="newSectionName" placeholder="e.g. Learnerships" maxlength="80" />
+          </div>
+        </div>
 
-        <label for="prBody">Pull request description <span style="font-weight:400; color: var(--text-muted);">(optional)</span></label>
-        <p class="field-note">Tell us why you added this resource and anything else we should know.</p>
-        <textarea id="prBody" placeholder="This PR adds a link to a learnership database that helped me find work after matric..."></textarea>
+        <hr class="divider" />
 
-        <button id="submitBtn" class="btn-primary">Commit &amp; Create Pull Request</button>
-      </div>
+        <!-- EDIT FLOW FIELDS -->
+        <div class="form-section" id="editFields" hidden>
+          <h2 class="section-heading">What needs fixing?</h2>
 
-      <hr class="divider" />
+          <label for="original">The text that is wrong</label>
+          <p class="field-note">
+            Copy it exactly as it appears on the site, including the leading
+            <code>-</code> if there is one. Paste a bit more than the single word if
+            the same text appears more than once.
+          </p>
+          <textarea id="original" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students"></textarea>
 
-      <!-- STATUS -->
-      <div id="status" class="status-box hidden"></div>
+          <label for="editReplacement">What it should say instead</label>
+          <p class="field-note">Write the corrected line in full.</p>
+          <textarea id="editReplacement" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students who need it most"></textarea>
+        </div>
+
+        <!-- NEW FLOW FIELDS -->
+        <div class="form-section" id="newFields">
+          <h2 class="section-heading">What are you adding?</h2>
+
+          <label for="content">Your resource</label>
+          <p class="field-note">
+            One line, in this shape: a bullet, the link in square brackets, then a
+            dash and a short description. If you picked a section that says
+            <em>coming soon</em>, your line will fill that gap.
+          </p>
+          <textarea id="content" style="min-height:90px" placeholder="-   [Learnerships](https://www.saps.org.za/child-safety/learnerships) — Free SA learnership databases, filtered by province"></textarea>
+
+          <details class="format-help">
+            <summary>Show me the format</summary>
+            <p>Write it like a link followed by a description:</p>
+            <code>-   [Site name](https://the-link.co.za) — what it is and who it's for</code>
+            <p>A few examples of what people have added:</p>
+            <code>-   [OpenLibrary](https://openlibrary.org/subjects/textbooks) — Free textbooks online</code>
+            <code>-   [Siyavula](https://www.siyavula.com/) — Free study materials for Maths and Science</code>
+            <p class="field-note">
+              No markdown headings please — headings are managed by the site and
+              we'll ask you to remove them.
+            </p>
+          </details>
+        </div>
+
+        <hr class="divider" />
+
+        <!-- CREDIT -->
+        <div class="form-section">
+          <h2 class="section-heading">Credit (optional)</h2>
+
+          <label for="handle">Your name or handle</label>
+          <p class="field-note">Shown on the pull request so you get credit. Leave it empty to stay anonymous. Please do not add contact details — no email addresses or phone numbers.</p>
+          <input type="text" id="handle" maxlength="60" placeholder="e.g. Thandi M." autocomplete="name" />
+        </div>
+
+        <!-- Honeypot: hidden from people, irresistible to bots. -->
+        <div class="hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <div id="status" class="status-box hidden" role="status" aria-live="polite"></div>
+
+        <button type="submit" class="btn-primary" id="submitBtn">Send it in</button>
+        <p class="field-note" style="margin-top:0.75rem">
+          By submitting you agree your text can be published on Mzantsi Vibes.
+          Don't include anything private.
+        </p>
+      </form>
 
     </div>
   </main>

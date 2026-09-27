@@ -1,14 +1,42 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mzantsi-vibes",
+  "main": "src/worker.js",
   "compatibility_date": "2026-05-31",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "PUBLISH"
+    "directory": "PUBLISH",
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
   "compatibility_flags": [
     "nodejs_compat"
-  ]
+  ],
+
+  // 06:00 UTC = 08:00 SAST -> morning review digest
+  // 16:00 UTC = 18:00 SAST -> batch merge of everything approved
+  "triggers": {
+    "crons": [
+      "0 6 * * *",
+      "0 16 * * *"
+    ]
+  },
+
+  // Non-secret settings only. Everything sensitive is a Worker secret:
+  //   wrangler secret put BOT_GITHUB_PAT
+  //   wrangler secret put HMAC_SECRET
+  //   wrangler secret put RESEND_API_KEY
+  //   wrangler secret put REVIEWER_EMAIL
+  "vars": {
+    "REPO_OWNER": "realtimshady16",
+    "REPO_NAME": "mzantsi-vibes",
+    "REVIEWER_NAME": "Tim",
+    "BASE_URL": "https://mzantsi-vibes.pages.dev",
+    "EMAIL_FROM": "Mzantsi Vibes <onboarding@resend.dev>",
+    "BRANCH_PREFIX": "contribute",
+    "TOKEN_TTL_HOURS": "72",
+    "RATE_LIMIT_MAX": "5"
+  }
 }
