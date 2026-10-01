@@ -124,7 +124,7 @@ node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
 node test/test-integration.mjs # 41 checks — real GitHub reads, mutations mocked
 node test/test-review.mjs     # 55 checks — digest, signed links, batch merge
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
-node test/test-opportunities.mjs # 47 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunities.mjs # 78 checks — opportunity digest, Tavily and GitHub faked
 ```
 
 `test-integration.mjs` reads the real README from GitHub, so it needs a token:
@@ -176,15 +176,24 @@ training with [Tavily](https://tavily.com) and opens **one GitHub issue** titled
 `Opportunity digest — <date>`. It is a leads list for a human: nothing it finds
 goes near the README, and there is no deduplication between weeks.
 
-- **Trusted pass:** `zabursaries.co.za` and `graduates24.com` only
-  (`include_domains`): closing-soon pages, six bursary faculties, learnerships,
-  graduate programmes, jobs, training/vac work.
-- **Closing soon:** zabursaries keeps these on month pages
-  (`/bursaries-closing-in-november-2026/`), so the job asks for this month's and
-  next month's page by name.
-- **Broader pass:** one search per category with the two sites excluded, so it
-  only adds new sources. It sits under a "less trusted" heading at the bottom.
-- **Cost:** 17 basic searches = **17 Tavily credits per run**. No advanced search.
+- **Closing soon:** zabursaries keeps these on one page per month
+  (`/bursaries-closing-in-november-2026/`). Tavily's index missed the current
+  month's page, so the job builds this month's and the next two URLs and keeps
+  the ones that exist (a 404 rules a page out). No search, no credits.
+- **Trusted pass:** bursaries by the six README faculties (zabursaries only,
+  filed by the faculty in each URL), then learnerships, graduate programmes,
+  jobs and training/vac work on both sites (`include_domains`). Everything but
+  the evergreen faculty hubs is limited to the last month, which turns generic
+  listing pages into specific postings.
+- **Broader pass:** one search per category with the two sites, social media and
+  job-board search pages excluded, `country: south africa`, last month only, and
+  kept only if there is some South Africa signal. Listed under a "less trusted"
+  heading at the bottom.
+- **Tidying:** home pages, on-site search, pagination and contact pages are
+  dropped; titles that only mention past years are dropped; page chrome
+  ("Create My CV", WhatsApp banners, sidebars of other listings) is stripped
+  from descriptions. A lead with no usable description shows title and link only.
+- **Cost:** 15 basic searches = **15 Tavily credits per run**. No advanced search.
 - **Issue label:** `opportunity-digest`, created on first use.
 
 Setup is one secret: `wrangler secret put TAVILY_API_KEY` (key from
@@ -199,7 +208,7 @@ node scripts/run-opportunities.mjs --post   # opens the real issue
 ```
 
 It reads `TAVILY_API_KEY` (and `BOT_GITHUB_PAT` for `--post`) from `.dev.vars`.
-A dry run still spends the same ~17 credits. The queries, faculties and
+A dry run still spends the same 15 credits. The queries, faculties and
 `TIME_RANGE` live at the top of `src/opportunities.js`.
 
 ## What is rejected, and why
