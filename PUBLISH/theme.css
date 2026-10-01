@@ -1,0 +1,275 @@
+/* =============================================
+   MZANTSI VIBES — shared design system
+   "Pull Up a Chair": warm, pastel, one deep-teal anchor, Ndebele-inspired
+   diamonds and zigzags. Light and night themes.
+
+   Every page loads this first, then its own small stylesheet.
+
+   Colours are plain hex. The design was specified in oklch(); these are the
+   sRGB equivalents (checked against the designers' screenshots), so the pages
+   also work on older Android WebViews that don't understand oklch().
+
+   No shadows anywhere. That is deliberate.
+   ============================================= */
+
+:root {
+  /* surfaces + text */
+  --page:       #faf5ea;
+  --card:       #fefbf6;
+  --row:        #fefbf6;
+  --text:       #0e2626;
+  --text-2:     #344d4d;
+  --border:     #ddd7c9;
+
+  /* the anchor */
+  --anchor:     #004444;
+  --on-anchor:  #faf5ea;
+
+  /* pastels */
+  --peach:  #ffddc6;
+  --butter: #f7ecbe;
+  --sage:   #c8e8cd;
+  --blush:  #ffcbce;
+  --lilac:  #dcd1f4;
+
+  /* emphasis text, eyebrows */
+  --accent:   #9b4630;
+  --eyebrow:  #004444;
+
+  /* controls */
+  --btn-bg: #004444;
+  --btn-fg: #faf5ea;
+  --toggle-border: #004444;
+  --selected-bg: #004444;   /* chosen chip / tab / radio card */
+  --selected-fg: #faf5ea;
+
+  /* the call-to-action band */
+  --cta-bg: #004444;
+  --cta-fg: #faf5ea;
+  --cta-btn-bg: #f7ecbe;
+  --cta-btn-fg: #0e2626;
+
+  /* the round arrow on a resource row */
+  --arrow-bg: #004444;
+  --arrow-fg: #faf5ea;
+
+  /* zigzag band */
+  --zig-base: #004444;
+  --zig-fg:   #ffcbce;
+
+  /* status dots (Tasks) */
+  --dot-todo:  #e69399;
+  --dot-doing: #d6bd5c;
+  --dot-done:  #7fc08c;
+
+  --radius-tile: 14px;
+  --radius-field: 16px;
+  --radius-row: 18px;
+  --radius-card: 24px;
+  --radius-section: 28px;
+
+  /* content is capped at 1200px, with side padding that shrinks on phones
+     (the design used a flat 56px, which leaves no room on a 360px screen) */
+  --gutter: clamp(20px, 6.1vw, 56px);
+  --wrap-pad: max(var(--gutter), calc((100% - 1200px) / 2));
+}
+
+/* Night is lamplit, not inverted: deep teal-black, pastels kept as lit accents. */
+[data-theme="dark"] {
+  --page:   #051c1e;
+  --card:   #0e2c2c;
+  --row:    #1d3535;
+  --text:   #f1eadc;
+  --text-2: #a9bcbb;
+  --border: #2f4847;
+
+  --accent:  #f6c6a6;
+  --eyebrow: #f6c6a6;
+
+  --btn-bg: #f7ecbe;
+  --btn-fg: #0e2626;
+  --toggle-border: #f6c6a6;
+  --selected-bg: #f7ecbe;
+  --selected-fg: #0e2626;
+
+  --cta-bg: #f7ecbe;
+  --cta-fg: #0e2626;
+  --cta-btn-bg: #0e2626;
+  --cta-btn-fg: #f7ecbe;
+
+  --arrow-bg: #ffddc6;
+  --arrow-fg: #0e2626;
+
+  --zig-base: #082c2c;
+}
+
+/* ---------- base ---------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { opacity: .85; }
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-family: 'Young Serif', Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+}
+
+button { font-family: inherit; }
+
+.hidden { display: none !important; }
+
+/* Side padding shared by every full-width band. */
+.wrap { padding-left: var(--wrap-pad); padding-right: var(--wrap-pad); }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+/* ---------- header ---------- */
+
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Young Serif', Georgia, serif;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+/* The mark: a teal circle with three nested diamonds. It is the same in both themes. */
+.logo-mark {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #004444;
+  overflow: hidden;
+}
+.logo-mark i {
+  position: absolute;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.logo-mark i:nth-child(1) { top: 12%; right: 12%; bottom: 12%; left: 12%; background: #ffddc6; }
+.logo-mark i:nth-child(2) { top: 28%; right: 28%; bottom: 28%; left: 28%; background: #004444; }
+.logo-mark i:nth-child(3) { top: 40%; right: 40%; bottom: 40%; left: 40%; background: #f7ecbe; }
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.site-nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+
+.theme-toggle {
+  cursor: pointer;
+  border: 1.5px solid var(--toggle-border);
+  background: transparent;
+  color: var(--text);
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.theme-toggle:hover { opacity: .85; }
+
+.btn {
+  display: inline-block;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 700;
+  line-height: 1.2;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ---------- zigzag band ---------- */
+
+.zigzag {
+  height: 28px;
+  background:
+    linear-gradient(135deg, var(--zig-fg) 25%, transparent 25%) -14px 0 / 28px 28px,
+    linear-gradient(225deg, var(--zig-fg) 25%, transparent 25%) -14px 0 / 28px 28px,
+    linear-gradient(315deg, var(--zig-fg) 25%, transparent 25%) 0 0 / 28px 28px,
+    linear-gradient(45deg,  var(--zig-fg) 25%, transparent 25%) 0 0 / 28px 28px,
+    var(--zig-base);
+}
+
+/* ---------- shared bits ---------- */
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--eyebrow);
+}
+
+.page-title {
+  margin-top: 18px;
+  font-size: clamp(40px, 7vw, 72px);
+  line-height: 1.04;
+  letter-spacing: -.01em;
+}
+.page-title em { font-style: normal; color: var(--accent); }
+
+.lead {
+  margin: 28px 0 0;
+  max-width: 520px;
+  font-size: 20px;
+  line-height: 1.6;
+}
+
+/* ---------- footer ---------- */
+
+.site-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding-top: 28px;
+  padding-bottom: 28px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.footer-links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+
+/* Anchors a page's own bands (CTA etc.) to the same side padding. */
+.band { padding-left: var(--wrap-pad); padding-right: var(--wrap-pad); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-toggle, .btn, a { transition: opacity .15s; }
+}
