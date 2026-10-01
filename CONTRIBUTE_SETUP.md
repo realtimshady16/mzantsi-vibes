@@ -267,8 +267,28 @@ change the default there.
 
 ## Testing by hand
 
-You do not have to wait for 08:00, 18:00 or Monday. `scripts/trigger.mjs` drives
-the **live** system, so it tests exactly what the crons do, with the real secrets.
+### The short way: `mz`
+
+```bash
+./scripts/mz status           # open contribution PRs and where each stands
+./scripts/mz digest           # preview the review digest (who is emailed, which PRs). Sends nothing.
+./scripts/mz digest send      # send it for real (asks you to confirm)
+./scripts/mz opps             # run the opportunity searches and show the issue. 10 Tavily credits, posts nothing.
+./scripts/mz opps post        # ...and open the real GitHub issue (asks you to confirm)
+./scripts/mz opps tune --only job --explain    # tune the searches locally (flags below)
+./scripts/mz merge            # preview what the 18:00 job would merge and close
+./scripts/mz merge run        # run it now (asks you to confirm)
+```
+
+Anything that sends, posts or merges is a **preview by default**, and the real version
+shows the preview first and then asks you to type `yes`. `--yes` skips the question;
+without a terminal it refuses unless you pass it. To type just `mz` from anywhere:
+`ln -s "$(pwd)/scripts/mz" ~/.local/bin/mz`.
+
+### The long way: `trigger.mjs`
+
+You do not have to wait for 08:00, 18:00 or Monday. `scripts/trigger.mjs` (which `mz`
+wraps) drives the **live** system, so it tests exactly what the crons do, with the real secrets.
 
 ```bash
 node scripts/trigger.mjs status                  # open contribution PRs and where each stands (no secrets needed)
