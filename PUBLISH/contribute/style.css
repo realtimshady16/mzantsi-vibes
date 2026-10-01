@@ -502,3 +502,55 @@ select:disabled { background: var(--cream-dark); color: var(--text-muted); curso
   margin-top: 0.15rem;
 }
 .counter.over { color: var(--orange); font-weight: 500; }
+
+/* --- RICH TEXT / MARKDOWN EDITOR --- */
+.editor { margin-bottom: 0.25rem; }
+.editor [hidden] { display: none !important; }
+
+.editor-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 0.5rem;
+  background: var(--cream-dark);
+  border-radius: var(--radius-sm);
+}
+.editor-tab {
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.editor-tab:hover { color: var(--text-primary); }
+.editor-tab.is-active {
+  background: var(--white);
+  color: var(--text-primary);
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+}
+.editor-tab:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+
+/* Quill (snow) restyled to match the form's inputs. */
+.editor .ql-toolbar.ql-snow {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--cream);
+  font-family: var(--font-body);
+}
+.editor .ql-container.ql-snow {
+  border: 1px solid var(--border-strong);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--white);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  min-height: 120px;
+}
+.editor .ql-editor { min-height: 120px; color: var(--text-primary); }
+.editor .ql-editor.ql-blank::before { color: var(--text-muted); font-style: normal; }
+.editor .ql-container.ql-snow:focus-within { border-color: var(--green); }
+.editor .ql-snow a { color: var(--green); }
