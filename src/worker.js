@@ -5,15 +5,17 @@
  *   1. serves the static site out of PUBLISH
  *   2. exposes the contribute API (/api/sections, /api/submit) and the signed
  *      review endpoint (/action)
- *   3. runs two crons: morning digest, evening batch merge
+ *   3. runs three crons: morning digest, evening batch merge, and the weekly
+ *      opportunity digest (a GitHub issue of leads — see opportunities.js)
  */
 
-import { readConfig, rateLimit, CRON_DIGEST, CRON_MERGE } from './config.js';
+import { readConfig, rateLimit, CRON_DIGEST, CRON_MERGE, CRON_OPPS } from './config.js';
 import { github } from './github.js';
 import { sectionOptions, PatchError } from './readme.js';
 import { handleSubmit } from './submit.js';
 import { handleAction } from './action.js';
 import { runDigest, runBatchMerge } from './cron.js';
+import { runOpportunityDigest } from './opportunities.js';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -129,7 +131,7 @@ export default {
   },
 
   /**
-   * Two crons, distinguished by their schedule string. Each one is allowed to
+   * Three crons, distinguished by their schedule string. Each one is allowed to
    * fail loudly in the tail — that log is the only place a broken digest shows
    * up, so swallow nothing.
    */
@@ -151,6 +153,15 @@ export default {
         runBatchMerge({ config, gh })
           .then((r) => console.log('batch merge:', JSON.stringify(r)))
           .catch((e) => console.error('batch merge failed:', e?.stack || e))
+      );
+      return;
+    }
+
+    if (event.cron === CRON_OPPS) {
+      ctx.waitUntil(
+        runOpportunityDigest({ config, gh })
+          .then((r) => console.log('opportunity digest:', JSON.stringify({ ...r, body: undefined })))
+          .catch((e) => console.error('opportunity digest failed:', e?.stack || e))
       );
       return;
     }

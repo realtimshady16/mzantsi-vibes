@@ -41,6 +41,8 @@ click link       ──GET /action──▶  verify signature ──▶ add/remo
 | `src/cron.js` | Morning digest, evening batch merge |
 | `src/action.js` | Approve/Reject endpoint |
 | `src/email.js` | Resend + digest HTML |
+| `src/opportunities.js` | Weekly opportunity digest (Tavily → one GitHub issue) |
+| `scripts/run-opportunities.mjs` | Run that digest on demand, from your machine |
 | `src/tokens.js` | HMAC sign/verify for the review links |
 | `src/github.js` | GitHub REST wrapper |
 | `src/config.js` | Env, secrets, rate limiting |
@@ -122,6 +124,7 @@ node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
 node test/test-integration.mjs # 41 checks — real GitHub reads, mutations mocked
 node test/test-review.mjs     # 55 checks — digest, signed links, batch merge
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
+node test/test-opportunities.mjs # 47 checks — opportunity digest, Tavily and GitHub faked
 ```
 
 `test-integration.mjs` reads the real README from GitHub, so it needs a token:
@@ -164,6 +167,40 @@ Both routes end up identical because of two steps:
    line that is not a bullet would be written to the README and never shown.
 
 The PR body records which editor was used ("Written in").
+
+## Weekly opportunity digest
+
+A separate job, sharing the Worker and the bot account. Every **Monday 07:00
+SAST** it searches for bursaries, learnerships, graduate programmes, jobs and
+training with [Tavily](https://tavily.com) and opens **one GitHub issue** titled
+`Opportunity digest — <date>`. It is a leads list for a human: nothing it finds
+goes near the README, and there is no deduplication between weeks.
+
+- **Trusted pass:** `zabursaries.co.za` and `graduates24.com` only
+  (`include_domains`): closing-soon pages, six bursary faculties, learnerships,
+  graduate programmes, jobs, training/vac work.
+- **Closing soon:** zabursaries keeps these on month pages
+  (`/bursaries-closing-in-november-2026/`), so the job asks for this month's and
+  next month's page by name.
+- **Broader pass:** one search per category with the two sites excluded, so it
+  only adds new sources. It sits under a "less trusted" heading at the bottom.
+- **Cost:** 17 basic searches = **17 Tavily credits per run**. No advanced search.
+- **Issue label:** `opportunity-digest`, created on first use.
+
+Setup is one secret: `wrangler secret put TAVILY_API_KEY` (key from
+<https://app.tavily.com>). Without it only this job fails, with a clear message
+in the Worker log; the contribute form and review digest are unaffected.
+
+**Running it on demand** (to tune the queries without waiting a week):
+
+```bash
+node scripts/run-opportunities.mjs          # dry run: prints the issue, posts nothing
+node scripts/run-opportunities.mjs --post   # opens the real issue
+```
+
+It reads `TAVILY_API_KEY` (and `BOT_GITHUB_PAT` for `--post`) from `.dev.vars`.
+A dry run still spends the same ~17 credits. The queries, faculties and
+`TIME_RANGE` live at the top of `src/opportunities.js`.
 
 ## What is rejected, and why
 

@@ -7,8 +7,9 @@ const REQUIRED_SECRETS = ['BOT_GITHUB_PAT', 'HMAC_SECRET', 'RESEND_API_KEY'];
 
 const CRON_DIGEST = '0 6 * * *'; // 08:00 SAST (UTC+2, no DST in SA)
 const CRON_MERGE = '0 16 * * *'; // 18:00 SAST
+const CRON_OPPS = '0 5 * * 1'; // Monday 07:00 SAST, before the morning digest
 
-export { CRON_DIGEST, CRON_MERGE };
+export { CRON_DIGEST, CRON_MERGE, CRON_OPPS };
 
 export function readConfig(env) {
   const missing = REQUIRED_SECRETS.filter((k) => !env[k]);
@@ -23,6 +24,10 @@ export function readConfig(env) {
     token: env.BOT_GITHUB_PAT,
     hmacSecret: env.HMAC_SECRET,
     resendKey: env.RESEND_API_KEY,
+
+    // Only the weekly opportunity digest uses this, so it is not in
+    // REQUIRED_SECRETS: a missing key must not take down the contribute form.
+    tavilyKey: env.TAVILY_API_KEY || '',
 
     owner: env.REPO_OWNER || 'realtimshady16',
     repo: env.REPO_NAME || 'mzantsi-vibes',

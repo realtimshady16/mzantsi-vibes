@@ -17,10 +17,12 @@
 
   // 06:00 UTC = 08:00 SAST -> morning review digest
   // 16:00 UTC = 18:00 SAST -> batch merge of everything approved
+  // 05:00 UTC Mondays = 07:00 SAST -> weekly opportunity digest (GitHub issue)
   "triggers": {
     "crons": [
       "0 6 * * *",
-      "0 16 * * *"
+      "0 16 * * *",
+      "0 5 * * 1"
     ]
   },
 
@@ -29,6 +31,7 @@
   //   wrangler secret put HMAC_SECRET
   //   wrangler secret put RESEND_API_KEY
   //   wrangler secret put REVIEWER_EMAIL
+  //   wrangler secret put TAVILY_API_KEY
   "vars": {
     "REPO_OWNER": "realtimshady16",
     "REPO_NAME": "mzantsi-vibes",
