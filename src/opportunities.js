@@ -1,15 +1,17 @@
 /**
  * Weekly opportunity digest.
  *
- * Searches two known-good SA sites (then, as a clearly secondary pass, the
- * wider web) for bursaries, learnerships, graduate programmes, jobs and
- * training, and posts what it finds as ONE GitHub issue for a human to read.
+ * Searches two known-good SA sites for bursaries, learnerships, graduate
+ * programmes, jobs and training, and posts what it finds as ONE GitHub issue
+ * for a human to read. A broader whole-web pass exists but is OFF in the weekly
+ * run: real runs showed it was mostly noise (see BROAD below), so it is only
+ * available on demand while it is tuned.
  *
  * It is a leads list, not a publisher: nothing here touches the README, and
  * there is deliberately no deduplication against earlier runs.
  *
- * Cost: every search is Tavily "basic" = 1 credit. A run is
- *   10 scoped + 5 broader = 15 credits. The "closing soon" pages cost nothing:
+ * Cost: every search is Tavily "basic" = 1 credit. The weekly run is
+ *   10 scoped searches = 10 credits (+5 if the broader pass is switched on). The "closing soon" pages cost nothing:
  * zabursaries publishes one page per month at a predictable URL, so they are
  * built and checked directly (Tavily's index missed the current month's page).
  */
@@ -75,8 +77,11 @@ const MONTHS = [
  * ------------------------------------------------------------------ */
 
 /**
- * The searches for one run. The cron uses the defaults; `overrides` exist so
- * queries can be tuned from the command line without editing code:
+ * The searches for one run. The cron uses the defaults (the trusted pass only);
+ * `overrides` exist so queries can be tuned from the command line without
+ * editing code:
+ *   broad       also run the broader whole-web pass (off by default; also on
+ *               when `only` names it)
  *   only        keep searches whose pass, category or faculty matches any of these
  *   query       replace the query text of the searches that are kept
  *   timeRange   'day' | 'week' | 'month' | 'year', or 'none' to remove the window
@@ -102,8 +107,12 @@ export function planSearches(overrides = {}) {
     searches.push({ pass: 'scoped', category, query, include: TRUSTED, maxResults: MAX_RESULTS.scoped, timeRange: RECENT });
   }
 
-  // Second layer: the whole web minus the trusted sites, nudged towards South
-  // Africa. One search per category, not per faculty.
+  // BROAD: the whole web minus the trusted sites, nudged towards South Africa,
+  // one search per category. Off by default. In real runs it returned job-board
+  // listings, foreign employers and generic careers pages alongside a few good
+  // leads, so half of a weekly issue was noise. Run it with --with-broad (or
+  // --only broad) while tuning; once --min-score or the queries make it
+  // trustworthy, switch it on in the cron by passing { broad: true }.
   searches.push({
     pass: 'broad',
     category: 'Bursaries',
@@ -116,7 +125,8 @@ export function planSearches(overrides = {}) {
     searches.push({ pass: 'broad', category, query, exclude: BROAD_EXCLUDE, maxResults: MAX_RESULTS.broad, timeRange: RECENT });
   }
 
-  return applyOverrides(searches, overrides);
+  const wantsBroad = overrides.broad || (overrides.only || []).some((w) => /broad/i.test(w));
+  return applyOverrides(wantsBroad ? searches : searches.filter((s) => s.pass !== 'broad'), overrides);
 }
 
 export function searchLabel(s) {
@@ -486,7 +496,7 @@ export function sastDate(now = new Date()) {
   return new Date(now.getTime() + 2 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-export function renderDigest({ findings, failures, searched, now = new Date() }) {
+export function renderDigest({ findings, failures, searched, now = new Date(), withBroad = findings.some((f) => f.pass === 'broad') }) {
   const trusted = findings.filter((f) => f.pass !== 'broad');
   const broad = findings.filter((f) => f.pass === 'broad');
   const closing = trusted.filter((f) => f.category === 'Closing soon');
@@ -496,16 +506,17 @@ export function renderDigest({ findings, failures, searched, now = new Date() })
     `Leads for a human to review — **nothing here is in the README**. ` +
       `${findings.length} links from ${searched} searches on ${sastDate(now)}.`,
     '',
-    `Trusted sources first (zabursaries.co.za, graduates24.com); the broader search at the bottom is less trusted, so check it before relying on it.`,
+    withBroad
+      ? `Trusted sources first (zabursaries.co.za, graduates24.com); the broader search at the bottom is less trusted, so check it before relying on it.`
+      : `Sources: zabursaries.co.za and graduates24.com.`,
     '',
     ...section('⏰ Closing soon', 2, closing),
     ...CATEGORY_ORDER.flatMap((c) => categoryBlock(scoped, c, 2)),
-    '---',
-    '',
-    '## 🌍 Broader search (less trusted)',
-    '',
-    ...CATEGORY_ORDER.flatMap((c) => categoryBlock(broad, c, 3)),
   ];
+
+  if (withBroad) {
+    body.push('---', '', '## 🌍 Broader search (less trusted)', '', ...CATEGORY_ORDER.flatMap((c) => categoryBlock(broad, c, 3)));
+  }
 
   if (failures.length) {
     body.push('---', '', `⚠️ ${failures.length} of ${searched} searches failed, so this list is incomplete:`, '');
@@ -537,7 +548,7 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
     throw new Error(`All ${searched} searches failed. First error: ${failures[0]}`);
   }
 
-  const { title, body } = renderDigest({ findings, failures, searched, now });
+  const { title, body } = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad') });
   const summary = { title, findings: findings.length, searches: searched, credits: searched, failures: failures.length };
 
   if (dryRun) return { ...summary, body, issueUrl: null };

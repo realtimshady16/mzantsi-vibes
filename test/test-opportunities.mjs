@@ -36,10 +36,14 @@ const result = (title, url, content = 'A description.') => ({ title, url, conten
 
 /* -------------------------------------------------------------- */
 sec('the plan and the budget');
-const plan = planSearches();
+// `plan` is the full 15 so the broader-pass machinery stays covered; the weekly
+// default is checked separately just below.
+const plan = planSearches({ broad: true });
 const by = (pass) => plan.filter((s) => s.pass === pass);
-ok('15 searches = 15 credits (budget is "well under 50")', plan.length === 15, String(plan.length));
-ok('10 scoped, 5 broader', by('scoped').length === 10 && by('broad').length === 5);
+const weekly = planSearches();
+ok('the weekly run is 10 searches = 10 credits (budget is "well under 50")', weekly.length === 10, String(weekly.length));
+ok('the weekly run leaves out the broader pass (it was mostly noise)', weekly.every((s) => s.pass === 'scoped'));
+ok('opting in adds the 5 broader searches: 15 in all', plan.length === 15 && by('scoped').length === 10 && by('broad').length === 5);
 ok('six faculties, matching the README', ['Commerce', 'Engineering', 'Science', 'Health Sciences', 'Humanities', 'Law']
   .every((f) => by('scoped').some((s) => s.tag === f)));
 ok('learnerships, graduate programmes, jobs and training are all covered',
@@ -60,16 +64,18 @@ ok('time-sensitive searches look at the last month; evergreen faculty hubs do no
 
 sec('tuning overrides (the on-demand script uses these; the cron does not)');
 {
-  ok('no overrides = the same 15 searches the cron runs', planSearches().length === 15 && planSearches({}).length === 15);
-  ok('--only matches the category, case-insensitively', planSearches({ only: ['job'] }).length === 2 && planSearches({ only: ['JOB'] }).length === 2);
+  ok('no overrides = the same 10 searches the cron runs', planSearches().length === 10 && planSearches({}).length === 10);
+  ok('--with-broad adds the broader pass', planSearches({ broad: true }).length === 15);
+  ok('--only broad turns the broader pass on by itself', planSearches({ only: ['broad'] }).length === 5 && planSearches({ only: ['broad'] }).every((s) => s.pass === 'broad'));
+  ok('--only matches the category, case-insensitively', planSearches({ only: ['job'] }).length === 1 && planSearches({ only: ['JOB'] }).length === 1 && planSearches({ only: ['job'], broad: true }).length === 2);
   ok('--only matches a faculty', planSearches({ only: ['law'] }).map((s) => s.tag).join() === 'Law');
-  ok('--only matches a whole pass', planSearches({ only: ['broad'] }).length === 5 && planSearches({ only: ['scoped'] }).length === 10);
-  ok('several --only terms combine', planSearches({ only: ['law', 'learnership'] }).length === 3);
+  ok('--only matches a whole pass', planSearches({ only: ['scoped'] }).length === 10);
+  ok('several --only terms combine', planSearches({ only: ['law', 'learnership'] }).length === 2 && planSearches({ only: ['law', 'learnership'], broad: true }).length === 3);
   ok('--query replaces the query text of the selected searches only',
-    planSearches({ only: ['job'], query: 'x' }).every((s) => s.query === 'x') && planSearches({ only: ['job'], query: 'x' }).length === 2);
+    planSearches({ only: ['job'], query: 'x', broad: true }).every((s) => s.query === 'x') && planSearches({ only: ['job'], query: 'x', broad: true }).length === 2);
   ok('--time-range overrides, and "none" removes the window',
-    planSearches({ only: ['job'], timeRange: 'week' }).every((s) => s.timeRange === 'week') &&
-    planSearches({ only: ['job'], timeRange: 'none' }).every((s) => !('timeRange' in s)));
+    planSearches({ only: ['job'], timeRange: 'week', broad: true }).every((s) => s.timeRange === 'week') &&
+    planSearches({ only: ['job'], timeRange: 'none', broad: true }).every((s) => !('timeRange' in s)));
   ok('--max-results overrides', planSearches({ only: ['job'], maxResults: 9 }).every((s) => s.maxResults === 9));
   ok('overrides never mutate the defaults', (() => { planSearches({ only: ['job'], query: 'x', timeRange: 'none' }); return planSearches().every((s) => s.query !== 'x'); })());
   ok('closing-soon pages are included unless --only leaves them out',
@@ -84,6 +90,7 @@ sec('tuning overrides (the on-demand script uses these; the cron does not)');
     { title: 'Good again', url: 'https://www.graduates24.com/good-2027/', content: 'dup', score: 0.8 },
   ]);
   const one = planSearches({ only: ['job'], minScore: 0.5 }).slice(0, 1);
+  ok('--min-score is carried on the search', one[0].minScore === 0.5);
   const out = await collect({ key: 'k', searches: one, fetchImpl: t2.fetchImpl, now: NOW, onResult: (e) => events.push(e) });
   ok('--min-score drops weak results', out.findings.length === 1 && out.findings[0].title === 'Good');
   ok('every result is reported, kept or dropped', events.length === 4 && events.filter((e) => e.kept).length === 1);
@@ -211,6 +218,15 @@ sec('the issue');
   ok('closing-soon descriptions read properly ("an October", not "a October")', !/ a October| a April| a August/.test(body) && body.includes('closing in October 2026'));
   ok('no lone "General" subheading when nothing has a faculty', !/#### General/.test(body));
   ok('a clean run has no failure warning', !body.includes('searches failed'));
+
+  // The weekly issue: no broader section at all, and the intro does not promise one.
+  const weeklyRun = await collect({ key: 'k', searches: weekly, fetchImpl: t.fetchImpl, now: NOW });
+  const weeklyIssue = renderDigest({ findings: weeklyRun.findings, failures: [], searched: weeklyRun.searched, now: NOW, withBroad: false });
+  ok('the weekly issue has no "less trusted" section', !/Broader search/.test(weeklyIssue.body) && !/less trusted/.test(weeklyIssue.body));
+  ok('...and no broader-pass links', !weeklyIssue.body.includes('A broad job'));
+  ok('...but still has the trusted ones', weeklyIssue.body.includes('A learnership') && weeklyIssue.body.includes('Eng bursary'));
+  ok('a broader run that found nothing still shows its section',
+    /Broader search \(less trusted\)/.test(renderDigest({ findings: [], failures: [], searched: 5, now: NOW, withBroad: true }).body));
 }
 
 /* -------------------------------------------------------------- */
@@ -272,7 +288,8 @@ sec('running it');
   const dry = await runOpportunityDigest({ config, gh, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), dryRun: true, now: NOW });
   ok('dry run returns the issue text and creates nothing', dry.body.includes('Opportunity') || dry.title.startsWith('Opportunity') , '') ;
   ok('dry run did not touch GitHub', gh.calls.length === 0);
-  ok('dry run reports the credit cost', dry.credits === 15 && dry.searches === 15);
+  ok('dry run reports the weekly credit cost: 10', dry.credits === 10 && dry.searches === 10);
+  ok('the weekly dry run has no broader section', !/Broader search/.test(dry.body));
 
   const live = await runOpportunityDigest({ config, gh, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW });
   const created = gh.calls.find((c) => c[0] === 'createIssue');
@@ -286,11 +303,11 @@ sec('running it');
 
   const partial = fakeTavily((b, n) => (n === 3 ? 500 : [result('X', `https://www.zabursaries.co.za/p${n}/`)]));
   const p = await runOpportunityDigest({ config, gh: { ...gh, calls: [], ensureLabel: async () => {}, createIssue: async (o, r, i) => ({ html_url: 'u', number: 2, _i: i }) }, fetchImpl: partial.fetchImpl, fetchPage: async () => ({ status: 200 }), dryRun: true, now: NOW });
-  ok('one failed search is reported in the issue, not hidden', p.failures === 1 && p.body.includes('1 of 15 searches failed'));
+  ok('one failed search is reported in the issue, not hidden', p.failures === 1 && p.body.includes('1 of 10 searches failed'));
 
   let threw = '';
   try { await runOpportunityDigest({ config, gh, fetchImpl: fakeTavily(() => 401).fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW }); } catch (e) { threw = e.message; }
-  ok('every search failing throws (and points at the key) instead of posting an empty issue', /All 15 searches failed/.test(threw) && /TAVILY_API_KEY/.test(threw), threw);
+  ok('every search failing throws (and points at the key) instead of posting an empty issue', /All 10 searches failed/.test(threw) && /TAVILY_API_KEY/.test(threw), threw);
 
   let noKey = '';
   try { await runOpportunityDigest({ config: { ...config, tavilyKey: '' }, gh, now: NOW }); } catch (e) { noKey = e.message; }

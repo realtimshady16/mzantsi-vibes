@@ -6,13 +6,16 @@
  * cron will post. By default it is a DRY RUN: it searches and prints the issue,
  * and creates nothing on GitHub.
  *
- *   node scripts/run-opportunities.mjs                     full dry run (15 credits)
+ *   node scripts/run-opportunities.mjs                     full dry run of the weekly digest (10 credits)
+ *   node scripts/run-opportunities.mjs --with-broad        ...plus the broader whole-web pass (15 credits)
  *   node scripts/run-opportunities.mjs --list              show the plan, spend nothing
  *   node scripts/run-opportunities.mjs --explain           also show every result and why it was kept or dropped
  *   node scripts/run-opportunities.mjs --only job          just the searches matching "job" (Job openings)
  *   node scripts/run-opportunities.mjs --post              full run, then open the real issue
  *
  * Tuning flags (all dry-run only):
+ *   --with-broad          also run the broader whole-web pass, which the weekly digest
+ *                         leaves out (it was mostly noise); --only broad does the same
  *   --only a,b            keep searches whose pass (scoped|broad), category or
  *                         faculty contains any of these, e.g. "learnership,law"
  *                         (add "closing" to include the closing-soon pages)
@@ -47,7 +50,7 @@ function fail(msg) {
   process.exit(1);
 }
 
-const KNOWN = ['--post', '--list', '--explain', '--help', '-h', '--only', '--query', '--time-range', '--max-results', '--min-score', '--save'];
+const KNOWN = ['--post', '--list', '--explain', '--with-broad', '--help', '-h', '--only', '--query', '--time-range', '--max-results', '--min-score', '--save'];
 const unknown = argv.filter((a) => a.startsWith('-') && !KNOWN.includes(a));
 if (unknown.length) fail(`Unknown option: ${unknown.join(' ')}  (try --help)`);
 
@@ -65,6 +68,7 @@ const minScore = value('--min-score') ? Number(value('--min-score')) : undefined
 const savePath = value('--save');
 const post = flag('--post');
 const explain = flag('--explain');
+const withBroadFlag = flag('--with-broad');
 
 if (timeRange && !['day', 'week', 'month', 'year', 'none'].includes(timeRange)) {
   fail('--time-range must be day, week, month, year or none.');
@@ -73,9 +77,9 @@ if (maxResults !== undefined && !(maxResults >= 1 && maxResults <= 20)) fail('--
 if (minScore !== undefined && !(minScore > 0 && minScore <= 1)) fail('--min-score must be above 0 and at most 1.');
 if (query && !only) fail('--query replaces the query text, so say which searches with --only (e.g. --only job).');
 
-const tuned = Boolean(only || query || timeRange || maxResults || minScore);
+const tuned = Boolean(only || query || timeRange || maxResults || minScore || withBroadFlag);
 if (post && tuned) {
-  fail('--post opens the full weekly digest. Remove --only/--query/--time-range/--max-results/--min-score, or drop --post to keep experimenting.');
+  fail('--post opens the full weekly digest. Remove --only/--query/--time-range/--max-results/--min-score/--with-broad, or drop --post to keep experimenting.');
 }
 
 /* ---------------- environment ---------------- */
@@ -95,7 +99,7 @@ const env = { ...loadDevVars(), ...process.env };
 
 /* ---------------- the plan ---------------- */
 
-const searches = planSearches({ only, query, timeRange, maxResults, minScore });
+const searches = planSearches({ only, query, timeRange, maxResults, minScore, broad: withBroadFlag });
 const withClosing = includesClosing(only);
 
 if (!searches.length && !withClosing) {

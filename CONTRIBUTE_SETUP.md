@@ -124,7 +124,7 @@ node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
 node test/test-integration.mjs # 41 checks — real GitHub reads, mutations mocked
 node test/test-review.mjs     # 55 checks — digest, signed links, batch merge
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
-node test/test-opportunities.mjs # 92 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunities.mjs # 101 checks — opportunity digest, Tavily and GitHub faked
 ```
 
 `test-integration.mjs` reads the real README from GitHub, so it needs a token:
@@ -185,15 +185,19 @@ goes near the README, and there is no deduplication between weeks.
   jobs and training/vac work on both sites (`include_domains`). Everything but
   the evergreen faculty hubs is limited to the last month, which turns generic
   listing pages into specific postings.
-- **Broader pass:** one search per category with the two sites, social media and
-  job-board search pages excluded, `country: south africa`, last month only, and
-  kept only if there is some South Africa signal. Listed under a "less trusted"
-  heading at the bottom.
+- **Broader pass (off in the weekly run):** one whole-web search per category,
+  with the two sites, social media and job-board search pages excluded. It is
+  kept in the code but not run by the cron, because real runs showed roughly
+  half its results were noise (foreign employers, generic careers pages, job
+  board listings). Run it on demand with `--with-broad` while tuning, and switch
+  it on in the cron (`planSearches({ broad: true })`) once `--min-score` or new
+  queries make it trustworthy.
 - **Tidying:** home pages, on-site search, pagination and contact pages are
   dropped; titles that only mention past years are dropped; page chrome
   ("Create My CV", WhatsApp banners, sidebars of other listings) is stripped
   from descriptions. A lead with no usable description shows title and link only.
-- **Cost:** 15 basic searches = **15 Tavily credits per run**. No advanced search.
+- **Cost:** 10 basic searches = **10 Tavily credits per run** (15 with the
+  broader pass). No advanced search.
 - **Issue label:** `opportunity-digest`, created on first use.
 
 Setup is one secret: `wrangler secret put TAVILY_API_KEY` (key from
@@ -207,7 +211,8 @@ run or not, so the useful flags are the ones that let you run less.
 
 ```bash
 node scripts/run-opportunities.mjs --list              # show the plan and cost, spends nothing
-node scripts/run-opportunities.mjs                     # full dry run, 15 credits
+node scripts/run-opportunities.mjs                     # full dry run of the weekly digest, 10 credits
+node scripts/run-opportunities.mjs --with-broad        # ...plus the broader pass, 15 credits
 node scripts/run-opportunities.mjs --only job --explain   # 2 credits: just the job searches, with reasons
 node scripts/run-opportunities.mjs --post              # full run, then open the real issue
 ```
@@ -215,11 +220,12 @@ node scripts/run-opportunities.mjs --post              # full run, then open the
 | Flag | What it does |
 |---|---|
 | `--list` | Print the searches (query, domains, window, cost) and stop. Free. |
+| `--with-broad` | Also run the broader whole-web pass, which the weekly digest leaves out. `--only broad` does the same on its own. |
 | `--only a,b` | Keep searches whose pass (`scoped`/`broad`), category or faculty contains any term, e.g. `--only learnership,law`. Add `closing` for the closing-soon pages. |
 | `--query "text"` | Replace the query text of the searches `--only` selects, to try a new wording. |
 | `--time-range X` | `day`, `week`, `month`, `year` or `none`, for every selected search. |
 | `--max-results N` | Results per search (1 to 20). |
-| `--min-score X` | Drop results Tavily scored below X. In the broader pass the score tracks quality closely: a real run gave 0.75 for a relevant page and 0.23 for a generic careers page. |
+| `--min-score X` | Drop results Tavily scored below X. In the broader pass the score tracks quality closely: a real run gave 0.75 for a relevant page and 0.23 for a generic careers page, so this is the first thing to try when taming it. |
 | `--explain` | Print every result with `KEEP`/`DROP`, its score and the reason it was dropped (noise page, no South Africa signal, past-year title, duplicate, low score). This is how to see what a filter change would do. |
 | `--save FILE` | Also write the issue text to a file. |
 
