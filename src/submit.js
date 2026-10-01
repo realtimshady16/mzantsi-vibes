@@ -94,7 +94,9 @@ export async function handleSubmit({ request, config, gh }) {
   // Informational only — the client always sends markdown, whichever editor
   // produced it. Anything unrecognised is treated as plain markdown.
   const format = body.format === 'richtext' ? 'richtext' : 'markdown';
-  const { pillar, section } = { pillar: body.pillar, section: body.section };
+  // Older cached copies of the form sent 'new::<pillar>' for "+ New section".
+  const section = typeof body.section === 'string' && body.section.startsWith('new::') ? 'new' : body.section;
+  const pillar = body.pillar;
 
   if (!pillar) throw new PatchError('Please choose which part of the site your change belongs to.');
   if (!section) throw new PatchError('Please choose the section you want to change.');

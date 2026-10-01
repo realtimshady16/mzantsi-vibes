@@ -31,11 +31,12 @@
  * uses; put the key on one line with literal \n), or GITHUB_TOKEN, e.g.
  * GITHUB_TOKEN=$(gh auth token) to post as yourself. Every search is 1 Tavily credit, dry run or not.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runOpportunityDigest, planSearches, includesClosing, searchLabel } from '../src/opportunities.js';
 import { github } from '../src/github.js';
 import { appTokenProvider } from '../src/github-auth.js';
+import { loadEnv } from './env.mjs';
 
 /* ---------------- arguments ---------------- */
 
@@ -87,18 +88,7 @@ if (post && tuned) {
 
 /* ---------------- environment ---------------- */
 
-function loadDevVars() {
-  const file = fileURLToPath(new URL('../.dev.vars', import.meta.url));
-  if (!existsSync(file)) return {};
-  const vars = {};
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
-    if (m && !line.trim().startsWith('#')) vars[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
-  }
-  return vars;
-}
-
-const env = { ...loadDevVars(), ...process.env };
+const env = loadEnv();
 
 /* ---------------- the plan ---------------- */
 

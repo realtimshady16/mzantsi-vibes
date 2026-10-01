@@ -278,7 +278,9 @@
       flow: flow,
       format: activeFormat(),
       pillar: pillar,
-      section: sectionSelect.value,
+      // The select's value for "+ New section" is 'new::<pillar>' (that is how the
+      // pillar is recovered above); the Worker wants plain 'new'.
+      section: sectionSelect.value.indexOf(NEW_SECTION + '::') === 0 ? NEW_SECTION : sectionSelect.value,
       content: flow === 'edit' ? editReplacement.value : contentInput.value,
       handle: handleInput.value,
       website: document.getElementById('website').value,

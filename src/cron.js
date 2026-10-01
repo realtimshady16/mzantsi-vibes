@@ -18,6 +18,9 @@ async function listContributionPulls(config, gh, opts) {
   return all.filter((pull) => isContributionPull(pull, config));
 }
 
+/** Just enough to recognise a PR in a dry-run report. */
+const brief = (pull) => ({ number: pull.number, title: pull.title, labels: (pull.labels || []).map((l) => l.name) });
+
 /** Best effort: a leftover branch is clutter, not a reason to fail the run. */
 const tidyBranch = (config, gh, pull) =>
   gh.deleteBranch(config.owner, config.repo, pull.head.ref).catch(() => {});
@@ -27,8 +30,9 @@ const tidyBranch = (config, gh, pull) =>
  * undecided — anything already approved or rejected stays out of the inbox
  * until the evening job deals with it.
  */
-export async function runDigest({ config, gh, fetchImpl }) {
-  await ensureLabels(config, gh);
+export async function runDigest({ config, gh, fetchImpl, dryRun = false }) {
+  // A dry run only reads: no labels created, no email sent.
+  if (!dryRun) await ensureLabels(config, gh);
 
   const all = await listContributionPulls(config, gh);
 
@@ -36,6 +40,16 @@ export async function runDigest({ config, gh, fetchImpl }) {
   const pending = all.filter(
     (pull) => !(pull.labels || []).some((l) => decided.has((l.name || '').toLowerCase()))
   );
+
+  if (dryRun) {
+    return {
+      dryRun: true,
+      wouldEmail: config.reviewerEmail,
+      pending: pending.map(brief),
+      openContributionPRs: all.length,
+      skippedDecided: all.length - pending.length,
+    };
+  }
 
   const result = await sendDigest({ config, pulls: pending, gh, fetchImpl });
 
@@ -52,10 +66,20 @@ export async function runDigest({ config, gh, fetchImpl }) {
  * Labels are stripped afterwards so a merged or closed PR is never picked up
  * again on the next run, which also makes this job safely repeatable.
  */
-export async function runBatchMerge({ config, gh }) {
+export async function runBatchMerge({ config, gh, dryRun = false }) {
+  const { owner, repo } = config;
+
+  // A dry run says what would be merged and closed, and touches nothing.
+  if (dryRun) {
+    const [approved, rejected] = await Promise.all([
+      listContributionPulls(config, gh, { labels: [LABELS.approved] }),
+      listContributionPulls(config, gh, { labels: [LABELS.rejected] }),
+    ]);
+    return { dryRun: true, wouldMerge: approved.map(brief), wouldClose: rejected.map(brief) };
+  }
+
   await ensureLabels(config, gh);
 
-  const { owner, repo } = config;
   const summary = { merged: [], closed: [], failed: [] };
 
   const approved = await listContributionPulls(config, gh, { labels: [LABELS.approved] });
