@@ -8,36 +8,19 @@ import { github } from '../src/github.js';
 import { handleSubmit } from '../src/submit.js';
 import { sectionOptions, parseStructure } from '../src/readme.js';
 
-/* Token from the environment, or fall back to the git credential store.
- *
- * NOTE: the read helpers here hit the real GitHub API, and ensureFork() will
- * create a fork of the repo for the bot account if one does not exist yet —
- * that is a real write, and it is the same thing the Worker does on a real
- * submission, so it is expected rather than accidental. Everything that would
- * otherwise create a branch, commit or PR is mocked.
+/* The repo is public, so reading it needs no token. A token only raises the
+ * unauthenticated rate limit (60/hour), so use one if it is lying around.
+ * Everything that would create a branch, commit or PR is mocked, so this can
+ * never write to the repo.
  */
-function resolveToken() {
-  if (process.env.BOT_GITHUB_PAT) return process.env.BOT_GITHUB_PAT;
-  const file = `${homedir()}/.git-credentials`;
-  if (existsSync(file)) {
-    const m = readFileSync(file, 'utf8').match(/https:\/\/[^:]+:([^@]+)@github\.com/);
-    if (m) return m[1];
-  }
-  return null;
-}
-
-const token = resolveToken();
-if (!token) {
-  console.log('\n  SKIPPED — no GitHub token. Set BOT_GITHUB_PAT to run this suite.\n');
-  process.exit(0);
-}
+const token = process.env.GITHUB_TOKEN || '';
 
 let pass = 0, fail = 0;
 const ok = (n, c, e = '') => { c ? (pass++, console.log(`  PASS  ${n}`)) : (fail++, console.log(`  FAIL  ${n} ${e}`)); };
 
 const real = github(token);
 const config = {
-  token, owner: 'realtimshady16', repo: 'mzantsi-vibes',
+  owner: 'realtimshady16', repo: 'mzantsi-vibes',
   branchPrefix: 'contribute', hmacSecret: 'x', resendKey: 'x',
   reviewerEmail: 'x@example.com', reviewerName: 'Tim',
   baseUrl: 'https://example.test', emailFrom: 'a@b.c', tokenTtlHours: 72,
@@ -48,14 +31,12 @@ const config = {
 const calls = [];
 const gh = {
   ...real,
-  botLogin: () => real.botLogin(),
-  ensureFork: (o, r) => real.ensureFork(o, r),
   getDefaultBranchSha: (o, r) => real.getDefaultBranchSha(o, r),
   getReadme: (o, r, p) => real.getReadme(o, r, p),
-  createBranch: async (fo, fn, branch, sha) => {
+  createBranch: async (owner, repo, branch, sha) => {
     calls.push({ op: 'createBranch', branch, sha });
   },
-  commitReadme: async (fo, fn, branch, args) => {
+  commitReadme: async (owner, repo, branch, args) => {
     calls.push({ op: 'commitReadme', branch, sha: args.sha, content: args.content });
   },
   createPullRequest: async (o, r, pr) => {
@@ -75,11 +56,7 @@ ok('blob sha present', /^[0-9a-f]{40}$/.test(readme.sha), readme.sha);
 const groups = sectionOptions(readme.content);
 ok('section list built', groups.length === 4, `${groups.length} groups`);
 
-console.log('\n== login / fork ==');
-const login = await real.botLogin();
-ok('bot login resolves', !!login, login);
-const fork = await real.ensureFork(config.owner, config.repo);
-ok('bot fork exists and is usable', !!fork.owner, JSON.stringify(fork));
+console.log('\n== base commit ==');
 const baseSha = await real.getDefaultBranchSha(config.owner, config.repo);
 ok('upstream main sha resolves', /^[0-9a-f]{40}$/.test(baseSha), baseSha);
 
@@ -93,7 +70,7 @@ ok('returns a PR number', res.prNumber === 999);
 ok('branch is namespaced + unique', /^contribute\/new-finding-work-[a-z0-9]+-[0-9a-f]{8}$/.test(calls[0].branch), calls[0].branch);
 ok('branch starts from upstream main', calls[0].sha === baseSha);
 ok('commit uses upstream blob sha', calls[1].sha === readme.sha);
-ok('PR head points at the bot fork', calls[2].head === `${fork.owner}:${calls[0].branch}`, calls[2].head);
+ok('PR head is the branch in this repo (no fork)', calls[2].head === calls[0].branch, calls[2].head);
 ok('PR body records the handle', calls[2].body.includes('Test Runner'));
 ok('PR body includes raw submitted content', calls[2].body.includes('INTEGRATION TEST'));
 ok('PR body records the flow', /New resource/.test(calls[2].body));

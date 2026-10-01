@@ -1,15 +1,19 @@
 /**
  * Weekly opportunity digest.
  *
- * Searches two known-good SA sites (then, as a clearly secondary pass, the
- * wider web) for bursaries, learnerships, graduate programmes, jobs and
- * training, and posts what it finds as ONE GitHub issue for a human to read.
+ * Searches two known-good SA sites for bursaries, learnerships, graduate
+ * programmes, jobs and training, and posts what it finds as ONE GitHub issue
+ * for a human to read. A broader whole-web pass exists but is OFF in the weekly
+ * run: real runs showed it was mostly noise (see BROAD below), so it is only
+ * available on demand while it is tuned.
  *
  * It is a leads list, not a publisher: nothing here touches the README, and
  * there is deliberately no deduplication against earlier runs.
  *
- * Cost: every search is Tavily "basic" = 1 credit. A run is
- *   2 closing-soon + 10 scoped + 5 broader = 17 credits.
+ * Cost: every search is Tavily "basic" = 1 credit. The weekly run is
+ *   10 scoped searches = 10 credits (+5 if the broader pass is switched on). The "closing soon" pages cost nothing:
+ * zabursaries publishes one page per month at a predictable URL, so they are
+ * built and checked directly (Tavily's index missed the current month's page).
  */
 
 export const OPPS_LABEL = 'opportunity-digest';
@@ -24,11 +28,23 @@ const ZA = 'zabursaries.co.za';
 const G24 = 'graduates24.com';
 const TRUSTED = [ZA, G24];
 
-// Left unset on purpose: bursary pages stay valid for months, so a window would
-// hide good leads. Try 'month' in a --dry-run if the lists feel stale.
-const TIME_RANGE = null;
+// Postings go stale fast, so jobs, learnerships, programmes, training and the
+// whole broader pass only look at the last month (checked with a dry run: without
+// it Tavily returns generic listing pages, with it, specific recent postings).
+// Bursary faculty hubs are evergreen, so they get no window.
+const RECENT = 'month';
 
-const MAX_RESULTS = { scoped: 5, closing: 10, broad: 5 };
+const MAX_RESULTS = { scoped: 5, broad: 5 };
+
+// The broader pass drops the two trusted sites, social media (where the Instagram
+// "reel" links came from) and job-board aggregators.
+const BROAD_EXCLUDE = [
+  ...TRUSTED,
+  'instagram.com', 'facebook.com', 'tiktok.com', 'youtube.com', 'x.com', 'twitter.com',
+  // Job-board search pages ("2026 Graduate Programmes jobs in Gauteng") are
+  // listings, not leads, and LinkedIn is out of scope for this version.
+  'indeed.com', 'glassdoor.com', 'linkedin.com', 'jooble.org', 'careerjet.co.za', 'ziprecruiter.com',
+];
 const MAX_DESC = 180;
 
 /** Matches the faculty headings the README already uses. */
@@ -61,63 +77,132 @@ const MONTHS = [
  * ------------------------------------------------------------------ */
 
 /**
- * zabursaries' "closing soon" content is a page per month
- * (/bursaries-closing-in-november-2026/), so ask for this month's and next
- * month's by name rather than hoping a generic query surfaces them.
+ * The searches for one run. The cron uses the defaults (the trusted pass only);
+ * `overrides` exist so queries can be tuned from the command line without
+ * editing code:
+ *   broad       also run the broader whole-web pass (off by default; also on
+ *               when `only` names it)
+ *   only        keep searches whose pass, category or faculty matches any of these
+ *   query       replace the query text of the searches that are kept
+ *   timeRange   'day' | 'week' | 'month' | 'year', or 'none' to remove the window
+ *   maxResults  results per search
+ *   minScore    drop results Tavily scored below this (0 to 1)
  */
-function closingMonths(now) {
-  const out = [];
-  for (let i = 0; i < 2; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
-    out.push(`${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`);
-  }
-  return out;
-}
-
-const CLOSING_URL_RE = /\/(bursaries-closing-in-|bursary-news\/)/i;
-
-export function planSearches(now = new Date()) {
+export function planSearches(overrides = {}) {
   const searches = [];
 
-  for (const month of closingMonths(now)) {
-    searches.push({
-      pass: 'closing',
-      category: 'Closing soon',
-      query: `bursaries closing in ${month}`,
-      include: [ZA],
-      maxResults: MAX_RESULTS.closing,
-      keep: (r) => CLOSING_URL_RE.test(r.url),
-    });
-  }
-
+  // Bursary faculties: zabursaries is the bursary specialist. graduates24's
+  // answers to these queries were interview tips and job ads.
   for (const [tag, terms] of FACULTIES) {
     searches.push({
       pass: 'scoped',
       category: 'Bursaries',
       tag,
       query: `${terms} bursary South Africa`,
-      include: TRUSTED,
+      include: [ZA],
       maxResults: MAX_RESULTS.scoped,
     });
   }
   for (const [category, query] of OTHER) {
-    searches.push({ pass: 'scoped', category, query, include: TRUSTED, maxResults: MAX_RESULTS.scoped });
+    searches.push({ pass: 'scoped', category, query, include: TRUSTED, maxResults: MAX_RESULTS.scoped, timeRange: RECENT });
   }
 
-  // Second layer: the whole web minus the two sites already covered, nudged
-  // towards South Africa. One search per category, not per faculty.
+  // BROAD: the whole web minus the trusted sites, nudged towards South Africa,
+  // one search per category. Off by default. In real runs it returned job-board
+  // listings, foreign employers and generic careers pages alongside a few good
+  // leads, so half of a weekly issue was noise. Run it with --with-broad (or
+  // --only broad) while tuning; once --min-score or the queries make it
+  // trustworthy, switch it on in the cron by passing { broad: true }.
   searches.push({
     pass: 'broad',
     category: 'Bursaries',
     query: 'bursary applications open South Africa',
-    exclude: TRUSTED,
+    exclude: BROAD_EXCLUDE,
     maxResults: MAX_RESULTS.broad,
+    timeRange: RECENT,
   });
   for (const [category, query] of OTHER) {
-    searches.push({ pass: 'broad', category, query, exclude: TRUSTED, maxResults: MAX_RESULTS.broad });
+    searches.push({ pass: 'broad', category, query, exclude: BROAD_EXCLUDE, maxResults: MAX_RESULTS.broad, timeRange: RECENT });
   }
 
-  return searches;
+  const wantsBroad = overrides.broad || (overrides.only || []).some((w) => /broad/i.test(w));
+  return applyOverrides(wantsBroad ? searches : searches.filter((s) => s.pass !== 'broad'), overrides);
+}
+
+export function searchLabel(s) {
+  return `${s.pass} · ${s.tag || s.category}`;
+}
+
+function applyOverrides(searches, { only, query, timeRange, maxResults, minScore } = {}) {
+  let out = searches;
+
+  if (only && only.length) {
+    const wanted = only.map((w) => w.trim().toLowerCase()).filter(Boolean);
+    out = out.filter((s) => {
+      const hay = [s.pass, s.category, s.tag || ''].map((x) => x.toLowerCase());
+      return wanted.some((w) => hay.some((h) => h.includes(w)));
+    });
+  }
+
+  return out.map((s) => {
+    const next = { ...s };
+    if (query) next.query = query;
+    if (maxResults) next.maxResults = maxResults;
+    if (minScore) next.minScore = minScore;
+    if (timeRange) {
+      if (timeRange === 'none') delete next.timeRange;
+      else next.timeRange = timeRange;
+    }
+    return next;
+  });
+}
+
+/** True when the closing-soon pages belong in a run limited by `only`. */
+export function includesClosing(only) {
+  return !only || !only.length || only.some((w) => /closing|^all$/i.test(w.trim()));
+}
+
+/**
+ * zabursaries keeps "closing soon" on one page per month, at
+ * /bursaries-closing-in-<month>-<year>/. Build this month's and the next two
+ * and keep the ones that exist. Only a 404/410 rules a page out: a blocked or
+ * slow request still yields a lead, since a human reviews the list anyway.
+ */
+export async function closingPages({ now = new Date(), fetchPage = fetch } = {}) {
+  const pages = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
+    const label = `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    pages.push({ label, url: `https://www.${ZA}/bursaries-closing-in-${MONTHS[d.getUTCMonth()]}-${d.getUTCFullYear()}/` });
+  }
+
+  const checked = await Promise.all(
+    pages.map(async (page) => {
+      try {
+        const res = await fetchPage(page.url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
+          signal: AbortSignal.timeout(10000),
+        });
+        return res.status === 404 || res.status === 410 ? null : page;
+      } catch {
+        return page;
+      }
+    })
+  );
+
+  return checked.filter(Boolean).map(({ label, url }) => {
+    const [month, year] = label.split(' ');
+    const name = month[0].toUpperCase() + month.slice(1);
+    return {
+      title: `Bursaries closing in ${name} ${year}`,
+      url,
+      desc: `zabursaries' running list of bursaries closing in ${name} ${year}.`,
+      source: 'zabursaries',
+      pass: 'closing',
+      category: 'Closing soon',
+      tag: null,
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -133,7 +218,7 @@ export async function searchTavily({ key, search, fetchImpl = fetch }) {
     ...(search.include ? { include_domains: search.include } : {}),
     ...(search.exclude ? { exclude_domains: search.exclude } : {}),
     ...(search.pass === 'broad' ? { country: 'south africa' } : {}),
-    ...(TIME_RANGE ? { time_range: TIME_RANGE } : {}),
+    ...(search.timeRange ? { time_range: search.timeRange } : {}),
   };
 
   const res = await fetchImpl(TAVILY_URL, {
@@ -199,8 +284,39 @@ export function inert(text) {
     .trim();
 }
 
-export function oneLine(text, max = MAX_DESC) {
-  const s = inert(text);
+/**
+ * Tavily's snippet is whatever chunk of the page matched best, which on these
+ * sites is often menu text. Strip the markup and boilerplate we can recognise;
+ * what is left is still a hint for a human, not a polished summary.
+ */
+function cleanSnippet(text, title = '') {
+  let t = String(text ?? '');
+  // The result's own title is often repeated at the start ("Title: Hatch: ...").
+  if (title) t = t.split(title).join(' ');
+  t = t
+    .replace(/\bTitle:\s*/gi, '')
+    .replace(/\*+/g, '')
+    // "...Join our WhatsApp Channel for daily updates on the latest Internships,
+    // Learnerships, Graduate Programmes and Bursaries" — the whole sentence.
+    .replace(/Join our\s+WhatsApp Channel[\s\S]*?(?:and\s+Bursaries|and\s*…|and\s*\.\.\.|$)/gi, '')
+    // Everything after these is the site's sidebar: other people's listings.
+    .replace(/(Create (My|Your) CV|Build a professional CV|Other Opportunities)[\s\S]*$/i, '')
+    .replace(/\b(Apply Now|Share on \w+|Stay Updated)\b/gi, '');
+
+  return inert(t)
+    .replace(/#+\s*/g, '')
+    .replace(/\\+/g, ' ')
+    .replace(/(^|\s)\+\s+/g, '$1')
+    .replace(/(\.{2,3}|…)\s*read more/gi, '')
+    .replace(/\bread more\b/gi, '')
+    .replace(/^(posted|listed)[:\s]+/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,;:.-]+/, '')
+    .trim();
+}
+
+export function oneLine(text, max = MAX_DESC, title = '') {
+  const s = cleanSnippet(text, title);
   if (s.length <= max) return s;
   const cut = s.slice(0, max);
   return cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 30)).replace(/[,;:.\s-]+$/, '') + '…';
@@ -215,17 +331,95 @@ function safeUrl(url) {
   }
 }
 
-function toFinding(result, search) {
+/**
+ * Pages that are never a lead: the site home, on-site search results,
+ * pagination, and boilerplate. (Seen in a real run: "Contact SA Bursaries",
+ * "Common Interview Questions", and /?s=pharmacy filed under a faculty.)
+ */
+export function isNoise(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return true;
+  }
+  const path = u.pathname.replace(/\/+$/, '');
+  if (path === '') return true;
+  if (u.searchParams.has('s') || u.searchParams.has('page')) return true;
+  return /^\/(contact|about|about-us|privacy|privacy-policy|terms|cookie|interview[-_]questions|create[-_]cv|bursary-news|universities)\b/i.test(path);
+}
+
+/** "BBD Bursary 2025 - 2026" is fine; "Bursaries 2024" is last year's news. */
+export function isStale(title, now = new Date()) {
+  const years = (title.match(/\b(20\d\d)\b/g) || []).map(Number);
+  return years.length > 0 && Math.max(...years) < now.getUTCFullYear();
+}
+
+/**
+ * zabursaries files each bursary under its faculty in the URL
+ * (/engineering-bursaries-south-africa/sasol-bursary). That is more reliable
+ * than whichever faculty query happened to find it first: a real run filed
+ * Sasol under Humanities. null means "General".
+ */
+export function facultyFromUrl(url) {
+  const seg = (() => { try { return new URL(url).pathname.split('/')[1] || ''; } catch { return ''; } })().toLowerCase();
+  if (/^(accounting|commerce)/.test(seg)) return 'Commerce';
+  if (/^(engineering|construction)/.test(seg)) return 'Engineering';
+  if (/^(computer-science|science)/.test(seg)) return 'Science';
+  if (/^medical/.test(seg)) return 'Health Sciences';
+  if (/^(education|arts)/.test(seg)) return 'Humanities';
+  if (/^law/.test(seg)) return 'Law';
+  return null;
+}
+
+const DATE_RE = /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+20\d\d\b/gi;
+
+/**
+ * Drop a description that is not about the page. Too little left after
+ * stripping the chrome means it was all chrome; two or more dates means it is
+ * the sidebar list of *other* listings ("Pretoria Closes 09 Oct 2026 Inlumi: ...
+ * 30 Sep 2026 NTT DATA: ..."), not this one. The title still carries the lead.
+ */
+export function usableDesc(desc) {
+  if (desc.length < 10) return '';
+  if ((desc.match(DATE_RE) || []).length >= 2) return '';
+  return desc;
+}
+
+const SA_RE = /south africa|gauteng|western cape|eastern cape|kwazulu|limpopo|mpumalanga|free state|north west|northern cape|johannesburg|cape town|durban|pretoria|midrand|sandton|bloemfontein|gqeberha|port elizabeth|stellenbosch|soweto/i;
+
+/** Broader results come from anywhere; keep ones with some South Africa signal. */
+export function looksSouthAfrican(result) {
+  return /\.za(\/|$)/i.test(hostOf(result.url) + '/') || SA_RE.test(`${result.title} ${result.content}`);
+}
+
+/**
+ * Decide what to do with one search result: a finding to keep, or the reason it
+ * was dropped (shown by --explain so the filters can be tuned with evidence).
+ */
+function judge(result, search, now) {
   const url = safeUrl(result.url);
-  if (!url) return null;
+  if (!url) return { reason: 'not a usable http(s) link' };
+  if (search.minScore && !(result.score >= search.minScore)) {
+    return { reason: `relevance score ${result.score?.toFixed(2) ?? '?'} is below ${search.minScore}` };
+  }
+  if (isNoise(url)) return { reason: 'noise page (home, search, pagination, contact…)' };
+  if (search.pass === 'broad' && !looksSouthAfrican(result)) return { reason: 'no South Africa signal' };
+
+  const title = oneLine(result.title, 120) || hostOf(url);
+  if (isStale(title, now)) return { reason: 'title only mentions past years' };
+
+  const source = sourceOf(url);
   return {
-    title: oneLine(result.title, 120) || hostOf(url),
-    url,
-    desc: oneLine(result.content),
-    source: sourceOf(url),
-    pass: search.pass,
-    category: search.category,
-    tag: search.tag || null,
+    finding: {
+      title,
+      url,
+      desc: usableDesc(oneLine(result.content, MAX_DESC, result.title)),
+      source,
+      pass: search.pass,
+      category: search.category,
+      tag: search.category !== 'Bursaries' ? null : source === 'zabursaries' ? facultyFromUrl(url) : search.tag || null,
+    },
   };
 }
 
@@ -234,7 +428,7 @@ function toFinding(result, search) {
  * within this run (a bursary matches several faculty queries). Earlier passes
  * win, so a trusted-source hit is never replaced by a broader one.
  */
-export async function collect({ key, searches, fetchImpl }) {
+export async function collect({ key, searches, fetchImpl, now = new Date(), onResult }) {
   const settled = await Promise.allSettled(searches.map((s) => searchTavily({ key, search: s, fetchImpl })));
 
   const seen = new Set();
@@ -244,17 +438,24 @@ export async function collect({ key, searches, fetchImpl }) {
   settled.forEach((outcome, i) => {
     const search = searches[i];
     if (outcome.status === 'rejected') {
-      failures.push(`${search.pass} · ${search.tag || search.category}: ${outcome.reason?.message || outcome.reason}`);
+      failures.push(`${searchLabel(search)}: ${outcome.reason?.message || outcome.reason}`);
+      onResult?.({ search, error: outcome.reason?.message || String(outcome.reason) });
       return;
     }
     for (const result of outcome.value) {
-      if (search.keep && !search.keep(result)) continue;
-      const finding = toFinding(result, search);
-      if (!finding) continue;
+      const { finding, reason } = judge(result, search, now);
+      if (!finding) {
+        onResult?.({ search, result, kept: false, reason });
+        continue;
+      }
       const k = urlKey(finding.url);
-      if (seen.has(k)) continue;
+      if (seen.has(k)) {
+        onResult?.({ search, result, kept: false, reason: 'duplicate of a result already kept' });
+        continue;
+      }
       seen.add(k);
       findings.push(finding);
+      onResult?.({ search, result, kept: true, finding });
     }
   });
 
@@ -276,9 +477,12 @@ function categoryBlock(findings, category, level) {
   const inCat = findings.filter((f) => f.category === category);
   if (category !== 'Bursaries') return section(category, level, inCat);
 
-  // Bursaries by faculty, matching the README's own groupings.
+  // Bursaries by faculty, matching the README's own groupings. When nothing
+  // has a faculty (the broader pass), a "General" subheading adds nothing.
   const lines = [`${'#'.repeat(level)} Bursaries`, ''];
   if (!inCat.length) return [...lines, '_Nothing found this run._', ''];
+  if (inCat.every((f) => !f.tag)) return [...lines, ...inCat.map(bullet), ''];
+
   const tags = [...FACULTIES.map(([t]) => t), null];
   for (const tag of tags) {
     const items = inCat.filter((f) => f.tag === tag);
@@ -292,7 +496,7 @@ export function sastDate(now = new Date()) {
   return new Date(now.getTime() + 2 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-export function renderDigest({ findings, failures, searched, now = new Date() }) {
+export function renderDigest({ findings, failures, searched, now = new Date(), withBroad = findings.some((f) => f.pass === 'broad') }) {
   const trusted = findings.filter((f) => f.pass !== 'broad');
   const broad = findings.filter((f) => f.pass === 'broad');
   const closing = trusted.filter((f) => f.category === 'Closing soon');
@@ -302,16 +506,17 @@ export function renderDigest({ findings, failures, searched, now = new Date() })
     `Leads for a human to review — **nothing here is in the README**. ` +
       `${findings.length} links from ${searched} searches on ${sastDate(now)}.`,
     '',
-    `Trusted sources first (zabursaries.co.za, graduates24.com); the broader search at the bottom is less trusted, so check it before relying on it.`,
+    withBroad
+      ? `Trusted sources first (zabursaries.co.za, graduates24.com); the broader search at the bottom is less trusted, so check it before relying on it.`
+      : `Sources: zabursaries.co.za and graduates24.com.`,
     '',
     ...section('⏰ Closing soon', 2, closing),
     ...CATEGORY_ORDER.flatMap((c) => categoryBlock(scoped, c, 2)),
-    '---',
-    '',
-    '## 🌍 Broader search (less trusted)',
-    '',
-    ...CATEGORY_ORDER.flatMap((c) => categoryBlock(broad, c, 3)),
   ];
+
+  if (withBroad) {
+    body.push('---', '', '## 🌍 Broader search (less trusted)', '', ...CATEGORY_ORDER.flatMap((c) => categoryBlock(broad, c, 3)));
+  }
 
   if (failures.length) {
     body.push('---', '', `⚠️ ${failures.length} of ${searched} searches failed, so this list is incomplete:`, '');
@@ -325,20 +530,25 @@ export function renderDigest({ findings, failures, searched, now = new Date() })
  * Entry point (cron and the local script share this)
  * ------------------------------------------------------------------ */
 
-export async function runOpportunityDigest({ config, gh, fetchImpl, dryRun = false, now = new Date() }) {
+export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, onResult }) {
   if (!config.tavilyKey) {
     throw new Error('TAVILY_API_KEY is not set. Add it with: wrangler secret put TAVILY_API_KEY');
   }
 
-  const searches = planSearches(now);
-  const { findings, failures, searched } = await collect({ key: config.tavilyKey, searches, fetchImpl });
+  const searches = planned || planSearches();
+  const [closing, collected] = await Promise.all([
+    skipClosing ? [] : closingPages({ now, fetchPage }),
+    collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult }),
+  ]);
+  const { failures, searched } = collected;
+  const findings = [...closing, ...collected.findings];
 
   // Every search failing means a bad key or an outage. Don't open an empty issue.
   if (failures.length === searched) {
     throw new Error(`All ${searched} searches failed. First error: ${failures[0]}`);
   }
 
-  const { title, body } = renderDigest({ findings, failures, searched, now });
+  const { title, body } = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad') });
   const summary = { title, findings: findings.length, searches: searched, credits: searched, failures: failures.length };
 
   if (dryRun) return { ...summary, body, issueUrl: null };

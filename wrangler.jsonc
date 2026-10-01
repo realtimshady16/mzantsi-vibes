@@ -15,6 +15,11 @@
     "nodejs_compat"
   ],
 
+  // No public preview URL per version. Branch builds upload a version of this
+  // Worker, and each used to get a reachable *.workers.dev URL that runs the
+  // branch's code with the production secrets. The live site is unaffected.
+  "preview_urls": false,
+
   // 06:00 UTC = 08:00 SAST -> morning review digest
   // 16:00 UTC = 18:00 SAST -> batch merge of everything approved
   // 05:00 UTC Mondays = 07:00 SAST -> weekly opportunity digest (GitHub issue)
@@ -27,7 +32,8 @@
   },
 
   // Non-secret settings only. Everything sensitive is a Worker secret:
-  //   wrangler secret put BOT_GITHUB_PAT
+  //   wrangler secret put GITHUB_APP_ID
+  //   wrangler secret put GITHUB_APP_PRIVATE_KEY
   //   wrangler secret put HMAC_SECRET
   //   wrangler secret put RESEND_API_KEY
   //   wrangler secret put REVIEWER_EMAIL

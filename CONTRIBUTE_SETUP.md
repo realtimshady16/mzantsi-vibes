@@ -18,8 +18,9 @@ One Cloudflare Worker does three jobs, so there is no extra infrastructure:
 contribute form  ──POST /api/submit──▶  Worker
                                         │
                                         ├─ patch README.md (src/readme.js)
-                                        ├─ push branch to the bot's fork
-                                        └─ open a PR upstream  + needs-review
+                                        ├─ push a contribute/… branch to this repo
+                                        └─ open a PR to main  + needs-review
+                                           (as the GitHub App, no user account involved)
 
 08:00 SAST cron  ──▶  digest email to Tim, one Approve + Reject link per PR
                         links are HMAC-signed, stateless, expire after 72h
@@ -52,26 +53,42 @@ click link       ──GET /action──▶  verify signature ──▶ add/remo
 
 ## Prerequisites
 
-1. **A dedicated bot GitHub account.** Not your personal one. The Worker uses
-   it to push branches and open PRs, and it should be able to be revoked
-   without affecting you.
-2. **The bot account needs its own fork** of `realtimshady16/mzantsi-vibes`.
-   GitHub will not let it push a branch to a repo it does not own. Fork it once:
-   <https://github.com/realtimshady16/mzantsi-vibes/fork>
-   (`ensureFork()` in `src/github.js` will also create it automatically on the
-   first submission, and wait for GitHub to finish.)
-3. **A fine-grained PAT** on that bot account, scoped to
-   `realtimshady16/mzantsi-vibes` only, with:
-   - Contents: **Read and write**
-   - Pull requests: **Read and write**
-4. **A Resend account** and an API key.
+The Worker acts as a **GitHub App**, not as a bot user account. An app is
+GitHub's supported way to run automation: there is no account to get suspended,
+it is limited to the repositories you install it on, and its tokens expire after
+an hour. (The system originally used a bot user account with a PAT; GitHub
+suspended it, which is what prompted the switch.)
+
+### 1. Create the GitHub App (once, about five minutes)
+
+Do this signed in as the owner of the repo. GitHub → **Settings → Developer
+settings → GitHub Apps → New GitHub App**.
+
+| Field | Value |
+|---|---|
+| Name | Anything unique, e.g. `Mzantsi Vibes Contribute`. PRs show as `<name>[bot]`. |
+| Homepage URL | `https://mzantsivibes.co.za` |
+| Webhook → Active | **Untick it.** The system polls; it never receives events. |
+| Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Issues: Read and write** (Metadata: Read-only is added for you). Nothing else. |
+| Where can it be installed | **Only on this account** |
+
+Then, on the app's settings page:
+
+1. Note the **App ID** at the top.
+2. **Generate a private key.** A `.pem` file downloads. Treat it like a password.
+3. **Install App** in the left sidebar → your account → **Only select
+   repositories** → `mzantsi-vibes`.
+
+### 2. A Resend account and an API key
 
 ## Secrets
 
-None of these go in the repo. Set each with:
+None of these go in the repo. Set each with `wrangler secret put <NAME>` (or
+`cf workers secrets update <NAME> --worker mzantsi-vibes --type secret_text --text …`):
 
 ```bash
-wrangler secret put BOT_GITHUB_PAT
+wrangler secret put GITHUB_APP_ID
+wrangler secret put GITHUB_APP_PRIVATE_KEY < path/to/the-key.pem
 wrangler secret put HMAC_SECRET
 wrangler secret put RESEND_API_KEY
 wrangler secret put REVIEWER_EMAIL
@@ -79,10 +96,16 @@ wrangler secret put REVIEWER_EMAIL
 
 | Secret | What it is |
 |---|---|
-| `BOT_GITHUB_PAT` | The bot's fine-grained PAT |
+| `GITHUB_APP_ID` | The app's numeric ID |
+| `GITHUB_APP_PRIVATE_KEY` | The whole `.pem` file, as GitHub gave it (BEGIN/END lines included). No `openssl` conversion needed. |
 | `HMAC_SECRET` | Signs the Approve/Reject links. `openssl rand -hex 32` |
 | `RESEND_API_KEY` | From <https://resend.com/api-keys> |
 | `REVIEWER_EMAIL` | Where the digest is sent |
+
+There is no installation-id secret: the Worker finds the installation from the
+repo. If the app is not installed on the repo, or the ID and key do not belong
+together, the error in the Worker log says which. Once the app works, delete any
+old `BOT_GITHUB_PAT` secret and the downloaded `.pem`.
 
 Non-secret settings live in `vars` in `wrangler.jsonc`. **Change `BASE_URL`**
 once you know the deployed hostname — the digest links are built from it, and
@@ -121,16 +144,18 @@ No dependencies — plain ES modules. Run them with `node` (18+) or `bun`:
 
 ```bash
 node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
-node test/test-integration.mjs # 41 checks — real GitHub reads, mutations mocked
-node test/test-review.mjs     # 55 checks — digest, signed links, batch merge
+node test/test-auth.mjs       # 48 checks — GitHub App keys, JWT, token caching, which PRs jobs may touch
+node test/test-integration.mjs # 39 checks — real README read from GitHub, mutations mocked
+node test/test-review.mjs     # 69 checks — digest, signed links, batch merge
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
-node test/test-opportunities.mjs # 47 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunities.mjs # 101 checks — opportunity digest, Tavily and GitHub faked
 ```
 
-`test-integration.mjs` reads the real README from GitHub, so it needs a token:
-`BOT_GITHUB_PAT=... node test/test-integration.mjs`. Without one it skips.
-It mocks every call that would create a branch, commit or PR, so it cannot
-open a pull request by accident.
+`test-integration.mjs` reads the real README from GitHub. The repo is public so
+it needs no token (set `GITHUB_TOKEN` only if you hit the 60/hour limit). It
+mocks every call that would create a branch, commit or PR, so it cannot open a
+pull request by accident. `test-auth.mjs` generates its own RSA key and fakes
+GitHub, so it needs nothing.
 
 `test.mjs` needs network access once, to fetch the current README as a fixture.
 
@@ -170,37 +195,74 @@ The PR body records which editor was used ("Written in").
 
 ## Weekly opportunity digest
 
-A separate job, sharing the Worker and the bot account. Every **Monday 07:00
+A separate job, sharing the Worker and the GitHub App. Every **Monday 07:00
 SAST** it searches for bursaries, learnerships, graduate programmes, jobs and
 training with [Tavily](https://tavily.com) and opens **one GitHub issue** titled
 `Opportunity digest — <date>`. It is a leads list for a human: nothing it finds
 goes near the README, and there is no deduplication between weeks.
 
-- **Trusted pass:** `zabursaries.co.za` and `graduates24.com` only
-  (`include_domains`): closing-soon pages, six bursary faculties, learnerships,
-  graduate programmes, jobs, training/vac work.
-- **Closing soon:** zabursaries keeps these on month pages
-  (`/bursaries-closing-in-november-2026/`), so the job asks for this month's and
-  next month's page by name.
-- **Broader pass:** one search per category with the two sites excluded, so it
-  only adds new sources. It sits under a "less trusted" heading at the bottom.
-- **Cost:** 17 basic searches = **17 Tavily credits per run**. No advanced search.
+- **Closing soon:** zabursaries keeps these on one page per month
+  (`/bursaries-closing-in-november-2026/`). Tavily's index missed the current
+  month's page, so the job builds this month's and the next two URLs and keeps
+  the ones that exist (a 404 rules a page out). No search, no credits.
+- **Trusted pass:** bursaries by the six README faculties (zabursaries only,
+  filed by the faculty in each URL), then learnerships, graduate programmes,
+  jobs and training/vac work on both sites (`include_domains`). Everything but
+  the evergreen faculty hubs is limited to the last month, which turns generic
+  listing pages into specific postings.
+- **Broader pass (off in the weekly run):** one whole-web search per category,
+  with the two sites, social media and job-board search pages excluded. It is
+  kept in the code but not run by the cron, because real runs showed roughly
+  half its results were noise (foreign employers, generic careers pages, job
+  board listings). Run it on demand with `--with-broad` while tuning, and switch
+  it on in the cron (`planSearches({ broad: true })`) once `--min-score` or new
+  queries make it trustworthy.
+- **Tidying:** home pages, on-site search, pagination and contact pages are
+  dropped; titles that only mention past years are dropped; page chrome
+  ("Create My CV", WhatsApp banners, sidebars of other listings) is stripped
+  from descriptions. A lead with no usable description shows title and link only.
+- **Cost:** 10 basic searches = **10 Tavily credits per run** (15 with the
+  broader pass). No advanced search.
 - **Issue label:** `opportunity-digest`, created on first use.
 
 Setup is one secret: `wrangler secret put TAVILY_API_KEY` (key from
 <https://app.tavily.com>). Without it only this job fails, with a clear message
 in the Worker log; the contribute form and review digest are unaffected.
 
-**Running it on demand** (to tune the queries without waiting a week):
+**Running it on demand, and tuning it.** The script runs the same code as the
+cron, from your machine. It is a **dry run by default**: it searches and prints
+the issue, and creates nothing on GitHub. Every search costs 1 Tavily credit, dry
+run or not, so the useful flags are the ones that let you run less.
 
 ```bash
-node scripts/run-opportunities.mjs          # dry run: prints the issue, posts nothing
-node scripts/run-opportunities.mjs --post   # opens the real issue
+node scripts/run-opportunities.mjs --list              # show the plan and cost, spends nothing
+node scripts/run-opportunities.mjs                     # full dry run of the weekly digest, 10 credits
+node scripts/run-opportunities.mjs --with-broad        # ...plus the broader pass, 15 credits
+node scripts/run-opportunities.mjs --only job --explain   # 2 credits: just the job searches, with reasons
+node scripts/run-opportunities.mjs --post              # full run, then open the real issue
 ```
 
-It reads `TAVILY_API_KEY` (and `BOT_GITHUB_PAT` for `--post`) from `.dev.vars`.
-A dry run still spends the same ~17 credits. The queries, faculties and
-`TIME_RANGE` live at the top of `src/opportunities.js`.
+| Flag | What it does |
+|---|---|
+| `--list` | Print the searches (query, domains, window, cost) and stop. Free. |
+| `--with-broad` | Also run the broader whole-web pass, which the weekly digest leaves out. `--only broad` does the same on its own. |
+| `--only a,b` | Keep searches whose pass (`scoped`/`broad`), category or faculty contains any term, e.g. `--only learnership,law`. Add `closing` for the closing-soon pages. |
+| `--query "text"` | Replace the query text of the searches `--only` selects, to try a new wording. |
+| `--time-range X` | `day`, `week`, `month`, `year` or `none`, for every selected search. |
+| `--max-results N` | Results per search (1 to 20). |
+| `--min-score X` | Drop results Tavily scored below X. In the broader pass the score tracks quality closely: a real run gave 0.75 for a relevant page and 0.23 for a generic careers page, so this is the first thing to try when taming it. |
+| `--explain` | Print every result with `KEEP`/`DROP`, its score and the reason it was dropped (noise page, no South Africa signal, past-year title, duplicate, low score). This is how to see what a filter change would do. |
+| `--save FILE` | Also write the issue text to a file. |
+
+Any tuning flag makes it a dry run only: `--post` refuses to combine with them,
+so a half-run can never be posted as the weekly digest.
+
+It reads `TAVILY_API_KEY` from `.dev.vars` or the environment. `--post` also needs
+GitHub access: `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY` (the same app, key on one
+line with literal `\n`), or `GITHUB_TOKEN` (e.g. `GITHUB_TOKEN=$(gh auth token)` to
+post as yourself). The defaults, the faculties and `RECENT` (the one-month window)
+live at the top of `src/opportunities.js`; once a flag setting proves itself,
+change the default there.
 
 ## What is rejected, and why
 
@@ -215,17 +277,22 @@ A dry run still spends the same ~17 credits. The queries, faculties and
 
 ## Review cycle
 
-- **08:00 SAST** — digest lists every open bot PR that is neither approved nor
-  rejected. Already-decided PRs are skipped so they do not nag.
+- **08:00 SAST** — digest lists every open PR the contribute form opened that is
+  neither approved nor rejected. Already-decided PRs are skipped so they do not nag.
 - **Approve** adds `approved` and removes `rejected`/`needs-review`. **Reject**
   does the inverse, so the last click wins and a double-click is harmless.
   (An email client prefetching a link is the reason the brief accepts this.)
 - **18:00 SAST** — merges everything labelled `approved` (squash), closes
-  everything labelled `rejected` with a comment linking back to the form, then
-  strips the labels so nothing is reprocessed. Safe to run twice.
-- `main` has no branch protection and its only ruleset is disabled, so the bot
-  can merge without an admin bypass. If you ever enable protection, the bot
-  needs to be added to the bypass list or the 18:00 job will start failing.
+  everything labelled `rejected` with a comment linking back to the form, strips
+  the labels so nothing is reprocessed, and deletes the PR's branch. Safe to run
+  twice.
+- **Only the form's own PRs are ever touched.** A PR counts as one of ours only
+  if an app opened it, from a `contribute/…` branch in this repo. The digest, the
+  Approve/Reject endpoint and the merge job all check this, so labelling someone's
+  own PR `approved` cannot get it merged.
+- `main` has no branch protection and its only ruleset is disabled, so the app
+  can merge without an admin bypass. If you ever enable protection, add the app
+  to the bypass list or the 18:00 job will start failing.
 
 ## Limitations, stated plainly
 
@@ -240,8 +307,13 @@ A dry run still spends the same ~17 credits. The queries, faculties and
 - **Concurrent submissions can collide.** Two people patching the same line at
   the same time produce two PRs, and the second may fail to merge cleanly. The
   digest shows both, and the merge job reports failures rather than hiding them.
-- **`ensureFork()` can create a fork** on first run. That is intentional, but
-  it is a real write on first use.
+- **Branches live in this repo.** Each submission creates a `contribute/…`
+  branch. They are deleted when the PR is merged or closed, but a PR nobody has
+  reviewed keeps its branch until someone does.
+- **The private key is the crown jewel.** Anyone holding it can act as the app on
+  this repo (not elsewhere: the app only has this repo, and only Contents, Pull
+  requests and Issues). If it leaks, generate a new key on the app's page, set the
+  new secret, and delete the old key there.
 - **The digest is single-recipient.** Adding reviewers means a list in
   `REVIEWER_EMAIL` and a link that can only be verified once, so a shared inbox
   would let anyone with the email approve. Keep it to one person until that

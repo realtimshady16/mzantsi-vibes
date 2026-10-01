@@ -8,7 +8,7 @@
 
 import { verifyToken } from './tokens.js';
 import { actionResultPage } from './email.js';
-import { LABELS, LABEL_META } from './github.js';
+import { LABELS, LABEL_META, isContributionPull } from './github.js';
 
 const APPROVED = LABELS.approved;
 const REJECTED = LABELS.rejected;
@@ -53,6 +53,16 @@ export async function handleAction({ request, config, gh, url }) {
       ok: false,
       heading: 'PR not found',
       message: `#${prNumber} no longer exists.`,
+      link: backLink,
+    }));
+  }
+  // A signed link only ever names a contribution PR, but check anyway: this
+  // endpoint must not be able to label (and so get merged) someone's own PR.
+  if (!isContributionPull(pull, config)) {
+    return html(403, actionResultPage({
+      ok: false,
+      heading: 'Not a contribution',
+      message: `#${prNumber} was not opened by the contribute form, so this link cannot act on it.`,
       link: backLink,
     }));
   }

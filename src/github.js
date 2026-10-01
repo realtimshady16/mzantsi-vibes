@@ -1,9 +1,13 @@
 /**
- * Thin GitHub REST wrapper for the bot account.
+ * Thin GitHub REST wrapper for the contribute system.
  *
- * The bot only ever needs: read the README, push a branch to its own fork,
- * open a PR upstream, and label/merge/close PRs. No database, no caching layer
- * beyond a per-isolate memo of the bot's login and fork.
+ * It only ever needs to: read the README, push a branch, open a PR, label /
+ * merge / close PRs, and open an issue. No database, no caching layer.
+ *
+ * `auth` is either a plain token (scripts and tests) or an async function that
+ * returns one (the GitHub App provider in github-auth.js, which refreshes
+ * itself). In the Worker it is always the App: the system runs as an app
+ * installation limited to this repo, not as a user account.
  */
 
 const API = 'https://api.github.com';
@@ -17,19 +21,32 @@ export class GitHubError extends Error {
   }
 }
 
-function makeClient(token) {
+function makeClient(auth) {
+  const getToken = () => (typeof auth === 'function' ? auth() : auth);
+
   async function api(path, { method = 'GET', body, accept } = {}) {
-    const res = await fetch(`${API}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: accept || 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'mzantsi-vibes-contribute',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const send = async () => {
+      const token = await getToken();
+      return fetch(`${API}${path}`, {
+        method,
+        headers: {
+          // No token is fine for reading a public repo (the integration test does).
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: accept || 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'mzantsi-vibes-contribute',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    };
+
+    let res = await send();
+    // A cached installation token can be revoked early. Fetch a fresh one, once.
+    if (res.status === 401 && typeof auth === 'function' && auth.invalidate) {
+      auth.invalidate();
+      res = await send();
+    }
 
     const text = await res.text();
     let data = null;
@@ -69,48 +86,6 @@ function makeClient(token) {
     return ref.object.sha;
   }
 
-  /* ---------------- bot identity + fork ---------------- */
-
-  let loginCache = null;
-  async function botLogin() {
-    if (!loginCache) loginCache = (await api('/user')).login;
-    return loginCache;
-  }
-
-  let forkCache = null;
-
-  /**
-   * The bot needs a fork to push a branch to. Creating one is asynchronous on
-   * GitHub's side, so poll briefly and give a clear message if it isn't ready.
-   */
-  async function ensureFork(owner, repo) {
-    if (forkCache) return forkCache;
-    const login = await botLogin();
-
-    const existing = await api(`/repos/${login}/${repo}`).catch(() => null);
-    if (existing && existing.fork) {
-      forkCache = { owner: login, name: repo };
-      return forkCache;
-    }
-
-    await api(`/repos/${owner}/${repo}/forks`, { method: 'POST' });
-
-    for (let attempt = 0; attempt < 10; attempt++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const fork = await api(`/repos/${login}/${repo}`).catch(() => null);
-      if (fork && fork.fork) {
-        forkCache = { owner: login, name: repo };
-        return forkCache;
-      }
-    }
-
-    throw new GitHubError(
-      `The bot account @${login} could not create a fork of ${owner}/${repo} in time. ` +
-        `Fork it manually at https://github.com/${owner}/${repo}/fork and try again.`,
-      503
-    );
-  }
-
   /* ---------------- branch + commit ---------------- */
 
   async function createBranch(forkOwner, repo, branch, sha) {
@@ -136,6 +111,12 @@ function makeClient(token) {
     });
   }
 
+  /** Contribution branches live in the repo itself, so tidy them up once decided. */
+  async function deleteBranch(owner, repo, branch) {
+    const ref = branch.split('/').map(encodeURIComponent).join('/');
+    return api(`/repos/${owner}/${repo}/git/refs/heads/${ref}`, { method: 'DELETE' });
+  }
+
   /* ---------------- pull requests ---------------- */
 
   async function createPullRequest(owner, repo, { title, head, base, body }) {
@@ -153,14 +134,9 @@ function makeClient(token) {
    * Open PRs, optionally narrowed to one author. GitHub's `head` filter takes
    * a branch (`user:branch`), not a login, so author filtering happens here.
    */
-  async function listOpenPulls(owner, repo, { authorLogin, labels } = {}) {
+  async function listOpenPulls(owner, repo, { labels } = {}) {
     const params = new URLSearchParams({ state: 'open', per_page: '100' });
     let pulls = await api(`/repos/${owner}/${repo}/pulls?${params}`);
-
-    if (authorLogin) {
-      const want = authorLogin.toLowerCase();
-      pulls = pulls.filter((p) => (p.user?.login || '').toLowerCase() === want);
-    }
 
     if (labels && labels.length) {
       const wanted = new Set(labels.map((l) => l.toLowerCase()));
@@ -242,10 +218,9 @@ function makeClient(token) {
     api,
     getReadme,
     getDefaultBranchSha,
-    botLogin,
-    ensureFork,
     createBranch,
     commitReadme,
+    deleteBranch,
     createPullRequest,
     getPull,
     listOpenPulls,
@@ -260,8 +235,24 @@ function makeClient(token) {
   };
 }
 
-export function github(token) {
-  return makeClient(token);
+export function github(auth) {
+  return makeClient(auth);
+}
+
+/**
+ * Is this PR one the contribute form opened? A same-repo branch under the
+ * configured prefix, opened by an app (GitHub marks app users as "Bot").
+ *
+ * The digest, the approve/reject links and the evening merge all check this
+ * before touching a PR. Branches now live in this repo, so without it a label
+ * on someone's own PR could get it merged by the batch job.
+ */
+export function isContributionPull(pull, { owner, repo, branchPrefix }) {
+  return (
+    pull?.user?.type === 'Bot' &&
+    String(pull.head?.repo?.full_name || '').toLowerCase() === `${owner}/${repo}`.toLowerCase() &&
+    String(pull.head?.ref || '').startsWith(`${branchPrefix}/`)
+  );
 }
 
 /* Label names, kept in one place so the cron jobs and the form agree. */

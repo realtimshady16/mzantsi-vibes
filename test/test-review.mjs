@@ -24,23 +24,31 @@ const config = {
 const pull = (n, over = {}) => ({
   number: n, title: `contribute: Add to Book Summaries (from Someone)`, state: 'open',
   html_url: `https://github.com/realtimshady16/mzantsi-vibes/pull/${n}`,
-  user: { login: 'realshadybot' }, created_at: '2026-09-27T06:00:00Z',
+  // What the GitHub App's PRs look like: a Bot user, and a branch in this repo.
+  user: { login: 'mzantsi-vibes-contribute[bot]', type: 'Bot' },
+  head: { ref: `contribute/add-book-summaries-${n}`, repo: { full_name: 'realtimshady16/mzantsi-vibes' } },
+  created_at: '2026-09-27T06:00:00Z',
   labels: [{ name: 'needs-review' }], ...over,
+});
+
+/* A PR that is not ours: the repo owner's own work, on a branch in the same repo. */
+const humanPull = (n, over = {}) => pull(n, {
+  user: { login: 'realtimshady16', type: 'User' },
+  head: { ref: 'feature/something', repo: { full_name: 'realtimshady16/mzantsi-vibes' } },
+  ...over,
 });
 
 /* mock gh that records label mutations */
 function mockGh(pulls) {
-  const rec = { added: [], removed: [], merged: [], closed: [], commented: [], ensured: [] };
+  const rec = { added: [], removed: [], merged: [], closed: [], commented: [], ensured: [], branchesDeleted: [] };
   const state = new Map(pulls.map((p) => [p.number, new Set(p.labels.map((l) => l.name))]));
   return {
     rec, state,
-    botLogin: async () => 'realshadybot',
     ensureLabel: async (o, r, name) => { rec.ensured.push(name); return { name }; },
     listLabels: async () => [...rec.ensured].map((name) => ({ name })),
-    listOpenPulls: async (o, r, { authorLogin, labels } = {}) => {
+    listOpenPulls: async (o, r, { labels } = {}) => {
       const live = (p) => state.get(p.number) || new Set(p.labels.map((l) => l.name));
       let out = pulls.filter((p) => p.state === 'open');
-      if (authorLogin) out = out.filter((p) => p.user.login.toLowerCase() === authorLogin.toLowerCase());
       if (labels) {
         const want = new Set(labels.map((l) => l.toLowerCase()));
         out = out.filter((p) => [...live(p)].some((n) => want.has(n.toLowerCase())));
@@ -54,6 +62,7 @@ function mockGh(pulls) {
     removeLabel: async (o, r, n, name) => { rec.removed.push({ n, name }); state.get(n)?.delete(name); },
     mergePull: async (o, r, n) => { rec.merged.push(n); return { merged: true }; },
     closePull: async (o, r, n) => { rec.closed.push(n); return {}; },
+    deleteBranch: async (o, r, branch) => { rec.branchesDeleted.push(branch); return {}; },
     commentPull: async (o, r, n, body) => { rec.commented.push({ n, body }); return {}; },
     getPull: async (o, r, n) => {
       const p = pulls.find((x) => x.number === n);
@@ -120,10 +129,19 @@ console.log('\n== digest: already-decided PRs are skipped ==');
   const captured = [];
   const result = await runDigest({ config, gh, fetchImpl: mockFetch(captured) });
   ok('digest run completes', result.sent === true, JSON.stringify(result));
-  ok('3 open bot PRs found', result.openBotPRs === 3, String(result.openBotPRs));
+  ok('3 open contribution PRs found', result.openContributionPRs === 3, String(result.openContributionPRs));
   ok('2 already-decided PRs skipped', result.skippedDecided === 2, String(result.skippedDecided));
   ok('only the undecided PR is in the email', /#1 /.test(captured[0].body.html) && !/#2 |#3 /.test(captured[0].body.html));
   ok('digest subject says 1 contribution', /1 contribution to review/.test(captured[0].body.subject), captured[0].body.subject);
+}
+
+console.log('\n== digest: only the contribute form\'s own PRs ==');
+{
+  const gh = mockGh([pull(1), humanPull(2), humanPull(3, { head: { ref: 'contribute/looks-like-ours', repo: { full_name: 'realtimshady16/mzantsi-vibes' } } })]);
+  const captured = [];
+  const result = await runDigest({ config, gh, fetchImpl: mockFetch(captured) });
+  ok('the owner\'s own PRs are not digested, even on a contribute/ branch', result.openContributionPRs === 1, String(result.openContributionPRs));
+  ok('only #1 is in the email', /#1 /.test(captured[0].body.html) && !/#2 |#3 /.test(captured[0].body.html));
 }
 
 /* ---------------- action endpoint ---------------- */
@@ -153,6 +171,15 @@ const act = async (prs, token, cfg = config) => {
   ok('adds the rejected label', gh.rec.added.some((a) => a.labels.includes('rejected')));
   ok('removes approved', gh.rec.removed.some((r) => r.name === 'approved'));
   ok('confirms rejection', /rejected/.test(html));
+}
+
+console.log('\n== action endpoint: refuses PRs that are not contributions ==');
+{
+  const tok = await signToken(SECRET, { pr: 5, action: 'approve', ttlHours: 72 });
+  const { gh, res, html } = await act([humanPull(5)], tok);
+  ok('a validly-signed link to someone\'s own PR is refused (403)', res.status === 403, String(res.status));
+  ok('...says why', /Not a contribution/.test(html));
+  ok('...and labels nothing, so the batch job could never merge it', gh.rec.added.length === 0 && gh.rec.removed.length === 0);
 }
 
 console.log('\n== action endpoint: rejects bad input ==');
@@ -205,7 +232,44 @@ console.log('\n== batch merge ==');
     gh.rec.removed.some((r) => r.n === 1 && r.name === 'approved') &&
     gh.rec.removed.some((r) => r.n === 1 && r.name === 'needs-review'));
   ok('rejected PR gets a comment', gh.rec.commented.some((c) => c.n === 3 && /rejected/i.test(c.body)));
-  ok('comment links back to the form', gh.rec.commented.some((c) => c.body.includes('mz.example/contribute')));
+  ok('comment links back to the form', gh.rec.commented.some((c) => c.body.includes('https://mz.example/contribute/')));
+  ok('...with a single https:// (baseUrl already has one)', !gh.rec.commented.some((c) => /https:\/\/https:/.test(c.body)));
+}
+
+console.log('\n== batch merge: never touches PRs that are not contributions ==');
+{
+  const gh = mockGh([
+    humanPull(10, { labels: [{ name: 'approved' }] }),
+    humanPull(11, { labels: [{ name: 'rejected' }] }),
+    pull(12, { labels: [{ name: 'approved' }] }),
+  ]);
+  const s = await runBatchMerge({ config, gh });
+  ok('an approved-labelled human PR is not merged', !s.merged.includes(10) && JSON.stringify(s.merged) === '[12]', JSON.stringify(s.merged));
+  ok('a rejected-labelled human PR is not closed', !s.closed.includes(11) && s.closed.length === 0, JSON.stringify(s.closed));
+  ok('nothing about them was commented or relabelled', !gh.rec.commented.some((c) => c.n === 11) && !gh.rec.removed.some((r) => r.n === 10 || r.n === 11));
+}
+
+console.log('\n== batch merge: tidies up branches ==');
+{
+  const gh = mockGh([
+    pull(1, { labels: [{ name: 'approved' }] }),
+    pull(2, { labels: [{ name: 'rejected' }] }),
+    pull(3, { labels: [{ name: 'needs-review' }] }),
+  ]);
+  await runBatchMerge({ config, gh });
+  ok('the merged PR\'s branch is deleted', gh.rec.branchesDeleted.includes('contribute/add-book-summaries-1'));
+  ok('the closed PR\'s branch is deleted', gh.rec.branchesDeleted.includes('contribute/add-book-summaries-2'));
+  ok('an undecided PR\'s branch is kept', !gh.rec.branchesDeleted.includes('contribute/add-book-summaries-3'));
+
+  const failing = mockGh([pull(1, { labels: [{ name: 'approved' }] })]);
+  failing.deleteBranch = async () => { throw new Error('Reference does not exist'); };
+  const s = await runBatchMerge({ config, gh: failing });
+  ok('a branch that cannot be deleted does not fail the run', s.merged.length === 1 && s.failed.length === 0, JSON.stringify(s));
+
+  const keep = mockGh([pull(1, { labels: [{ name: 'approved' }] })]);
+  keep.mergePull = async () => ({ merged: false, message: 'conflict' });
+  await runBatchMerge({ config, gh: keep });
+  ok('a PR that failed to merge keeps its branch', keep.rec.branchesDeleted.length === 0);
 }
 
 console.log('\n== batch merge: a failing merge is reported, not fatal ==');
