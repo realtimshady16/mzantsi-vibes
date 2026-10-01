@@ -2,8 +2,9 @@
  * Deliverable 2 — form submission to an open pull request.
  *
  * The submission is turned into a single-file diff against README.md, pushed
- * to the bot's fork as its own branch, and opened as a PR against upstream.
- * Review happens later via the digest; nothing is merged from here.
+ * to its own branch in this repo (the GitHub App has write access here, so no
+ * fork is needed), and opened as a PR against main. Review happens later via
+ * the digest; nothing is merged from here.
  */
 
 import { applyEdit, applyNew, sanitizeHandle, assertStructureIntact, PatchError } from './readme.js';
@@ -130,15 +131,13 @@ export async function handleSubmit({ request, config, gh }) {
 
   assertStructureIntact(readme.content, result.markdown);
 
-  /* ---- 3. push to the bot's fork, branched from upstream HEAD ---- */
-  const login = await gh.botLogin();
-  const fork = await gh.ensureFork(config.owner, config.repo);
+  /* ---- 3. push a branch to this repo, branched from main ---- */
   const baseSha = await gh.getDefaultBranchSha(config.owner, config.repo);
 
   const branch = `${config.branchPrefix}/${flow}-${slugify(result.sectionName || 'submission')}-${Date.now().toString(36)}-${randomSuffix()}`;
 
-  await gh.createBranch(fork.owner, fork.name, branch, baseSha);
-  await gh.commitReadme(fork.owner, fork.name, branch, {
+  await gh.createBranch(config.owner, config.repo, branch, baseSha);
+  await gh.commitReadme(config.owner, config.repo, branch, {
     path: README_PATH,
     content: result.markdown,
     sha: readme.sha,
@@ -147,7 +146,7 @@ export async function handleSubmit({ request, config, gh }) {
   /* ---- 4. open the PR upstream ---- */
   const pr = await gh.createPullRequest(config.owner, config.repo, {
     title: titleFor(flow, result.sectionName, handle),
-    head: `${fork.owner}:${branch}`,
+    head: branch,
     base: 'main',
     body: buildPrBody({
       flow,
@@ -173,6 +172,5 @@ export async function handleSubmit({ request, config, gh }) {
     prNumber: pr.number,
     prUrl: pr.html_url,
     handle,
-    author: login,
   };
 }

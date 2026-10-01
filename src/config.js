@@ -3,7 +3,11 @@
  * they come from `wrangler secret put` and land on env at runtime.
  */
 
-const REQUIRED_SECRETS = ['BOT_GITHUB_PAT', 'HMAC_SECRET', 'RESEND_API_KEY'];
+import { appTokenProvider } from './github-auth.js';
+
+// GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY identify the GitHub App the system
+// runs as (see CONTRIBUTE_SETUP.md). There is no bot user account any more.
+const REQUIRED_SECRETS = ['GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'HMAC_SECRET', 'RESEND_API_KEY'];
 
 const CRON_DIGEST = '0 6 * * *'; // 08:00 SAST (UTC+2, no DST in SA)
 const CRON_MERGE = '0 16 * * *'; // 18:00 SAST
@@ -20,8 +24,17 @@ export function readConfig(env) {
     );
   }
 
+  const owner = env.REPO_OWNER || 'realtimshady16';
+  const repo = env.REPO_NAME || 'mzantsi-vibes';
+
   return {
-    token: env.BOT_GITHUB_PAT,
+    // Hand this to github(): an async function returning a fresh installation token.
+    githubAuth: appTokenProvider({
+      appId: env.GITHUB_APP_ID,
+      privateKey: env.GITHUB_APP_PRIVATE_KEY,
+      owner,
+      repo,
+    }),
     hmacSecret: env.HMAC_SECRET,
     resendKey: env.RESEND_API_KEY,
 
@@ -29,8 +42,8 @@ export function readConfig(env) {
     // REQUIRED_SECRETS: a missing key must not take down the contribute form.
     tavilyKey: env.TAVILY_API_KEY || '',
 
-    owner: env.REPO_OWNER || 'realtimshady16',
-    repo: env.REPO_NAME || 'mzantsi-vibes',
+    owner,
+    repo,
 
     reviewerName: env.REVIEWER_NAME || 'there',
     reviewerEmail: env.REVIEWER_EMAIL,

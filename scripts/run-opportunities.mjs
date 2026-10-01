@@ -26,13 +26,16 @@
  *   --explain             print each search's results with KEEP / DROP and the reason
  *   --save FILE           also write the issue text to FILE
  *
- * Reads TAVILY_API_KEY (and BOT_GITHUB_PAT for --post) from .dev.vars or the
- * environment. Every search is 1 Tavily credit, dry run or not.
+ * Reads TAVILY_API_KEY from .dev.vars or the environment. --post also needs
+ * GitHub access: GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (the same app the Worker
+ * uses; put the key on one line with literal \n), or GITHUB_TOKEN, e.g.
+ * GITHUB_TOKEN=$(gh auth token) to post as yourself. Every search is 1 Tavily credit, dry run or not.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runOpportunityDigest, planSearches, includesClosing, searchLabel } from '../src/opportunities.js';
 import { github } from '../src/github.js';
+import { appTokenProvider } from '../src/github-auth.js';
 
 /* ---------------- arguments ---------------- */
 
@@ -123,7 +126,10 @@ if (flag('--list')) {
 }
 
 if (!env.TAVILY_API_KEY) fail('TAVILY_API_KEY is not set. Put it in .dev.vars (see .dev.vars.example).');
-if (post && !env.BOT_GITHUB_PAT) fail('--post needs BOT_GITHUB_PAT in .dev.vars or the environment.');
+const hasApp = Boolean(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY);
+if (post && !hasApp && !env.GITHUB_TOKEN) {
+  fail('--post needs GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (or GITHUB_TOKEN) in .dev.vars or the environment.');
+}
 
 /* ---------------- run ---------------- */
 
@@ -144,9 +150,13 @@ const config = {
   repo: env.REPO_NAME || 'mzantsi-vibes',
 };
 
+const githubAuth = hasApp
+  ? appTokenProvider({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY, owner: config.owner, repo: config.repo })
+  : env.GITHUB_TOKEN;
+
 const result = await runOpportunityDigest({
   config,
-  gh: post ? github(env.BOT_GITHUB_PAT) : null,
+  gh: post ? github(githubAuth) : null,
   dryRun: !post,
   searches,
   skipClosing: !withClosing,

@@ -27,7 +27,8 @@
   },
 
   // Non-secret settings only. Everything sensitive is a Worker secret:
-  //   wrangler secret put BOT_GITHUB_PAT
+  //   wrangler secret put GITHUB_APP_ID
+  //   wrangler secret put GITHUB_APP_PRIVATE_KEY
   //   wrangler secret put HMAC_SECRET
   //   wrangler secret put RESEND_API_KEY
   //   wrangler secret put REVIEWER_EMAIL
