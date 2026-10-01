@@ -193,6 +193,15 @@ function makeClient(token) {
     });
   }
 
+  /* ---------------- issues ---------------- */
+
+  async function createIssue(owner, repo, { title, body, labels = [] }) {
+    return api(`/repos/${owner}/${repo}/issues`, {
+      method: 'POST',
+      body: { title, body, labels },
+    });
+  }
+
   /* ---------------- labels ---------------- */
 
   async function listLabels(owner, repo) {
@@ -243,6 +252,7 @@ function makeClient(token) {
     mergePull,
     closePull,
     commentPull,
+    createIssue,
     listLabels,
     ensureLabel,
     addLabels,

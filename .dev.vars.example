@@ -23,3 +23,7 @@ RESEND_API_KEY=
 
 # Where the daily digest is sent.
 REVIEWER_EMAIL=
+
+# Tavily API key for the weekly opportunity digest — https://app.tavily.com
+# Optional: without it only the opportunity digest is disabled.
+TAVILY_API_KEY=
