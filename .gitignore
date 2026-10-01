@@ -4,3 +4,7 @@
 !.dev.vars.example
 .env*
 !.env.example
+
+# Private keys (e.g. the GitHub App key). These must never be committed.
+*.pem
+.pem
