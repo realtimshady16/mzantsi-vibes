@@ -14,6 +14,7 @@ import { github } from './github.js';
 import { sectionOptions, PatchError } from './readme.js';
 import { handleSubmit } from './submit.js';
 import { handleAction } from './action.js';
+import { handleAdminRun } from './admin.js';
 import { runDigest, runBatchMerge } from './cron.js';
 import { runOpportunityDigest } from './opportunities.js';
 
@@ -116,6 +117,17 @@ export default {
       } catch (err) {
         console.error('action failed:', err?.stack || err);
         return new Response('Something went wrong.', { status: 500 });
+      }
+    }
+
+    // Run a job by hand (token-protected, see admin.js).
+    if (url.pathname === '/api/admin/run') {
+      try {
+        const config = readConfig(env);
+        return await handleAdminRun({ request, config, gh: github(config.githubAuth) });
+      } catch (err) {
+        console.error('admin run config failed:', err?.stack || err);
+        return json({ ok: false, error: 'Not configured.' }, 500);
       }
     }
 

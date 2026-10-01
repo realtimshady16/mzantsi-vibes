@@ -147,6 +147,7 @@ node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
 node test/test-auth.mjs       # 48 checks — GitHub App keys, JWT, token caching, which PRs jobs may touch
 node test/test-integration.mjs # 39 checks — real README read from GitHub, mutations mocked
 node test/test-review.mjs     # 69 checks — digest, signed links, batch merge
+node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dry runs, new-section fix
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-opportunities.mjs # 101 checks — opportunity digest, Tavily and GitHub faked
 ```
@@ -263,6 +264,64 @@ line with literal `\n`), or `GITHUB_TOKEN` (e.g. `GITHUB_TOKEN=$(gh auth token)`
 post as yourself). The defaults, the faculties and `RECENT` (the one-month window)
 live at the top of `src/opportunities.js`; once a flag setting proves itself,
 change the default there.
+
+## Testing by hand
+
+You do not have to wait for 08:00, 18:00 or Monday. `scripts/trigger.mjs` drives
+the **live** system, so it tests exactly what the crons do, with the real secrets.
+
+```bash
+node scripts/trigger.mjs status                  # open contribution PRs and where each stands (no secrets needed)
+node scripts/trigger.mjs submit --section "Law" --content "[Site](https://x.co.za) - what it is"
+node scripts/trigger.mjs digest --dry-run        # who would be emailed, and which PRs. Sends nothing.
+node scripts/trigger.mjs digest                  # send the review digest email now
+node scripts/trigger.mjs merge --dry-run         # what the 18:00 job would merge and close. Changes nothing.
+node scripts/trigger.mjs merge                   # run it now
+node scripts/trigger.mjs opportunities --dry-run # run the opportunity searches, post no issue (~10 Tavily credits)
+node scripts/trigger.mjs opportunities           # open the opportunity issue now
+```
+
+- **`--dry-run` always reports and never changes anything**: no email, no merge, no
+  comment, no label, no issue. Do one before the real thing.
+- **`submit`** goes through the same public API as the form, so it exercises the
+  whole path (README patch, branch, PR as the app). Add `--format richtext`,
+  `--handle NAME`, `--new-section NAME --pillar NAME`, or `--edit "OLD TEXT"` for a
+  correction. `--help` lists everything. It is rate-limited like the form (5 an hour).
+- **`status`** reads GitHub's public API, so it works with no setup at all.
+- `digest`, `merge` and `opportunities` run on the Worker through `POST
+  /api/admin/run`. The command signs a **five-minute token for that one job** with
+  `HMAC_SECRET`, the same secret that guards the Approve/Reject links, so there is
+  no login to manage. Without the secret there is no way in, and the endpoint only
+  ever answers "Unauthorised". Approve links and run tokens are signed differently
+  and cannot stand in for each other.
+
+**One-time setup:** `HMAC_SECRET` in your `.dev.vars` must equal the Worker's.
+Generate one and set it in both places:
+
+```bash
+openssl rand -hex 32                                    # copy the output into .dev.vars as HMAC_SECRET=...
+cf workers secrets update HMAC_SECRET --worker mzantsi-vibes --type secret_text \
+  --text="$(grep '^HMAC_SECRET=' .dev.vars | cut -d= -f2-)"
+```
+
+Rotating it invalidates any Approve/Reject links already emailed (they are signed
+with the old one), so do it when none are outstanding.
+
+To try changes locally instead, run `wrangler dev` and add `--url http://localhost:8787`.
+
+## A Cloudflare gotcha: "latest version isn't deployed"
+
+Cloudflare refuses to edit a secret while the newest *uploaded* version of the
+Worker isn't the *deployed* one (`[10215] Secret edit failed`). Branch builds upload
+versions without deploying them, so any branch push can cause it, and so can every
+contribution: the app pushes a `contribute/…` branch, which triggers a build.
+
+- **Fix once:** in the dashboard, Worker → **Settings → Builds → Branch control**,
+  add `contribute/*` to the exclusions of the "Deploy non-production branches" trigger.
+- **Fix right now:** merge or redeploy `main`, which makes the newest version the
+  deployed one, then edit the secret straight away.
+- Don't use the error's "deploy the latest version" suggestion: the newest version is
+  usually an unreviewed branch.
 
 ## What is rejected, and why
 

@@ -91,3 +91,54 @@ export async function verifyToken(secret, token) {
 
   return { ok: true, payload };
 }
+
+/* ------------------------------------------------------------------ *
+ * Run tokens: let the owner trigger a job by hand (see admin.js).
+ *
+ * They are signed over a different message from the approve/reject links
+ * ("admin-run." + body), so neither kind of token can pass for the other, even
+ * though both use the same secret. Each is bound to one job and is short-lived.
+ * ------------------------------------------------------------------ */
+
+const ADMIN_DOMAIN = 'admin-run.';
+
+export async function signAdminToken(secret, { job, ttlMinutes = 5 }) {
+  const body = b64urlEncode(
+    enc.encode(JSON.stringify({ j: job, e: Math.floor(Date.now() / 1000) + ttlMinutes * 60 }))
+  );
+  const sig = b64urlEncode(await hmac(secret, ADMIN_DOMAIN + body));
+  return `${body}.${sig}`;
+}
+
+export async function verifyAdminToken(secret, token, job) {
+  if (typeof token !== 'string' || token.split('.').length !== 2) {
+    return { ok: false, error: 'Malformed token.' };
+  }
+  const [body, sig] = token.split('.');
+  if (!body || !sig) return { ok: false, error: 'Malformed token.' };
+
+  let provided;
+  try {
+    provided = b64urlDecode(sig);
+  } catch {
+    return { ok: false, error: 'Malformed token.' };
+  }
+  if (!timingSafeEqual(await hmac(secret, ADMIN_DOMAIN + body), provided)) {
+    return { ok: false, error: 'Signature does not match.' };
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(b64urlDecode(body)));
+  } catch {
+    return { ok: false, error: 'Malformed token.' };
+  }
+
+  if (typeof payload.j !== 'string' || payload.j !== job) {
+    return { ok: false, error: 'This token is for a different job.' };
+  }
+  if (typeof payload.e !== 'number' || payload.e * 1000 < Date.now()) {
+    return { ok: false, error: 'This token has expired. Run the command again.' };
+  }
+  return { ok: true, payload };
+}
