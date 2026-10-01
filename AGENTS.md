@@ -35,7 +35,9 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | Path | What |
 |---|---|
 | `README.md` | The content (see above) |
-| `PUBLISH/` | The static site. `PUBLISH/contribute/` is the form (Quill + Turndown + marked, **vendored** in `vendor/`) |
+| `PUBLISH/` | The static site: `index.html` (Home), `tasks/`, `allstars/`, `contribute/` |
+| `PUBLISH/theme.css`, `theme.js` | The shared design system and the light/night toggle (see "Design system") |
+| `PUBLISH/contribute/` | The form (Quill + Turndown + marked, **vendored** in `vendor/`) |
 | `src/worker.js` | Entry: routing and the three crons |
 | `src/submit.js`, `readme.js` | Form submission → patched README → branch → PR |
 | `src/github-auth.js`, `github.js` | GitHub App auth (JWT → installation token) and the REST client |
@@ -43,7 +45,8 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | `src/admin.js` | `POST /api/admin/run`: runs a job by hand (token-protected) |
 | `src/opportunities.js` | Weekly Tavily opportunity digest → one GitHub issue |
 | `scripts/mz`, `trigger.mjs`, `run-opportunities.mjs` | Run and tune things by hand |
-| `test/` | Seven dependency-free suites |
+| `scripts/preview.mjs` | Local preview of the site with a mock API |
+| `test/` | Seven dependency-free suites, plus `test/browser/` (needs Chromium) |
 
 ## Commands
 
@@ -54,6 +57,14 @@ for t in test test-auth test-admin test-review test-opportunities test-normalize
 ```
 
 All seven must pass before a PR (59, 48, 43, 69, 101, 23 and 39 checks as of writing).
+```bash
+node test/browser/run.mjs      # the four page tests, in headless Chromium (108 checks)
+```
+
+The browser tests start their own preview server and drive the real pages: the editor, filters,
+the theme toggle, every failure path, a phone width. They need Chromium on the PATH and print
+SKIPPED without it. Run them after any change under `PUBLISH/`.
+
 `test.mjs` and `test-integration.mjs` fetch the real README from GitHub. The rest are
 fully faked: no network, nothing sent, nothing merged. Two of them print
 error-looking lines on purpose (`admin run failed: explode`, `opportunity label
@@ -92,6 +103,30 @@ Mon 07:00   opportunity digest → one GitHub issue of leads (nothing touches th
 
 Crons are in `wrangler.jsonc` and dispatched by schedule string in `src/worker.js`.
 The review links are stateless HMAC tokens (no database, no sessions).
+
+## Design system ("Pull Up a Chair")
+
+All four pages share `PUBLISH/theme.css` (tokens, header, footer, zigzag band) and `PUBLISH/theme.js`
+(light/night). Each page then adds its own small stylesheet. The design came from a handoff
+(not in the repo); where we deviate from it, it is on purpose and noted in the PR.
+
+- **`theme.js` must be the first script in `<head>`,** before the stylesheets, so the right theme is
+  on the page from the first frame. It follows the device, remembers a choice, and survives blocked storage.
+- **Use the tokens** (`var(--card)`, `var(--text-2)`, `var(--selected-bg)`...). The night theme is a set of
+  token overrides under `[data-theme="dark"]`, not a second stylesheet. The only hard-coded colours are
+  dark text on pastels (`#0e2626`), which stays dark in both themes.
+- **Colours are hex, not `oklch()`.** The design was specified in oklch; these are the sRGB equivalents
+  (verified against the designers' screenshots) so older Android WebViews, common among our users,
+  still render. Don't introduce `oklch()`, `:has()`, `aspect-ratio` or flex-only layouts that need newer engines.
+- **No shadows.** That is deliberate.
+- **Keep text readable.** Small text needs 4.5:1. The design dims "coming soon" rows; at its 50% they were
+  2.6:1, so they are 70% with body-colour text (about 6:1).
+- **The `website` field on the form is a honeypot and must stay invisible** (off-screen, `tabindex=-1`,
+  `aria-hidden`). The design mock-up drew it as a normal field; a real person filling it in would have
+  their submission silently dropped.
+- **Preview with `scripts/preview.mjs`, never a plain static server.** Browsers can keep a stale stylesheet
+  from one that sends no cache headers, which looks like a half-applied theme (this happened in Zen/Firefox).
+  `http://127.0.0.1:8000/__diag` checks a browser for exactly that.
 
 ## Rules that must hold
 
