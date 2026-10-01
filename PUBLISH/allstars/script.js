@@ -8,6 +8,21 @@ const GITHUB_API_URL   = 'https://api.github.com/repos/realtimshady16/mzantsi-vi
 const ALL_STARS_URL    = 'https://raw.githubusercontent.com/realtimshady16/mzantsi-vibes/main/ALL-STARS.md';
 const GITHUB_REPO_URL  = 'https://github.com/realtimshady16/mzantsi-vibes';
 
+/* ---- THE TILE ----
+   The design's avatar: a rounded square with two nested diamonds. Colours are picked
+   from the five pastels, deterministically from a seed, so the same person always
+   gets the same tile. */
+const TILE_PASTELS = ['peach', 'blush', 'sage', 'butter', 'lilac'];
+
+function tileStyle(seed) {
+  let h = 0;
+  const str = String(seed || '');
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  const n = TILE_PASTELS.length;
+  const a = h % n;
+  return `--a:var(--${TILE_PASTELS[a]});--b:var(--${TILE_PASTELS[(a + 2) % n]});--c:var(--${TILE_PASTELS[(a + 4) % n]})`;
+}
+
 /* ---- GITHUB CONTRIBUTORS ---- */
 
 async function loadGithubContributors() {
@@ -32,20 +47,12 @@ async function loadGithubContributors() {
     }
 
     const cards = humans.map(c => `
-      <a class="contributor-card" href="${escHtml(c.html_url)}" target="_blank" rel="noopener">
-        <div class="contributor-avatar-wrap">
-          <img
-            class="contributor-avatar"
-            src="${escHtml(c.avatar_url)}&s=80"
-            alt="${escHtml(c.login)}"
-            width="56" height="56"
-            loading="lazy"
-          />
-        </div>
-        <div class="contributor-info">
-          <div class="contributor-username">@${escHtml(c.login)}</div>
-          <div class="contributor-commits">${c.contributions} contribution${c.contributions !== 1 ? 's' : ''}</div>
-        </div>
+      <a class="star-card" href="${escHtml(c.html_url)}" target="_blank" rel="noopener">
+        <span class="tile" style="${tileStyle(c.login)}">
+          <img src="${escHtml(c.avatar_url)}&s=144" alt="" width="72" height="72" loading="lazy" onerror="this.remove()" />
+        </span>
+        <span class="star-name">@${escHtml(c.login)}</span>
+        <span class="star-role">${c.contributions} contribution${c.contributions !== 1 ? 's' : ''}</span>
       </a>
     `).join('');
 
@@ -123,17 +130,15 @@ async function loadCommunityContributors() {
     }
 
     const cards = contributors.map(c => `
-      <div class="community-card">
-        <div class="community-avatar">${escHtml(c.name.charAt(0).toUpperCase())}</div>
-        <div class="contributor-info">
-          <div class="contributor-name">${escHtml(c.name)}</div>
-          ${c.role     ? `<div class="contributor-role">${escHtml(c.role)}</div>` : ''}
-          ${c.location ? `<div class="contributor-location">📍 ${escHtml(c.location)}</div>` : ''}
-        </div>
+      <div class="star-card">
+        <span class="tile" style="${tileStyle(c.name)}" aria-hidden="true"></span>
+        <span class="star-name">${escHtml(c.name)}</span>
+        ${c.role     ? `<span class="star-role">${escHtml(c.role)}</span>` : ''}
+        ${c.location ? `<span class="star-where">${escHtml(c.location)}</span>` : ''}
       </div>
     `).join('');
 
-    container.innerHTML = `<div class="contributor-grid">${cards}</div>`;
+    container.innerHTML = `<div class="star-grid">${cards}</div>`;
 
   } catch (err) {
     console.error('Could not load ALL-STARS.md:', err);

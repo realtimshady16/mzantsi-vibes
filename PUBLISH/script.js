@@ -13,11 +13,11 @@ const CONTENT = {
   /* ---- SITE-WIDE ---- */
   site: {
     name: 'Mzantsi Vibes',
-    flag: '🇿🇦',
+    flag: '',
     githubUrl: 'https://github.com/realtimshady16/mzantsi-vibes',
     instagramUrl: 'https://www.instagram.com/mzantsivibes/',
     linkedinUrl: 'https://www.linkedin.com/company/mzantsi-vibes/',
-    footerTagline: 'Built with ❤️ for South African youth. MIT licensed. Free forever.',
+    footerTagline: 'Built for South African youth. MIT licensed. Free forever.',
   },
 
   /* ---- HEADER ---- */
@@ -381,23 +381,6 @@ function parseReadme(markdown) {
    RENDERER — structured data → HTML
    ============================================= */
 
-function iconFor(name, url) {
-  const n = name.toLowerCase();
-  const u = (url || '').toLowerCase();
-  if (u.includes('youtube') || u.includes('youtu.be')) return '▶';
-  if (n.includes('nsfas') || n.includes('bursari') || n.includes('fund') || n.includes('invest')) return '💰';
-  if (n.includes('cv') || n.includes('writing')) return '📝';
-  if (n.includes('code') || n.includes('coding') || n.includes('cs50') || n.includes('python') || n.includes('docker') || n.includes('webflow') || n.includes('bubble') || n.includes('flutter')) return '💻';
-  if (n.includes('design') || n.includes('figma') || n.includes('canva')) return '🎨';
-  if (n.includes('tax') || n.includes('sars')) return '📋';
-  if (n.includes('textbook') || n.includes('library') || n.includes('book') || n.includes('siyavula')) return '📚';
-  if (n.includes('mental') || n.includes('journal') || n.includes('anxiety') || n.includes('stress')) return '🧠';
-  if (n.includes('health') || n.includes('workout')) return '💪';
-  if (n.includes('internship') || n.includes('graduate') || n.includes('learner') || n.includes('job')) return '🏢';
-  if (n.includes('nbt') || n.includes('benchmark')) return '📐';
-  return '🔗';
-}
-
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -406,32 +389,33 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function renderResourceList(resources) {
-  if (!resources || resources.length === 0) return '';
-  const items = resources.map(r => {
-    const icon = iconFor(r.name, r.url);
-    const descHtml = r.desc ? `<div class="resource-desc">${escHtml(r.desc)}</div>` : '';
-    if (!r.url) {
-      return `
-        <div class="resource-item coming-soon">
-          <div class="resource-icon">${icon}</div>
-          <div class="resource-text">
-            <div class="resource-name">${escHtml(r.name)}</div>
-            ${descHtml || '<div class="resource-desc">Coming soon</div>'}
-          </div>
-        </div>`;
-    }
+/* Each README ### section becomes a pastel card. The order below is the design's:
+   lilac, peach, butter, sage, blush, then round again. */
+const SECTION_TONES = ['lilac', 'peach', 'butter', 'sage', 'blush'];
+
+function renderRow(r) {
+  const desc = r.desc ? `<div class="res-desc">${escHtml(r.desc)}</div>` : '';
+
+  /* No link yet: a "coming soon" placeholder, shown dimmed and not clickable. */
+  if (!r.url) {
     return `
-      <a class="resource-item" href="${escHtml(r.url)}" target="_blank" rel="noopener">
-        <div class="resource-icon">${icon}</div>
-        <div class="resource-text">
-          <div class="resource-name">${escHtml(r.name)}</div>
-          ${descHtml}
+      <div class="res-row soon">
+        <div>
+          <div class="res-name">${escHtml(r.name)}</div>
+          ${desc || '<div class="res-desc">Coming soon</div>'}
         </div>
-        <div class="resource-arrow">↗</div>
-      </a>`;
-  }).join('');
-  return `<div class="resource-list">${items}</div>`;
+        <div class="res-arrow" aria-hidden="true">↗</div>
+      </div>`;
+  }
+
+  return `
+    <a class="res-row" href="${escHtml(r.url)}" target="_blank" rel="noopener">
+      <div>
+        <div class="res-name">${escHtml(r.name)}</div>
+        ${desc}
+      </div>
+      <div class="res-arrow" aria-hidden="true">↗</div>
+    </a>`;
 }
 
 function renderSection(targetId, pillarKey, parsedData) {
@@ -443,20 +427,21 @@ function renderSection(targetId, pillarKey, parsedData) {
   const order = pillarOrder[pillarKey];
   const s = CONTENT.states;
 
-  let html = '';
-  let hasContent = false;
-
+  const cards = [];
   order.forEach(sectionName => {
     const resources = sections[sectionName];
     if (!resources || resources.length === 0) return;
-    hasContent = true;
-    html += `<div class="subsection-label">${escHtml(sectionName)}</div>`;
-    html += renderResourceList(resources);
+    const tone = SECTION_TONES[cards.length % SECTION_TONES.length];
+    cards.push(`
+      <section class="res-card tone-${tone}">
+        <h3>${escHtml(sectionName)}</h3>
+        <div class="res-rows">${resources.map(renderRow).join('')}</div>
+      </section>`);
   });
 
-  container.innerHTML = hasContent
-    ? html
-    : `<p style="color: var(--text-muted); font-size: 0.9rem;">${escHtml(s.emptySection)} <a href="${s.emptySectionUrl}" target="_blank">${escHtml(s.emptySectionLinkLabel)}</a></p>`;
+  container.innerHTML = cards.length
+    ? `<div class="res-grid">${cards.join('')}</div>`
+    : `<p class="res-empty">${escHtml(s.emptySection)} <a href="${escHtml(s.emptySectionUrl)}" target="_blank" rel="noopener">${escHtml(s.emptySectionLinkLabel)}</a></p>`;
 }
 
 /* =============================================
@@ -511,7 +496,7 @@ async function init() {
     document.getElementById('section-study').classList.remove('hidden');
     ['study-content', 'work-content', 'unsure-content', 'everyone-content'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">${escHtml(s.fallbackMessage)} <a href="${escHtml(CONTENT.site.githubUrl)}" target="_blank">${escHtml(s.fallbackLinkLabel)}</a></p>`;
+      if (el) el.innerHTML = `<p class="res-empty">${escHtml(s.fallbackMessage)} <a href="${escHtml(CONTENT.site.githubUrl)}" target="_blank" rel="noopener">${escHtml(s.fallbackLinkLabel)}</a></p>`;
     });
   }
 }

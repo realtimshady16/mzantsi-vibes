@@ -5,103 +5,101 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tasks — Mzantsi Vibes</title>
   <meta name="description" content="Open tasks for Mzantsi Vibes. Pick something up and contribute." />
+  <meta name="theme-color" content="#faf5ea" />
+
+  <!-- First, so the right theme is set before anything paints. -->
+  <script src="/theme.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/theme.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <header class="site-header">
-    <div class="header-inner">
-      <a href="/" class="logo">
-        <span>🇿🇦</span>
-        <span>Mzantsi Vibes</span>
-      </a>
-      <nav class="header-links">
-        <a href="/">Back to site</a>
-        <a href="/contribute">Contribute</a>
-        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
-      </nav>
-    </div>
+  <header class="site-header wrap">
+    <a href="/" class="logo">
+      <span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="logo-text">Mzantsi Vibes</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/tasks" aria-current="page">Tasks</a>
+      <a href="/allstars">All Stars</a>
+      <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      <button type="button" class="theme-toggle" aria-pressed="false">Night mode</button>
+      <a href="/contribute" class="btn">Contribute</a>
+    </nav>
   </header>
+  <div class="zigzag" aria-hidden="true"></div>
 
-  <section class="hero">
-    <div class="hero-inner">
-      <p class="hero-eyebrow">Open source · All welcome</p>
-      <h1 class="hero-title">Things that<br /><em>need doing.</em></h1>
-      <p class="hero-sub">Pick up a task, make a contribution, reference the task number in your PR. No experience needed for most of these.</p>
+  <section class="hero wrap">
+    <div class="eyebrow">Open source · All welcome</div>
+    <h1 class="page-title">Things that <em>need doing.</em></h1>
+    <p class="lead">Pick up a task, make a contribution, reference the task number in your PR. No experience needed for most of these.</p>
+  </section>
+
+  <!-- FILTERS -->
+  <section class="filters wrap" aria-label="Filter tasks">
+    <div class="filter-row">
+      <span class="filter-label" id="lbl-status">Status</span>
+      <div class="filter-pills" id="status-filters" role="group" aria-labelledby="lbl-status">
+        <button type="button" aria-pressed="true" class="filter-pill active" data-filter="status" data-value="all" onclick="applyFilter(this)">All</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="status" data-value="needs-doing" onclick="applyFilter(this)">Needs doing</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="status" data-value="in-progress" onclick="applyFilter(this)">In progress</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="status" data-value="done" onclick="applyFilter(this)">Done</button>
+      </div>
+    </div>
+    <div class="filter-row">
+      <span class="filter-label" id="lbl-difficulty">Difficulty</span>
+      <div class="filter-pills" role="group" aria-labelledby="lbl-difficulty">
+        <button type="button" aria-pressed="true" class="filter-pill active" data-filter="difficulty" data-value="all" onclick="applyFilter(this)">All</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="difficulty" data-value="easy" onclick="applyFilter(this)">Easy</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="difficulty" data-value="medium" onclick="applyFilter(this)">Medium</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="difficulty" data-value="hard" onclick="applyFilter(this)">Hard</button>
+      </div>
+    </div>
+    <div class="filter-row">
+      <span class="filter-label" id="lbl-type">Type</span>
+      <div class="filter-pills" role="group" aria-labelledby="lbl-type">
+        <button type="button" aria-pressed="true" class="filter-pill active" data-filter="type" data-value="all" onclick="applyFilter(this)">All</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="type" data-value="content" onclick="applyFilter(this)">Content</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="type" data-value="translation" onclick="applyFilter(this)">Translation</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="type" data-value="code" onclick="applyFilter(this)">Code</button>
+        <button type="button" aria-pressed="false" class="filter-pill" data-filter="type" data-value="design" onclick="applyFilter(this)">Design</button>
+      </div>
     </div>
   </section>
 
-  <main class="main-content">
-    <div class="container">
+  <main class="tasks-main wrap">
+    <p class="task-count" id="task-count" aria-live="polite"></p>
 
-      <!-- FILTERS -->
-      <div class="filters">
-        <div class="filter-group">
-          <span class="filter-label">Status</span>
-          <div class="filter-pills" id="status-filters">
-            <button class="filter-pill active" data-filter="status" data-value="all" onclick="applyFilter(this)">All</button>
-            <button class="filter-pill" data-filter="status" data-value="needs-doing" onclick="applyFilter(this)">🔴 Needs doing</button>
-            <button class="filter-pill" data-filter="status" data-value="in-progress" onclick="applyFilter(this)">🟡 In progress</button>
-            <button class="filter-pill" data-filter="status" data-value="done" onclick="applyFilter(this)">🟢 Done</button>
-          </div>
-        </div>
-        <div class="filter-group">
-          <span class="filter-label">Difficulty</span>
-          <div class="filter-pills">
-            <button class="filter-pill active" data-filter="difficulty" data-value="all" onclick="applyFilter(this)">All</button>
-            <button class="filter-pill" data-filter="difficulty" data-value="easy" onclick="applyFilter(this)">Easy</button>
-            <button class="filter-pill" data-filter="difficulty" data-value="medium" onclick="applyFilter(this)">Medium</button>
-            <button class="filter-pill" data-filter="difficulty" data-value="hard" onclick="applyFilter(this)">Hard</button>
-          </div>
-        </div>
-        <div class="filter-group">
-          <span class="filter-label">Type</span>
-          <div class="filter-pills">
-            <button class="filter-pill active" data-filter="type" data-value="all" onclick="applyFilter(this)">All</button>
-            <button class="filter-pill" data-filter="type" data-value="content" onclick="applyFilter(this)">Content</button>
-            <button class="filter-pill" data-filter="type" data-value="translation" onclick="applyFilter(this)">Translation</button>
-            <button class="filter-pill" data-filter="type" data-value="code" onclick="applyFilter(this)">Code</button>
-            <button class="filter-pill" data-filter="type" data-value="design" onclick="applyFilter(this)">Design</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- TASK COUNT -->
-      <p class="task-count" id="task-count"></p>
-
-      <!-- LOADING -->
-      <div id="loading-state" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>Loading tasks...</p>
-      </div>
-
-      <!-- ERROR -->
-      <div id="error-state" class="error-state hidden">
-        <p>⚠️ Couldn't load tasks. <a href="https://github.com/realtimshady16/mzantsi-vibes/blob/main/TASKS.md" target="_blank">View them on GitHub instead</a>.</p>
-      </div>
-
-      <!-- TASKS LIST -->
-      <div id="tasks-container"></div>
-
+    <!-- LOADING -->
+    <div id="loading-state" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>Loading tasks...</p>
     </div>
+
+    <!-- ERROR -->
+    <div id="error-state" class="error-state hidden">
+      <p>Couldn't load the tasks right now.</p>
+    </div>
+
+    <!-- TASKS LIST -->
+    <div id="tasks-container" class="task-list"></div>
+
+    <a class="github-link" href="https://github.com/realtimshady16/mzantsi-vibes/blob/main/TASKS.md" target="_blank" rel="noopener">View them on GitHub instead →</a>
   </main>
 
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <div class="footer-brand">
-        <span>🇿🇦</span>
-        <span>Mzantsi Vibes</span>
-      </div>
-      <div class="footer-links">
-        <a href="/">Home</a>
-        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
-      </div>
-      <p class="footer-note">MIT licensed. Free forever.</p>
+  <div class="zigzag" aria-hidden="true"></div>
+
+  <footer class="site-footer wrap">
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
     </div>
+    <div>MIT licensed. Free forever.</div>
   </footer>
 
   <script src="script.js"></script>

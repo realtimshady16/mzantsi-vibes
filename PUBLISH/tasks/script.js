@@ -13,22 +13,16 @@ const STATUS_MAP = {
 };
 
 const STATUS_LABEL = {
-  'needs-doing': { emoji: '🔴', label: 'Needs doing' },
-  'in-progress': { emoji: '🟡', label: 'In progress' },
-  'done':        { emoji: '🟢', label: 'Done' },
-};
-
-const DIFFICULTY_CLASS = {
-  'easy':   'badge-easy',
-  'medium': 'badge-medium',
-  'hard':   'badge-hard',
+  'needs-doing': { dot: 'dot-todo',  label: 'Needs doing' },
+  'in-progress': { dot: 'dot-doing', label: 'In progress' },
+  'done':        { dot: 'dot-done',  label: 'Done' },
 };
 
 const TYPE_CLASS = {
-  'content':     'badge-content',
-  'translation': 'badge-translation',
-  'code':        'badge-code',
-  'design':      'badge-design',
+  'content':     'chip-content',
+  'translation': 'chip-translation',
+  'code':        'chip-code',
+  'design':      'chip-design',
 };
 
 /* Active filter state */
@@ -128,47 +122,36 @@ function escHtml(str) {
 }
 
 function renderTask(task) {
-  const statusInfo = STATUS_LABEL[task.status] || { emoji: '', label: task.status };
-  const diffClass = DIFFICULTY_CLASS[task.difficulty] || 'badge-default';
+  const statusInfo = STATUS_LABEL[task.status] || { dot: 'dot-todo', label: task.status };
 
-  const typeBadges = task.type.map(t => {
-    const cls = TYPE_CLASS[t] || 'badge-default';
-    return `<span class="badge ${cls}">${escHtml(t)}</span>`;
-  }).join('');
+  const typeChips = task.type.map(t =>
+    `<span class="chip ${TYPE_CLASS[t] || 'chip-other'}">${escHtml(t)}</span>`
+  ).join('');
 
-  const goodForHtml = task.goodFor
-    ? `<div class="task-good-for">✅ <span>${escHtml(task.goodFor)}</span></div>`
+  const diffChip = task.difficulty
+    ? `<span class="chip chip-diff">${escHtml(task.difficulty)}</span>`
     : '';
 
-  const assignedHtml = task.assignedTo
-    ? `<div class="task-assigned">👤 In progress: <strong>${escHtml(task.assignedTo)}</strong></div>`
-    : '';
-
-  const sectionHtml = task.section
-    ? `<div class="task-section">📂 ${escHtml(task.section)}</div>`
-    : '';
-
-  const isDone = task.status === 'done';
+  const meta = [];
+  if (task.section)    meta.push(`<span><b>Section</b> ${escHtml(task.section)}</span>`);
+  if (task.goodFor)    meta.push(`<span><b>Good for</b> ${escHtml(task.goodFor)}</span>`);
+  if (task.assignedTo) meta.push(`<span><b>In progress</b> ${escHtml(task.assignedTo)}</span>`);
 
   return `
-    <div class="task-card ${isDone ? 'task-done' : ''}"
+    <article class="task-card${task.status === 'done' ? ' task-done' : ''}"
          data-status="${escHtml(task.status)}"
          data-difficulty="${escHtml(task.difficulty)}"
          data-type="${escHtml(task.type.join(' '))}">
-      <div class="task-header">
-        <div class="task-meta-top">
-          <span class="task-number">${escHtml(task.number)}</span>
-          ${task.difficulty ? `<span class="badge ${diffClass}">${escHtml(task.difficulty)}</span>` : ''}
-          ${typeBadges}
+      <div class="task-main">
+        <div class="task-status">
+          <span class="dot ${statusInfo.dot}" aria-hidden="true"></span>${escHtml(statusInfo.label)}${task.number ? `<span class="task-number">${escHtml(task.number)}</span>` : ''}
         </div>
-        <span class="task-status-dot">${statusInfo.emoji}</span>
+        <h3 class="task-title">${escHtml(task.title)}</h3>
+        ${task.description ? `<p class="task-description">${escHtml(task.description)}</p>` : ''}
+        ${meta.length ? `<p class="task-meta">${meta.join('')}</p>` : ''}
       </div>
-      <h3 class="task-title">${escHtml(task.title)}</h3>
-      ${sectionHtml}
-      ${task.description ? `<p class="task-description">${escHtml(task.description)}</p>` : ''}
-      ${goodForHtml}
-      ${assignedHtml}
-    </div>`;
+      <div class="task-chips">${diffChip}${typeChips}</div>
+    </article>`;
 }
 
 function renderAll() {
@@ -184,33 +167,19 @@ function renderAll() {
   });
 
   if (filtered.length === 0) {
-    container.innerHTML = `<p class="empty-state">No tasks match those filters. <button class="link-btn" onclick="resetFilters()">Clear filters</button></p>`;
+    container.innerHTML = `<p class="empty-state">No tasks match those filters. <button type="button" class="link-btn" onclick="resetFilters()">Clear filters</button></p>`;
     if (countEl) countEl.textContent = '';
     return;
   }
 
-  /* Group by status */
-  const groups = {};
-  filtered.forEach(task => {
-    if (!groups[task.status]) groups[task.status] = [];
-    groups[task.status].push(task);
-  });
+  /* One flat list, open work first. Each card carries its own status. */
+  const order = { 'needs-doing': 0, 'in-progress': 1, 'done': 2 };
+  const sorted = filtered
+    .map((task, i) => ({ task, i }))
+    .sort((a, b) => (order[a.task.status] ?? 3) - (order[b.task.status] ?? 3) || a.i - b.i)
+    .map(x => x.task);
 
-  const statusOrder = ['needs-doing', 'in-progress', 'done'];
-  let html = '';
-
-  statusOrder.forEach(status => {
-    if (!groups[status] || groups[status].length === 0) return;
-    const info = STATUS_LABEL[status];
-    html += `<div class="status-group">
-      <h2 class="status-heading">${info.emoji} ${escHtml(info.label)} <span class="status-count">${groups[status].length}</span></h2>
-      <div class="task-grid">
-        ${groups[status].map(renderTask).join('')}
-      </div>
-    </div>`;
-  });
-
-  container.innerHTML = html;
+  container.innerHTML = sorted.map(renderTask).join('');
 
   const open = allTasks.filter(t => t.status === 'needs-doing').length;
   if (countEl) {
@@ -227,8 +196,12 @@ function applyFilter(btn) {
   const value = btn.dataset.value;
 
   /* Update active state on pills within same group */
-  btn.closest('.filter-pills').querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  btn.closest('.filter-pills').querySelectorAll('.filter-pill').forEach(p => {
+    p.classList.remove('active');
+    p.setAttribute('aria-pressed', 'false');
+  });
   btn.classList.add('active');
+  btn.setAttribute('aria-pressed', 'true');
 
   activeFilters[filterType] = value;
   renderAll();
@@ -237,7 +210,9 @@ function applyFilter(btn) {
 function resetFilters() {
   Object.keys(activeFilters).forEach(k => activeFilters[k] = 'all');
   document.querySelectorAll('.filter-pill').forEach(p => {
-    p.classList.toggle('active', p.dataset.value === 'all');
+    const on = p.dataset.value === 'all';
+    p.classList.toggle('active', on);
+    p.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   renderAll();
 }

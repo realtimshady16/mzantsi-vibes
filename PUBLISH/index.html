@@ -5,75 +5,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mzantsi Vibes</title>
   <meta name="description" content="A survival guide for South African youth navigating the years after matric that nobody prepares you for." />
-  <meta property="og:title" content="Mzantsi Vibes 🇿🇦" />
+  <meta property="og:title" content="Mzantsi Vibes" />
   <meta property="og:description" content="A survival guide for South African youth navigating life after matric — whether you're studying, working, or still figuring it out." />
-  <meta name="theme-color" content="#1a1a1a" />
-  <link rel="stylesheet" href="style.css" />
+  <meta name="theme-color" content="#faf5ea" />
+
+  <!-- First, so the right theme is set before anything paints. -->
+  <script src="/theme.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/theme.css" />
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
 
   <!-- HEADER -->
-  <header class="site-header">
-    <div class="header-inner">
-      <div class="logo">
-        <span class="logo-flag" data-content="site.flag"></span>
-        <span class="logo-text" data-content="site.name"></span>
-      </div>
-      <nav class="header-links">
-        <a href="/tasks" id="header-tasks-link"><span id="header-tasks-label"></span></a>
-        <a href="/allstars" id="header-allstars-link"><span id="header-allstars-label"></span></a>
-        <a id="header-github-link" target="_blank" rel="noopener"><span id="header-github-label"></span></a>
-        <a id="header-contribute-link" class="btn-contribute"><span id="header-contribute-label"></span></a>
-      </nav>
-    </div>
+  <header class="site-header wrap">
+    <a href="/" class="logo">
+      <span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="logo-text" data-content="site.name"></span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/tasks" id="header-tasks-link"><span id="header-tasks-label"></span></a>
+      <a href="/allstars" id="header-allstars-link"><span id="header-allstars-label"></span></a>
+      <a id="header-github-link" target="_blank" rel="noopener"><span id="header-github-label"></span></a>
+      <button type="button" class="theme-toggle" aria-pressed="false">Night mode</button>
+      <a id="header-contribute-link" class="btn"><span id="header-contribute-label"></span></a>
+    </nav>
   </header>
+  <div class="zigzag" aria-hidden="true"></div>
 
   <!-- HERO -->
-  <section class="hero">
-    <div class="hero-inner">
-      <p class="hero-eyebrow" id="hero-eyebrow"></p>
-      <h1 class="hero-title">
-        <span id="hero-title-line1"></span><br />
+  <section class="hero wrap">
+    <div class="hero-text">
+      <div class="eyebrow" id="hero-eyebrow"></div>
+      <h1 class="page-title">
+        <span id="hero-title-line1"></span>
         <em id="hero-title-emphasis"></em>
       </h1>
-      <p class="hero-sub" id="hero-subtitle"></p>
+      <p class="lead" id="hero-subtitle"></p>
+    </div>
+
+    <!-- Decorative: nine tiles, each a square with three nested diamonds. -->
+    <div class="tiles" aria-hidden="true">
+      <div class="tile" style="--a:#004444;--b:#ffddc6;--c:#f7ecbe"><i></i></div>
+      <div class="tile" style="--a:#f7ecbe;--b:#004444;--c:#c8e8cd"><i></i></div>
+      <div class="tile" style="--a:#ffcbce;--b:#dcd1f4;--c:#004444"><i></i></div>
+      <div class="tile" style="--a:#c8e8cd;--b:#004444;--c:#ffddc6"><i></i></div>
+      <div class="tile" style="--a:#004444;--b:#f7ecbe;--c:#ffcbce"><i></i></div>
+      <div class="tile" style="--a:#ffddc6;--b:#004444;--c:#c8e8cd"><i></i></div>
+      <div class="tile" style="--a:#dcd1f4;--b:#004444;--c:#ffddc6"><i></i></div>
+      <div class="tile" style="--a:#ffcbce;--b:#004444;--c:#f7ecbe"><i></i></div>
+      <div class="tile" style="--a:#004444;--b:#c8e8cd;--c:#dcd1f4"><i></i></div>
     </div>
   </section>
 
   <!-- PATH SELECTOR -->
-  <section class="path-section">
-    <div class="container">
-      <p class="path-label" id="path-label"></p>
-      <div class="path-grid">
-        <button class="path-card active" data-section="study" onclick="switchSection('study', this)">
-          <span class="path-icon" id="path-icon-study"></span>
-          <h2 id="path-heading-study"></h2>
-          <p id="path-desc-study"></p>
-        </button>
-        <button class="path-card" data-section="work" onclick="switchSection('work', this)">
-          <span class="path-icon" id="path-icon-work"></span>
-          <h2 id="path-heading-work"></h2>
-          <p id="path-desc-work"></p>
-        </button>
-        <button class="path-card" data-section="unsure" onclick="switchSection('unsure', this)">
-          <span class="path-icon" id="path-icon-unsure"></span>
-          <h2 id="path-heading-unsure"></h2>
-          <p id="path-desc-unsure"></p>
-        </button>
-        <button class="path-card" data-section="everyone" onclick="switchSection('everyone', this)">
-          <span class="path-icon" id="path-icon-everyone"></span>
-          <h2 id="path-heading-everyone"></h2>
-          <p id="path-desc-everyone"></p>
-        </button>
-      </div>
+  <section class="paths wrap">
+    <p class="path-label" id="path-label"></p>
+    <div class="path-grid">
+      <button class="path-card tone-butter active" data-section="study" onclick="switchSection('study', this)">
+        <span class="path-icon hidden" id="path-icon-study"></span>
+        <h2 id="path-heading-study"></h2>
+        <p id="path-desc-study"></p>
+      </button>
+      <button class="path-card tone-sage" data-section="work" onclick="switchSection('work', this)">
+        <span class="path-icon hidden" id="path-icon-work"></span>
+        <h2 id="path-heading-work"></h2>
+        <p id="path-desc-work"></p>
+      </button>
+      <button class="path-card tone-blush" data-section="unsure" onclick="switchSection('unsure', this)">
+        <span class="path-icon hidden" id="path-icon-unsure"></span>
+        <h2 id="path-heading-unsure"></h2>
+        <p id="path-desc-unsure"></p>
+      </button>
+      <button class="path-card tone-lilac" data-section="everyone" onclick="switchSection('everyone', this)">
+        <span class="path-icon hidden" id="path-icon-everyone"></span>
+        <h2 id="path-heading-everyone"></h2>
+        <p id="path-desc-everyone"></p>
+      </button>
     </div>
   </section>
 
   <!-- CONTENT SECTIONS -->
-  <main class="main-content container">
+  <main class="main-content wrap">
 
     <!-- LOADING STATE -->
     <div id="loading-state" class="loading-state">
@@ -122,34 +138,25 @@
   </main>
 
   <!-- CONTRIBUTE BANNER -->
-  <section class="contribute-banner">
-    <div class="container">
-      <div class="contribute-inner">
-        <div class="contribute-text">
-          <h3 id="contribute-heading"></h3>
-          <p id="contribute-body"></p>
-        </div>
-        <a id="contribute-cta-link" class="contribute-cta"><span id="contribute-cta"></span></a>
-      </div>
+  <section class="cta band">
+    <div class="cta-text">
+      <h3 id="contribute-heading"></h3>
+      <p id="contribute-body"></p>
     </div>
+    <a id="contribute-cta-link" class="cta-btn"><span id="contribute-cta"></span></a>
   </section>
+  <div class="zigzag" aria-hidden="true"></div>
 
   <!-- FOOTER -->
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <div class="footer-brand">
-        <span data-content="site.flag"></span>
-        <span data-content="site.name"></span>
-      </div>
-      <div class="footer-links">
-        <a id="footer-github-link" target="_blank" rel="noopener">GitHub</a>
-        <a id="footer-instagram-link" target="_blank" rel="noopener">Instagram</a>
-        <a id="footer-linkedin-link" target="_blank" rel="noopener">LinkedIn</a>
-        <a href="/tasks">Tasks</a>
-        <a href="/allstars">All Stars</a>
-      </div>
-      <p class="footer-note" id="footer-tagline"></p>
+  <footer class="site-footer wrap">
+    <div class="footer-links">
+      <a id="footer-github-link" target="_blank" rel="noopener">GitHub</a>
+      <a id="footer-instagram-link" target="_blank" rel="noopener">Instagram</a>
+      <a id="footer-linkedin-link" target="_blank" rel="noopener">LinkedIn</a>
+      <a href="/tasks">Tasks</a>
+      <a href="/allstars">All Stars</a>
     </div>
+    <div id="footer-tagline"></div>
   </footer>
 
   <script src="script.js"></script>
