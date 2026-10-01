@@ -6,7 +6,7 @@
  */
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
-  isNoise, isStale, facultyFromUrl, OPPS_LABEL,
+  isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
 } from '../src/opportunities.js';
 
 let pass = 0, fail = 0;
@@ -57,6 +57,44 @@ ok('time-sensitive searches look at the last month; evergreen faculty hubs do no
   by('broad').every((s) => s.timeRange === 'month') &&
   by('scoped').filter((s) => s.category !== 'Bursaries').every((s) => s.timeRange === 'month') &&
   by('scoped').filter((s) => s.category === 'Bursaries').every((s) => !s.timeRange));
+
+sec('tuning overrides (the on-demand script uses these; the cron does not)');
+{
+  ok('no overrides = the same 15 searches the cron runs', planSearches().length === 15 && planSearches({}).length === 15);
+  ok('--only matches the category, case-insensitively', planSearches({ only: ['job'] }).length === 2 && planSearches({ only: ['JOB'] }).length === 2);
+  ok('--only matches a faculty', planSearches({ only: ['law'] }).map((s) => s.tag).join() === 'Law');
+  ok('--only matches a whole pass', planSearches({ only: ['broad'] }).length === 5 && planSearches({ only: ['scoped'] }).length === 10);
+  ok('several --only terms combine', planSearches({ only: ['law', 'learnership'] }).length === 3);
+  ok('--query replaces the query text of the selected searches only',
+    planSearches({ only: ['job'], query: 'x' }).every((s) => s.query === 'x') && planSearches({ only: ['job'], query: 'x' }).length === 2);
+  ok('--time-range overrides, and "none" removes the window',
+    planSearches({ only: ['job'], timeRange: 'week' }).every((s) => s.timeRange === 'week') &&
+    planSearches({ only: ['job'], timeRange: 'none' }).every((s) => !('timeRange' in s)));
+  ok('--max-results overrides', planSearches({ only: ['job'], maxResults: 9 }).every((s) => s.maxResults === 9));
+  ok('overrides never mutate the defaults', (() => { planSearches({ only: ['job'], query: 'x', timeRange: 'none' }); return planSearches().every((s) => s.query !== 'x'); })());
+  ok('closing-soon pages are included unless --only leaves them out',
+    includesClosing(undefined) && includesClosing([]) && !includesClosing(['job']) && includesClosing(['closing']) && includesClosing(['job', 'closing']));
+
+  // --explain and --min-score: every decision is reported, with a reason.
+  const events = [];
+  const t2 = fakeTavily(() => [
+    { title: 'Good', url: 'https://www.graduates24.com/good-2027', content: 'A real lead for people.', score: 0.9 },
+    { title: 'Weak', url: 'https://www.graduates24.com/weak-2027', content: 'Meh content here ok.', score: 0.2 },
+    { title: 'Home', url: 'https://www.graduates24.com/', content: 'x', score: 0.9 },
+    { title: 'Good again', url: 'https://www.graduates24.com/good-2027/', content: 'dup', score: 0.8 },
+  ]);
+  const one = planSearches({ only: ['job'], minScore: 0.5 }).slice(0, 1);
+  const out = await collect({ key: 'k', searches: one, fetchImpl: t2.fetchImpl, now: NOW, onResult: (e) => events.push(e) });
+  ok('--min-score drops weak results', out.findings.length === 1 && out.findings[0].title === 'Good');
+  ok('every result is reported, kept or dropped', events.length === 4 && events.filter((e) => e.kept).length === 1);
+  ok('a drop carries its reason',
+    /below 0.5/.test(events.find((e) => e.result.title === 'Weak').reason) &&
+    /noise/.test(events.find((e) => e.result.title === 'Home').reason) &&
+    /duplicate/.test(events.find((e) => e.result.title === 'Good again').reason));
+  const failing = [];
+  await collect({ key: 'k', searches: one, fetchImpl: fakeTavily(() => 500).fetchImpl, now: NOW, onResult: (e) => failing.push(e) });
+  ok('a failed search is reported too', failing.length === 1 && /Tavily 500/.test(failing[0].error));
+}
 
 sec('closing-soon pages (built, not searched)');
 {

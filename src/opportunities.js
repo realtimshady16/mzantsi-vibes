@@ -74,7 +74,16 @@ const MONTHS = [
  * The searches that make up one run
  * ------------------------------------------------------------------ */
 
-export function planSearches() {
+/**
+ * The searches for one run. The cron uses the defaults; `overrides` exist so
+ * queries can be tuned from the command line without editing code:
+ *   only        keep searches whose pass, category or faculty matches any of these
+ *   query       replace the query text of the searches that are kept
+ *   timeRange   'day' | 'week' | 'month' | 'year', or 'none' to remove the window
+ *   maxResults  results per search
+ *   minScore    drop results Tavily scored below this (0 to 1)
+ */
+export function planSearches(overrides = {}) {
   const searches = [];
 
   // Bursary faculties: zabursaries is the bursary specialist. graduates24's
@@ -107,7 +116,40 @@ export function planSearches() {
     searches.push({ pass: 'broad', category, query, exclude: BROAD_EXCLUDE, maxResults: MAX_RESULTS.broad, timeRange: RECENT });
   }
 
-  return searches;
+  return applyOverrides(searches, overrides);
+}
+
+export function searchLabel(s) {
+  return `${s.pass} · ${s.tag || s.category}`;
+}
+
+function applyOverrides(searches, { only, query, timeRange, maxResults, minScore } = {}) {
+  let out = searches;
+
+  if (only && only.length) {
+    const wanted = only.map((w) => w.trim().toLowerCase()).filter(Boolean);
+    out = out.filter((s) => {
+      const hay = [s.pass, s.category, s.tag || ''].map((x) => x.toLowerCase());
+      return wanted.some((w) => hay.some((h) => h.includes(w)));
+    });
+  }
+
+  return out.map((s) => {
+    const next = { ...s };
+    if (query) next.query = query;
+    if (maxResults) next.maxResults = maxResults;
+    if (minScore) next.minScore = minScore;
+    if (timeRange) {
+      if (timeRange === 'none') delete next.timeRange;
+      else next.timeRange = timeRange;
+    }
+    return next;
+  });
+}
+
+/** True when the closing-soon pages belong in a run limited by `only`. */
+export function includesClosing(only) {
+  return !only || !only.length || only.some((w) => /closing|^all$/i.test(w.trim()));
 }
 
 /**
@@ -341,23 +383,33 @@ export function looksSouthAfrican(result) {
   return /\.za(\/|$)/i.test(hostOf(result.url) + '/') || SA_RE.test(`${result.title} ${result.content}`);
 }
 
-function toFinding(result, search, now) {
+/**
+ * Decide what to do with one search result: a finding to keep, or the reason it
+ * was dropped (shown by --explain so the filters can be tuned with evidence).
+ */
+function judge(result, search, now) {
   const url = safeUrl(result.url);
-  if (!url || isNoise(url)) return null;
-  if (search.pass === 'broad' && !looksSouthAfrican(result)) return null;
+  if (!url) return { reason: 'not a usable http(s) link' };
+  if (search.minScore && !(result.score >= search.minScore)) {
+    return { reason: `relevance score ${result.score?.toFixed(2) ?? '?'} is below ${search.minScore}` };
+  }
+  if (isNoise(url)) return { reason: 'noise page (home, search, pagination, contact…)' };
+  if (search.pass === 'broad' && !looksSouthAfrican(result)) return { reason: 'no South Africa signal' };
 
   const title = oneLine(result.title, 120) || hostOf(url);
-  if (isStale(title, now)) return null;
+  if (isStale(title, now)) return { reason: 'title only mentions past years' };
 
   const source = sourceOf(url);
   return {
-    title,
-    url,
-    desc: usableDesc(oneLine(result.content, MAX_DESC, result.title)),
-    source,
-    pass: search.pass,
-    category: search.category,
-    tag: search.category !== 'Bursaries' ? null : source === 'zabursaries' ? facultyFromUrl(url) : search.tag || null,
+    finding: {
+      title,
+      url,
+      desc: usableDesc(oneLine(result.content, MAX_DESC, result.title)),
+      source,
+      pass: search.pass,
+      category: search.category,
+      tag: search.category !== 'Bursaries' ? null : source === 'zabursaries' ? facultyFromUrl(url) : search.tag || null,
+    },
   };
 }
 
@@ -366,7 +418,7 @@ function toFinding(result, search, now) {
  * within this run (a bursary matches several faculty queries). Earlier passes
  * win, so a trusted-source hit is never replaced by a broader one.
  */
-export async function collect({ key, searches, fetchImpl, now = new Date() }) {
+export async function collect({ key, searches, fetchImpl, now = new Date(), onResult }) {
   const settled = await Promise.allSettled(searches.map((s) => searchTavily({ key, search: s, fetchImpl })));
 
   const seen = new Set();
@@ -376,16 +428,24 @@ export async function collect({ key, searches, fetchImpl, now = new Date() }) {
   settled.forEach((outcome, i) => {
     const search = searches[i];
     if (outcome.status === 'rejected') {
-      failures.push(`${search.pass} · ${search.tag || search.category}: ${outcome.reason?.message || outcome.reason}`);
+      failures.push(`${searchLabel(search)}: ${outcome.reason?.message || outcome.reason}`);
+      onResult?.({ search, error: outcome.reason?.message || String(outcome.reason) });
       return;
     }
     for (const result of outcome.value) {
-      const finding = toFinding(result, search, now);
-      if (!finding) continue;
+      const { finding, reason } = judge(result, search, now);
+      if (!finding) {
+        onResult?.({ search, result, kept: false, reason });
+        continue;
+      }
       const k = urlKey(finding.url);
-      if (seen.has(k)) continue;
+      if (seen.has(k)) {
+        onResult?.({ search, result, kept: false, reason: 'duplicate of a result already kept' });
+        continue;
+      }
       seen.add(k);
       findings.push(finding);
+      onResult?.({ search, result, kept: true, finding });
     }
   });
 
@@ -459,15 +519,15 @@ export function renderDigest({ findings, failures, searched, now = new Date() })
  * Entry point (cron and the local script share this)
  * ------------------------------------------------------------------ */
 
-export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date() }) {
+export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, onResult }) {
   if (!config.tavilyKey) {
     throw new Error('TAVILY_API_KEY is not set. Add it with: wrangler secret put TAVILY_API_KEY');
   }
 
-  const searches = planSearches();
+  const searches = planned || planSearches();
   const [closing, collected] = await Promise.all([
-    closingPages({ now, fetchPage }),
-    collect({ key: config.tavilyKey, searches, fetchImpl, now }),
+    skipClosing ? [] : closingPages({ now, fetchPage }),
+    collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult }),
   ]);
   const { failures, searched } = collected;
   const findings = [...closing, ...collected.findings];

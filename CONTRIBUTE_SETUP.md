@@ -124,7 +124,7 @@ node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
 node test/test-integration.mjs # 41 checks — real GitHub reads, mutations mocked
 node test/test-review.mjs     # 55 checks — digest, signed links, batch merge
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
-node test/test-opportunities.mjs # 78 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunities.mjs # 92 checks — opportunity digest, Tavily and GitHub faked
 ```
 
 `test-integration.mjs` reads the real README from GitHub, so it needs a token:
@@ -200,16 +200,36 @@ Setup is one secret: `wrangler secret put TAVILY_API_KEY` (key from
 <https://app.tavily.com>). Without it only this job fails, with a clear message
 in the Worker log; the contribute form and review digest are unaffected.
 
-**Running it on demand** (to tune the queries without waiting a week):
+**Running it on demand, and tuning it.** The script runs the same code as the
+cron, from your machine. It is a **dry run by default**: it searches and prints
+the issue, and creates nothing on GitHub. Every search costs 1 Tavily credit, dry
+run or not, so the useful flags are the ones that let you run less.
 
 ```bash
-node scripts/run-opportunities.mjs          # dry run: prints the issue, posts nothing
-node scripts/run-opportunities.mjs --post   # opens the real issue
+node scripts/run-opportunities.mjs --list              # show the plan and cost, spends nothing
+node scripts/run-opportunities.mjs                     # full dry run, 15 credits
+node scripts/run-opportunities.mjs --only job --explain   # 2 credits: just the job searches, with reasons
+node scripts/run-opportunities.mjs --post              # full run, then open the real issue
 ```
 
-It reads `TAVILY_API_KEY` (and `BOT_GITHUB_PAT` for `--post`) from `.dev.vars`.
-A dry run still spends the same 15 credits. The queries, faculties and
-`TIME_RANGE` live at the top of `src/opportunities.js`.
+| Flag | What it does |
+|---|---|
+| `--list` | Print the searches (query, domains, window, cost) and stop. Free. |
+| `--only a,b` | Keep searches whose pass (`scoped`/`broad`), category or faculty contains any term, e.g. `--only learnership,law`. Add `closing` for the closing-soon pages. |
+| `--query "text"` | Replace the query text of the searches `--only` selects, to try a new wording. |
+| `--time-range X` | `day`, `week`, `month`, `year` or `none`, for every selected search. |
+| `--max-results N` | Results per search (1 to 20). |
+| `--min-score X` | Drop results Tavily scored below X. In the broader pass the score tracks quality closely: a real run gave 0.75 for a relevant page and 0.23 for a generic careers page. |
+| `--explain` | Print every result with `KEEP`/`DROP`, its score and the reason it was dropped (noise page, no South Africa signal, past-year title, duplicate, low score). This is how to see what a filter change would do. |
+| `--save FILE` | Also write the issue text to a file. |
+
+Any tuning flag makes it a dry run only: `--post` refuses to combine with them,
+so a half-run can never be posted as the weekly digest.
+
+It reads `TAVILY_API_KEY` (and `BOT_GITHUB_PAT` for `--post`) from `.dev.vars` or
+the environment. The defaults, the faculties and `RECENT` (the one-month window)
+live at the top of `src/opportunities.js`; once a flag setting proves itself,
+change the default there.
 
 ## What is rejected, and why
 
