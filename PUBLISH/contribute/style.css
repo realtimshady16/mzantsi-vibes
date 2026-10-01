@@ -238,8 +238,10 @@ select {
   color: #f8eace;
   font-size: 14px;
   line-height: 1.6;
-  overflow-x: auto;
-  white-space: pre;
+  /* Wrap at every width. The form column is narrower than the page whenever
+     "How it works" sits beside it, and a clipped sample hides what to type. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- honeypot: hidden from people. Never make this visible. ---------- */
@@ -327,7 +329,4 @@ select {
 
   /* The two choices wrap onto their own rows by themselves at this width. Forcing
      a column would turn their 220px flex-basis into a 220px *height*. */
-
-  /* On a phone, wrap the code samples instead of clipping them. */
-  .format-help > code { white-space: pre-wrap; overflow-wrap: anywhere; }
 }
