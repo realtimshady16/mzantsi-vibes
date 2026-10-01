@@ -305,8 +305,18 @@
       body: JSON.stringify(payload),
     })
       .then(function (res) {
-        return res.json().then(function (data) {
-          return { ok: res.ok, data: data || {} };
+        // Read it as text first: an outage can answer with an HTML error page, and
+        // res.json() would turn that into "JSON.parse: unexpected character...".
+        return res.text().then(function (text) {
+          var data = null;
+          try { data = JSON.parse(text); } catch (e) { /* not JSON: handled below */ }
+          if (!data) {
+            throw new Error(
+              'The submission service did not answer properly. Please try again in a moment. ' +
+                'Your text is still in the form.'
+            );
+          }
+          return { ok: res.ok, data: data };
         });
       })
       .then(function (result) {
@@ -337,7 +347,13 @@
         );
       })
       .catch(function (err) {
-        setStatus(err.message, 'error');
+        // fetch() itself failing (offline, dropped connection) is a TypeError whose text
+        // differs by browser ("Failed to fetch", "NetworkError when attempting to fetch
+        // resource."). Say something a person can act on instead.
+        var message = err instanceof TypeError
+          ? 'Could not reach the server. Check your connection and try again. Your text is still in the form.'
+          : err.message;
+        setStatus(message, 'error');
       })
       .then(function () {
         submitBtn.classList.remove('is-busy');

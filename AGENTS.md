@@ -68,6 +68,16 @@ Add tests with every change, and update the counts in `CONTRIBUTE_SETUP.md`.
 node scripts/run-opportunities.mjs --help    # tuning flags: --list, --only, --explain, --min-score ...
 ```
 
+```bash
+node scripts/preview.mjs       # http://127.0.0.1:8000 : the site, with a MOCK API
+```
+
+`preview.mjs` serves `PUBLISH/` with `Cache-Control: no-store` and fakes the form's two API
+calls (the section list comes from the live README; submitting prints in the terminal and
+sends nothing to GitHub). Use it, not `python3 -m http.server`: a plain static server sends no
+cache headers, and a browser (Firefox in particular) can keep an old stylesheet while using a
+new page, which looks like a half-applied theme. If a page looks half-restyled, hard-reload first.
+
 There is no local deploy. `wrangler` is not installed. Deploys happen when a PR merges
 to `main` (Cloudflare Workers Builds). The `cf` CLI is for account operations only.
 
