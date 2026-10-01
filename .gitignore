@@ -8,3 +8,6 @@
 # Private keys (e.g. the GitHub App key). These must never be committed.
 *.pem
 .pem
+
+# Local cache written by the Cloudflare CLI (holds the account id and name).
+.cloudflare/
