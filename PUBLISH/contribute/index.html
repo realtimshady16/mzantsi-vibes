@@ -6,224 +6,224 @@
   <title>Contribute — Mzantsi Vibes</title>
   <meta name="description" content="Add a resource or fix something on Mzantsi Vibes. No GitHub account, no technical experience needed." />
 
+  <meta name="theme-color" content="#faf5ea" />
+
+  <!-- First, so the right theme is set before anything paints. -->
+  <script src="/theme.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
-
+  <link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="vendor/quill.snow.css" />
+  <link rel="stylesheet" href="/theme.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
   <!-- HEADER -->
-  <header class="site-header">
-    <div class="header-inner">
-      <a href="/" class="logo">
-        <span class="logo-flag">🇿🇦</span>
-        <span class="logo-text">Mzantsi Vibes</span>
-      </a>
-      <nav class="header-links">
-        <a href="/">Back to site</a>
-        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
-      </nav>
-    </div>
+  <header class="site-header wrap">
+    <a href="/" class="logo">
+      <span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="logo-text">Mzantsi Vibes</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/tasks">Tasks</a>
+      <a href="/allstars">All Stars</a>
+      <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      <button type="button" class="theme-toggle" aria-pressed="false">Night mode</button>
+      <a href="/contribute" class="btn" aria-current="page">Contribute</a>
+    </nav>
   </header>
+  <div class="zigzag" aria-hidden="true"></div>
 
   <!-- HERO -->
-  <section class="hero">
-    <div class="hero-inner">
-      <p class="hero-eyebrow">No GitHub account · No technical experience needed</p>
-      <h1 class="hero-title">Add something<br /><em>that helped you.</em></h1>
-      <p class="hero-sub">Found a resource that would have helped you after matric? Spotted something that has changed or broken? Send it in. We turn it into a pull request and a human reviews it — you never touch GitHub.</p>
-    </div>
+  <section class="hero wrap">
+    <div class="eyebrow">No GitHub account · No technical experience needed</div>
+    <h1 class="page-title">Add something <em>that helped you.</em></h1>
+    <p class="lead">Found a resource that would have helped you after matric? Spotted something that has changed or broken? Send it in. We turn it into a pull request and a human reviews it — you never touch GitHub.</p>
   </section>
 
-  <main class="main-content">
-    <div class="container">
+  <main class="layout wrap">
 
-      <!-- HOW IT WORKS -->
-      <div class="how-it-works">
-        <h2 class="section-heading">How it works</h2>
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <div class="step-text">
-              <strong>You fill in the form below</strong>
-              <p>Pick where your addition belongs, paste the content, and optionally add your name so you get credit.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <div class="step-text">
-              <strong>We open a pull request for you</strong>
-              <p>A bot account turns your submission into a proper change to the README and opens it for review. Your words are never lost.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">3</div>
-            <div class="step-text">
-              <strong>A maintainer reviews it</strong>
-              <p>Approved changes go live with the nightly batch. Rejected ones are closed with a reason so you can try again.</p>
-            </div>
-          </div>
+    <!-- FORM -->
+    <form id="contributeForm" class="form" novalidate>
+
+      <!-- FLOW -->
+      <div class="form-section">
+        <h2>What are you doing?</h2>
+
+        <div class="choice-grid">
+          <label class="choice" for="flowNew">
+            <input type="radio" name="flow" id="flowNew" value="new" checked />
+            <span class="choice-body">
+              <span class="choice-title">Add something new</span>
+              <span class="choice-sub">A resource, guide, video or link that isn't listed yet.</span>
+            </span>
+          </label>
+
+          <label class="choice" for="flowEdit">
+            <input type="radio" name="flow" id="flowEdit" value="edit" />
+            <span class="choice-body">
+              <span class="choice-title">Correct something</span>
+              <span class="choice-sub">A link has died, a detail is wrong, or something needs updating.</span>
+            </span>
+          </label>
         </div>
       </div>
 
-      <hr class="divider" />
+      <!-- TARGET -->
+      <div class="form-section">
+        <h2>Where does it belong?</h2>
 
-      <!-- FORM -->
-      <form id="contributeForm" novalidate>
-
-        <!-- FLOW -->
-        <div class="form-section">
-          <h2 class="section-heading">What are you doing?</h2>
-
-          <div class="choice-grid">
-            <label class="choice" for="flowNew">
-              <input type="radio" name="flow" id="flowNew" value="new" checked />
-              <span class="choice-body">
-                <span class="choice-title">Add something new</span>
-                <span class="choice-sub">A resource, guide, video or link that isn't listed yet.</span>
-              </span>
-            </label>
-
-            <label class="choice" for="flowEdit">
-              <input type="radio" name="flow" id="flowEdit" value="edit" />
-              <span class="choice-body">
-                <span class="choice-title">Correct something</span>
-                <span class="choice-sub">A link has died, a detail is wrong, or something needs updating.</span>
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <hr class="divider" />
-
-        <!-- TARGET -->
-        <div class="form-section">
-          <h2 class="section-heading">Where does it belong?</h2>
-
+        <div class="field">
           <label for="section">Section</label>
-          <p class="field-note" id="sectionsNote">Loading the current sections…</p>
           <select id="section" required>
             <option value="">Choose a section…</option>
           </select>
-
-          <div id="newSectionWrap" class="hidden">
-            <label for="newSectionName">Name of the new section</label>
-            <p class="field-note">It will appear as a heading under the part of the site you picked above.</p>
-            <input type="text" id="newSectionName" placeholder="e.g. Learnerships" maxlength="80" />
-          </div>
+          <p class="field-note" id="sectionsNote">Loading the current sections…</p>
         </div>
 
-        <hr class="divider" />
+        <div id="newSectionWrap" class="field hidden">
+          <label for="newSectionName">Name of the new section</label>
+          <input type="text" id="newSectionName" placeholder="e.g. Learnerships" maxlength="80" />
+          <p class="field-note">It will appear as a heading under the part of the site you picked above.</p>
+        </div>
+      </div>
 
-        <!-- EDIT FLOW FIELDS -->
-        <div class="form-section" id="editFields" hidden>
-          <h2 class="section-heading">What needs fixing?</h2>
+      <!-- EDIT FLOW FIELDS -->
+      <div class="form-section" id="editFields" hidden>
+        <h2>What needs fixing?</h2>
 
+        <div class="field">
           <label for="original">The text that is wrong</label>
+          <textarea id="original" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students"></textarea>
           <p class="field-note">
             Copy it exactly as it appears on the site, including the leading
             <code>-</code> if there is one. Paste a bit more than the single word if
             the same text appears more than once.
           </p>
-          <textarea id="original" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students"></textarea>
+        </div>
 
-          <label for="editReplacement">What it should say instead</label>
-          <p class="field-note">Write the corrected line in full, in the editor or as markdown.</p>
+        <div class="field">
           <div class="editor" data-editor="editReplacement">
             <div class="editor-tabs" role="tablist" aria-label="Writing mode">
               <button type="button" class="editor-tab is-active" role="tab" aria-selected="true" data-mode="richtext">Rich text</button>
               <button type="button" class="editor-tab" role="tab" aria-selected="false" data-mode="markdown">Markdown</button>
             </div>
+            <label for="editReplacement">What it should say instead</label>
             <div class="editor-pane" data-pane="richtext"><div class="editor-rich"></div></div>
             <div class="editor-pane" data-pane="markdown" hidden>
               <textarea id="editReplacement" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students who need it most"></textarea>
             </div>
           </div>
+          <p class="field-note">Write the corrected line in full, in the editor or as markdown.</p>
         </div>
+      </div>
 
-        <!-- NEW FLOW FIELDS -->
-        <div class="form-section" id="newFields">
-          <h2 class="section-heading">What are you adding?</h2>
+      <!-- NEW FLOW FIELDS -->
+      <div class="form-section" id="newFields">
+        <h2>What are you adding?</h2>
 
-          <label for="content">Your resource</label>
-          <p class="field-note">
-            Write it in the editor, or switch to <strong>Markdown</strong> if you prefer.
-            Either way, add the link and a short description, for example
-            <em>Site name</em> (as a link) — what it is and who it's for.
-            If you picked a section that says <em>coming soon</em>, your line will
-            fill that gap.
-          </p>
+        <div class="field">
           <div class="editor" data-editor="content">
             <div class="editor-tabs" role="tablist" aria-label="Writing mode">
               <button type="button" class="editor-tab is-active" role="tab" aria-selected="true" data-mode="richtext">Rich text</button>
               <button type="button" class="editor-tab" role="tab" aria-selected="false" data-mode="markdown">Markdown</button>
             </div>
+            <label for="content">Your resource</label>
             <div class="editor-pane" data-pane="richtext"><div class="editor-rich"></div></div>
             <div class="editor-pane" data-pane="markdown" hidden>
-              <textarea id="content" style="min-height:90px" placeholder="-   [Learnerships](https://www.saps.org.za/child-safety/learnerships) — Free SA learnership databases, filtered by province"></textarea>
+              <textarea id="content" placeholder="-   [Learnerships](https://www.saps.org.za/child-safety/learnerships) — Free SA learnership databases, filtered by province"></textarea>
             </div>
           </div>
-
-          <details class="format-help">
-            <summary>Show me the format</summary>
-            <p>Write it like a link followed by a description:</p>
-            <code>-   [Site name](https://the-link.co.za) — what it is and who it's for</code>
-            <p>A few examples of what people have added:</p>
-            <code>-   [OpenLibrary](https://openlibrary.org/subjects/textbooks) — Free textbooks online</code>
-            <code>-   [Siyavula](https://www.siyavula.com/) — Free study materials for Maths and Science</code>
-            <p class="field-note">
-              No markdown headings please — headings are managed by the site and
-              we'll ask you to remove them.
-            </p>
-          </details>
+          <p class="field-note">
+            Write it in the editor, or switch to <strong>Markdown</strong> if you prefer.
+            Either way, add the link and a short description. If you picked a section
+            that says <em>coming soon</em>, your line will fill that gap.
+          </p>
         </div>
 
-        <hr class="divider" />
+        <details class="format-help" open>
+          <summary>Show me the format</summary>
+          <p>Write it like a link followed by a description:</p>
+          <code>-   [Site name](https://the-link.co.za) — what it is and who it's for</code>
+          <p>A few examples of what people have added:</p>
+          <code>-   [OpenLibrary](https://openlibrary.org/subjects/textbooks) — Free textbooks online<br />-   [Siyavula](https://www.siyavula.com/) — Free study materials for Maths and Science</code>
+          <p class="field-note">
+            No markdown headings please — headings are managed by the site and
+            we'll ask you to remove them.
+          </p>
+        </details>
+      </div>
 
-        <!-- CREDIT -->
-        <div class="form-section">
-          <h2 class="section-heading">Credit (optional)</h2>
+      <!-- CREDIT -->
+      <div class="form-section">
+        <h2>Credit (optional)</h2>
 
+        <div class="field">
           <label for="handle">Your name or handle</label>
-          <p class="field-note">Shown on the pull request so you get credit. Leave it empty to stay anonymous. Please do not add contact details — no email addresses or phone numbers.</p>
           <input type="text" id="handle" maxlength="60" placeholder="e.g. Thandi M." autocomplete="name" />
+          <p class="field-note">Shown on the pull request so you get credit. Leave it empty to stay anonymous. Please do not add contact details — no email addresses or phone numbers.</p>
         </div>
+      </div>
 
-        <!-- Honeypot: hidden from people, irresistible to bots. -->
-        <div class="hp" aria-hidden="true">
-          <label for="website">Website</label>
-          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
-        </div>
+      <!-- Honeypot: hidden from people, irresistible to bots. It must never be visible:
+           a real person who fills it in would have their submission silently dropped. -->
+      <div class="hp" aria-hidden="true">
+        <label for="website">Website</label>
+        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+      </div>
 
-        <div id="status" class="status-box hidden" role="status" aria-live="polite"></div>
+      <div id="status" class="status-box hidden" role="status" aria-live="polite"></div>
 
+      <div class="actions">
         <button type="submit" class="btn-primary" id="submitBtn">Send it in</button>
-        <p class="field-note" style="margin-top:0.75rem">
+        <p class="field-note">
           By submitting you agree your text can be published on Mzantsi Vibes.
           Don't include anything private.
         </p>
-      </form>
+      </div>
+    </form>
 
-    </div>
+    <!-- HOW IT WORKS -->
+    <aside class="how-it-works">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-number tone-butter">1</span>
+          <div>
+            <strong>You fill in the form below</strong>
+            <p>Pick where your addition belongs, paste the content, and optionally add your name so you get credit.</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-number tone-sage">2</span>
+          <div>
+            <strong>We open a pull request for you</strong>
+            <p>Our app turns your submission into a proper change to the README and opens it for review. Your words are never lost.</p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="step-number tone-blush">3</span>
+          <div>
+            <strong>A maintainer reviews it</strong>
+            <p>Approved changes go live with the nightly batch. Rejected ones are closed with a reason so you can try again.</p>
+          </div>
+        </li>
+      </ol>
+    </aside>
   </main>
 
+  <div class="zigzag" aria-hidden="true"></div>
+
   <!-- FOOTER -->
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <div class="footer-brand">
-        <span>🇿🇦</span>
-        <span>Mzantsi Vibes</span>
-      </div>
-      <div class="footer-links">
-        <a href="/">Home</a>
-        <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
-      </div>
-      <p class="footer-note">MIT licensed. Free forever.</p>
+  <footer class="site-footer wrap">
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="https://github.com/realtimshady16/mzantsi-vibes" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://www.instagram.com/mzantsivibes/" target="_blank" rel="noopener">Instagram</a>
     </div>
+    <div>MIT licensed. Free forever.</div>
   </footer>
 
   <script src="vendor/quill.min.js"></script>

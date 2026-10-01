@@ -107,7 +107,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
 
 body {
   margin: 0;
@@ -185,7 +186,7 @@ button { font-family: inherit; }
   font-weight: 500;
 }
 
-.site-nav a[aria-current="page"] {
+.site-nav a[aria-current="page"]:not(.btn) {
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 6px;

@@ -203,6 +203,10 @@
       modules: { toolbar: ['bold', 'italic', 'link', { list: 'bullet' }, 'clean'] },
     });
 
+    // Quill's editable area is not a <label for> target, so name it for screen readers.
+    var labelEl = root.querySelector('label');
+    if (labelEl) quill.root.setAttribute('aria-label', labelEl.textContent);
+
     quill.on('text-change', function (_delta, _old, source) {
       if (source === 'silent') return;
       textarea.value = quill.getText().trim() ? converter.htmlToMarkdown(quill.root.innerHTML) : '';
