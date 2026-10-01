@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
 
+  <link rel="stylesheet" href="vendor/quill.snow.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -130,8 +131,17 @@
           <textarea id="original" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students"></textarea>
 
           <label for="editReplacement">What it should say instead</label>
-          <p class="field-note">Write the corrected line in full.</p>
-          <textarea id="editReplacement" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students who need it most"></textarea>
+          <p class="field-note">Write the corrected line in full, in the editor or as markdown.</p>
+          <div class="editor" data-editor="editReplacement">
+            <div class="editor-tabs" role="tablist" aria-label="Writing mode">
+              <button type="button" class="editor-tab is-active" role="tab" aria-selected="true" data-mode="richtext">Rich text</button>
+              <button type="button" class="editor-tab" role="tab" aria-selected="false" data-mode="markdown">Markdown</button>
+            </div>
+            <div class="editor-pane" data-pane="richtext"><div class="editor-rich"></div></div>
+            <div class="editor-pane" data-pane="markdown" hidden>
+              <textarea id="editReplacement" placeholder="-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for undergraduate students who need it most"></textarea>
+            </div>
+          </div>
         </div>
 
         <!-- NEW FLOW FIELDS -->
@@ -140,11 +150,22 @@
 
           <label for="content">Your resource</label>
           <p class="field-note">
-            One line, in this shape: a bullet, the link in square brackets, then a
-            dash and a short description. If you picked a section that says
-            <em>coming soon</em>, your line will fill that gap.
+            Write it in the editor, or switch to <strong>Markdown</strong> if you prefer.
+            Either way, add the link and a short description, for example
+            <em>Site name</em> (as a link) — what it is and who it's for.
+            If you picked a section that says <em>coming soon</em>, your line will
+            fill that gap.
           </p>
-          <textarea id="content" style="min-height:90px" placeholder="-   [Learnerships](https://www.saps.org.za/child-safety/learnerships) — Free SA learnership databases, filtered by province"></textarea>
+          <div class="editor" data-editor="content">
+            <div class="editor-tabs" role="tablist" aria-label="Writing mode">
+              <button type="button" class="editor-tab is-active" role="tab" aria-selected="true" data-mode="richtext">Rich text</button>
+              <button type="button" class="editor-tab" role="tab" aria-selected="false" data-mode="markdown">Markdown</button>
+            </div>
+            <div class="editor-pane" data-pane="richtext"><div class="editor-rich"></div></div>
+            <div class="editor-pane" data-pane="markdown" hidden>
+              <textarea id="content" style="min-height:90px" placeholder="-   [Learnerships](https://www.saps.org.za/child-safety/learnerships) — Free SA learnership databases, filtered by province"></textarea>
+            </div>
+          </div>
 
           <details class="format-help">
             <summary>Show me the format</summary>
@@ -205,6 +226,10 @@
     </div>
   </footer>
 
+  <script src="vendor/quill.min.js"></script>
+  <script src="vendor/turndown.js"></script>
+  <script src="vendor/marked.umd.js"></script>
+  <script src="convert.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

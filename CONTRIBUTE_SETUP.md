@@ -44,7 +44,8 @@ click link       ──GET /action──▶  verify signature ──▶ add/remo
 | `src/tokens.js` | HMAC sign/verify for the review links |
 | `src/github.js` | GitHub REST wrapper |
 | `src/config.js` | Env, secrets, rate limiting |
-| `PUBLISH/contribute/` | The form page |
+| `PUBLISH/contribute/` | The form page (`convert.js` bridges rich text and markdown) |
+| `PUBLISH/contribute/vendor/` | Quill, Turndown and marked, vendored so the form has no CDN dependency |
 | `test/` | Test suites (see below) |
 
 ## Prerequisites
@@ -120,6 +121,7 @@ No dependencies — plain ES modules. Run them with `node` (18+) or `bun`:
 node test/test.mjs            # 59 checks — README patching, sanitising, HMAC
 node test/test-integration.mjs # 41 checks — real GitHub reads, mutations mocked
 node test/test-review.mjs     # 55 checks — digest, signed links, batch merge
+node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 ```
 
 `test-integration.mjs` reads the real README from GitHub, so it needs a token:
@@ -142,6 +144,26 @@ matched loosely (`-   [X](url)` and `- [X](url)` are treated as the same), so
 copying from the rendered site works. If your text appears more than once in
 that section the submission is rejected rather than guessed at — paste a bit
 more surrounding text.
+
+## Rich text or markdown
+
+Each content field has a **Rich text** and a **Markdown** tab. Rich text is a
+Quill editor limited to what the site can show: bold, italic, links and bullets.
+The markdown textarea underneath is always the source of truth and is what gets
+submitted, so switching tabs never loses anything and the Worker only ever sees
+markdown. If the editor libraries fail to load, the field falls back to markdown.
+
+Both routes end up identical because of two steps:
+
+1. **In the browser**, `convert.js` turns the editor's HTML into markdown
+   (headings, images and rules are dropped, since the site cannot show them).
+2. **In the Worker**, `normalizeMarkdown()` in `src/readme.js` puts any markdown
+   into the one shape the site parser reads: `-   [Name](url) — description`. It
+   bullets bare lines, turns `*`/`+`/`1.` into `-   `, and turns a hyphen after
+   the link into an em dash. The site only renders lines in that shape, so a
+   line that is not a bullet would be written to the README and never shown.
+
+The PR body records which editor was used ("Written in").
 
 ## What is rejected, and why
 

@@ -165,6 +165,48 @@ export function sanitizeContent(raw, { field = 'content', max = 4000 } = {}) {
     .trim();
 }
 
+const BULLET_RE = /^(\s*)[-*+]\s+/;
+const NUMBERED_RE = /^(\s*)\d+[.)]\s+/;
+// "-   [Name](url) - description" — a hyphen where the site expects an em dash.
+const LINK_DASH_RE = /^(\s*-   \[[^\]]+\]\([^)]+\))\s+(?:-{1,2}|–)\s+/;
+
+/**
+ * Bring markdown from any source into the one shape the README (and the site
+ * parser in PUBLISH/script.js) understands: `-   [Name](url) — description`.
+ *
+ * Markdown typed by hand and markdown converted from the rich text editor
+ * both pass through here, so they end up byte-identical. The site only renders
+ * bullet lines, so with `bulletize` a bare line becomes a bullet instead of
+ * being written to the README and never shown.
+ */
+export function normalizeMarkdown(text, { bulletize = false } = {}) {
+  const out = [];
+
+  for (const raw of String(text ?? '').replace(/\r\n/g, '\n').split('\n')) {
+    let line = raw.replace(/\s+$/, '');
+
+    if (!line.trim()) {
+      // A resource list is contiguous, so drop blank separators when bulletizing.
+      if (!bulletize) out.push('');
+      continue;
+    }
+
+    line = line.replace(/^(\s*)>\s?/, '$1'); // blockquote marker from rich text
+
+    if (BULLET_RE.test(line)) {
+      line = line.replace(BULLET_RE, '$1-   ');
+    } else if (NUMBERED_RE.test(line)) {
+      line = line.replace(NUMBERED_RE, '$1-   ');
+    } else if (bulletize) {
+      line = `-   ${line.trim()}`;
+    }
+
+    out.push(line.replace(LINK_DASH_RE, '$1 — '));
+  }
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 /**
  * Contributor handle is optional and used only for credit. Keep it inert, and
  * keep personal information out: the project explicitly asks contributors not
@@ -256,9 +298,14 @@ function scopeFor(md, pillarName, sectionName) {
  */
 export function applyEdit(md, { pillar, section, original, replacement }) {
   const before = sanitizeContent(original, { field: 'original text', max: 2000 });
-  const after = sanitizeContent(replacement, { field: 'correction', max: 4000 });
+  // If the line being corrected is a bullet, the correction must be one too.
+  const after = normalizeMarkdown(sanitizeContent(replacement, { field: 'correction', max: 4000 }), {
+    bulletize: BULLET_RE.test(before) || NUMBERED_RE.test(before),
+  });
 
-  if (before === after) {
+  // Compare ignoring spacing, so "- x" vs "-   x" is not counted as a change.
+  const flat = (s) => s.replace(/\s+/g, ' ');
+  if (flat(before) === flat(after)) {
     throw new PatchError('The correction is identical to the original text — nothing to change.');
   }
 
@@ -297,7 +344,9 @@ export function applyEdit(md, { pillar, section, original, replacement }) {
  * a brand new `###` section under the chosen pillar.
  */
 export function applyNew(md, { pillar, section, content, newSectionName }) {
-  const body = sanitizeContent(content, { field: 'resource', max: 4000 });
+  const body = normalizeMarkdown(sanitizeContent(content, { field: 'resource', max: 4000 }), {
+    bulletize: true,
+  });
   const { pillars } = parseStructure(md);
   const p = findPillar(pillars, pillar);
 

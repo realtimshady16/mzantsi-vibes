@@ -58,8 +58,8 @@
   /* --- flow switching --- */
   function applyFlow() {
     var isEdit = currentFlow() === 'edit';
-    editFields.hidden = isEdit;
-    newFields.hidden = !isEdit;
+    editFields.hidden = !isEdit;
+    newFields.hidden = isEdit;
     originalInput.required = isEdit;
     editReplacement.required = isEdit;
     contentInput.required = !isEdit;
@@ -146,13 +146,93 @@
     var counter = document.createElement('span');
     counter.className = 'counter';
     counter.setAttribute('aria-hidden', 'true');
-    input.insertAdjacentElement('afterend', counter);
+    // Inside an editor the textarea is hidden in rich mode, so hang the counter off the whole editor.
+    (input.closest('.editor') || input).insertAdjacentElement('afterend', counter);
 
     var entry = { input: input, counter: counter, max: max };
     counters.push(entry);
 
     input.addEventListener('input', function () { paintCounter(entry); });
     paintCounter(entry);
+  }
+
+  /* --- rich text / markdown editors ---
+   * Each content field is a Quill editor plus its original <textarea>. The
+   * textarea always holds the markdown and is what gets submitted, so the
+   * counters, validation and payload code do not care which mode was used.
+   * If the editor libraries fail to load, the field falls back to markdown. */
+  var converter =
+    window.createConverter && window.TurndownService && window.marked && window.Quill
+      ? window.createConverter(window.TurndownService, window.marked)
+      : null;
+  var editors = {};
+
+  function setupEditor(root) {
+    var key = root.getAttribute('data-editor');
+    var textarea = root.querySelector('textarea');
+    var tabs = Array.prototype.slice.call(root.querySelectorAll('.editor-tab'));
+    var panes = Array.prototype.slice.call(root.querySelectorAll('.editor-pane'));
+    var quill = null;
+    var api = { mode: 'markdown' };
+
+    function showPane(mode) {
+      api.mode = mode;
+      tabs.forEach(function (tab) {
+        var on = tab.getAttribute('data-mode') === mode;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panes.forEach(function (pane) {
+        pane.hidden = pane.getAttribute('data-pane') !== mode;
+      });
+    }
+
+    if (!converter) {
+      // Libraries did not load: markdown only, and no tabs to confuse anyone.
+      root.querySelector('.editor-tabs').hidden = true;
+      showPane('markdown');
+      editors[key] = api;
+      return;
+    }
+
+    quill = new window.Quill(root.querySelector('.editor-rich'), {
+      theme: 'snow',
+      placeholder: textarea.getAttribute('data-rich-placeholder') || 'Write it here…',
+      // Only what the site can show: bold, italic, links and bullets.
+      formats: ['bold', 'italic', 'link', 'list'],
+      modules: { toolbar: ['bold', 'italic', 'link', { list: 'bullet' }, 'clean'] },
+    });
+
+    quill.on('text-change', function (_delta, _old, source) {
+      if (source === 'silent') return;
+      textarea.value = quill.getText().trim() ? converter.htmlToMarkdown(quill.root.innerHTML) : '';
+      textarea.dispatchEvent(new Event('input')); // repaint the counter
+    });
+
+    function loadIntoQuill() {
+      var md = textarea.value;
+      quill.setContents(md.trim() ? quill.clipboard.convert(converter.markdownToHtml(md)) : [], 'silent');
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var next = tab.getAttribute('data-mode');
+        if (next === api.mode) return;
+        if (next === 'richtext') loadIntoQuill();
+        showPane(next);
+      });
+    });
+
+    // form.reset() clears the textarea but knows nothing about Quill.
+    api.refresh = function () { if (api.mode === 'richtext') loadIntoQuill(); };
+
+    editors[key] = api;
+    showPane('richtext');
+  }
+
+  function activeFormat() {
+    var ed = editors[currentFlow() === 'edit' ? 'editReplacement' : 'content'];
+    return ed && ed.mode === 'richtext' ? 'richtext' : 'markdown';
   }
 
   /* --- submit --- */
@@ -188,8 +268,15 @@
       return;
     }
 
+    var body = flow === 'edit' ? editReplacement : contentInput;
+    if (!body.value.trim()) {
+      setStatus('Please write what you want to add or change.', 'warning');
+      return;
+    }
+
     var payload = {
       flow: flow,
+      format: activeFormat(),
       pillar: pillar,
       section: sectionSelect.value,
       content: flow === 'edit' ? editReplacement.value : contentInput.value,
@@ -222,12 +309,16 @@
         }
 
         var d = result.data;
+
+        // Reset first: onSectionChange() clears the status box, which would
+        // wipe the success message before anyone could read it.
+        form.reset();
+        applyFlow();
+        onSectionChange();
+        updateCounters();
+
         if (!d.prUrl) {
           setStatus('Thanks — that went through.', 'success');
-          form.reset();
-          applyFlow();
-          onSectionChange();
-          updateCounters();
           return;
         }
 
@@ -238,10 +329,6 @@
             '<a href="' + d.prUrl + '" target="_blank" rel="noopener">' + d.prUrl + '</a>',
           'success'
         );
-        form.reset();
-        applyFlow();
-        onSectionChange();
-        updateCounters();
       })
       .catch(function (err) {
         setStatus(err.message, 'error');
@@ -266,6 +353,13 @@
         applyFlow();
         onSectionChange();
       });
+    });
+
+    Array.prototype.forEach.call(form.querySelectorAll('.editor'), setupEditor);
+    form.addEventListener('reset', function () {
+      setTimeout(function () {
+        Object.keys(editors).forEach(function (k) { if (editors[k].refresh) editors[k].refresh(); });
+      }, 0);
     });
 
     sectionSelect.addEventListener('change', onSectionChange);

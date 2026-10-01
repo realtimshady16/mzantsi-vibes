@@ -25,7 +25,7 @@ function randomSuffix() {
 }
 
 /** PR body carries enough context that a reviewer never has to open the diff. */
-function buildPrBody({ flow, pillar, sectionName, handle, content, original, createdSection, filledPlaceholder }) {
+function buildPrBody({ flow, pillar, sectionName, handle, format, content, original, createdSection, filledPlaceholder }) {
   const lines = [];
 
   lines.push('### Submitted from the contribute form');
@@ -36,6 +36,9 @@ function buildPrBody({ flow, pillar, sectionName, handle, content, original, cre
   lines.push(`| **Section** | ${sectionName} |`);
   if (flow !== 'edit') lines.push(`| **Part of** | ${pillar} |`);
   lines.push(`| **Submitted by** | ${handle ? escMd(handle) : '_anonymous (no handle given)_'} |`);
+  lines.push(
+    `| **Written in** | ${format === 'richtext' ? 'Rich text editor (converted to markdown)' : 'Markdown'} |`
+  );
 
   if (createdSection) lines.push(`| **Note** | This created a new \`###\` section. |`);
   if (filledPlaceholder) lines.push(`| **Note** | This filled a "_coming soon_" placeholder. |`);
@@ -87,6 +90,9 @@ export async function handleSubmit({ request, config, gh }) {
 
   const flow = body.flow === 'edit' ? 'edit' : 'new';
   const handle = sanitizeHandle(body.handle);
+  // Informational only — the client always sends markdown, whichever editor
+  // produced it. Anything unrecognised is treated as plain markdown.
+  const format = body.format === 'richtext' ? 'richtext' : 'markdown';
   const { pillar, section } = { pillar: body.pillar, section: body.section };
 
   if (!pillar) throw new PatchError('Please choose which part of the site your change belongs to.');
@@ -148,6 +154,7 @@ export async function handleSubmit({ request, config, gh }) {
       pillar: resolvedPillar,
       sectionName: result.sectionName,
       handle,
+      format,
       content: body.content,
       original: flow === 'edit' ? String(body.original ?? '').trim() : '',
       createdSection: result.createdSection,
