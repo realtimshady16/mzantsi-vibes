@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+#
+# mz — short commands for running Mzantsi Vibes by hand.
+#
+# Anything that sends an email, merges, or opens an issue is a PREVIEW unless you
+# say so explicitly, and then it asks you to confirm.
+#
+#   mz status                 open contribution PRs and where each stands
+#   mz digest                 preview the review digest: who gets emailed, which PRs
+#   mz digest send            send the review digest email for real
+#   mz opps                   run the opportunity searches and show the issue (10 Tavily credits, posts nothing)
+#   mz opps post              run them and open the real GitHub issue (10 credits)
+#   mz opps tune [flags]      tune the searches locally, e.g.  mz opps tune --only job --explain
+#   mz merge                  preview what the 18:00 job would merge and close
+#   mz merge run              run the 18:00 job now
+#   mz help
+#
+# Add --yes (or -y) to skip the confirmation on the real actions.
+#
+# Run it from anywhere: ./scripts/mz opps. To type just `mz`, link it onto your PATH:
+#   ln -s "$(pwd)/scripts/mz" ~/.local/bin/mz
+
+set -euo pipefail
+
+# Follow symlinks, so `mz` works when linked into ~/.local/bin.
+SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
+cd "$ROOT"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "mz needs node (18+), and it isn't on your PATH." >&2
+  exit 1
+fi
+
+# Pull --yes / -y out of the arguments so it can go anywhere.
+YES=0
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --yes|-y) YES=1 ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+usage() { sed -n '3,22p' "$SCRIPT" | sed 's/^# \{0,1\}//'; }
+
+# Ask before anything that changes the outside world.
+confirm() {
+  local what="$1"
+  echo
+  echo "About to: $what"
+  [[ "$YES" == 1 ]] && return 0
+  if [[ ! -t 0 ]]; then
+    echo "Not running without a terminal to confirm in. Add --yes if you really mean it." >&2
+    exit 1
+  fi
+  local answer
+  read -r -p "Type 'yes' to continue: " answer
+  if [[ "$answer" != "yes" ]]; then
+    echo "Cancelled. Nothing was changed."
+    exit 1
+  fi
+}
+
+# One place for the node calls, so the long commands live here and nowhere else.
+trigger() { node scripts/trigger.mjs "$@"; }
+
+cmd="${1:-help}"
+sub="${2:-}"
+
+case "$cmd" in
+  help|-h|--help)
+    usage
+    ;;
+
+  status)
+    trigger status
+    ;;
+
+  digest)
+    case "$sub" in
+      "")
+        trigger digest --dry-run
+        echo
+        echo "(Preview only. Nothing was sent. To send it: mz digest send)"
+        ;;
+      send)
+        trigger digest --dry-run
+        confirm "email the review digest to the reviewer now"
+        trigger digest
+        echo
+        echo "Sent. Check the inbox, and spam the first time."
+        ;;
+      *) echo "Unknown option 'digest $sub'. Try: mz digest   or   mz digest send" >&2; exit 1 ;;
+    esac
+    ;;
+
+  opps|opportunities)
+    case "$sub" in
+      "")
+        trigger opportunities --dry-run
+        echo
+        echo "(Preview only. Nothing was posted. To open the issue: mz opps post)"
+        ;;
+      post)
+        confirm "run the opportunity searches (10 Tavily credits) and open a real GitHub issue"
+        trigger opportunities
+        ;;
+      tune)
+        # Everything after 'tune' goes straight to the local tuning tool.
+        shift 2
+        node scripts/run-opportunities.mjs "$@"
+        ;;
+      *) echo "Unknown option 'opps $sub'. Try: mz opps   mz opps post   mz opps tune --help" >&2; exit 1 ;;
+    esac
+    ;;
+
+  merge)
+    case "$sub" in
+      "")
+        trigger merge --dry-run
+        echo
+        echo "(Preview only. Nothing was merged or closed. To run it: mz merge run)"
+        ;;
+      run)
+        trigger merge --dry-run
+        confirm "merge every approved PR and close every rejected one now"
+        trigger merge
+        ;;
+      *) echo "Unknown option 'merge $sub'. Try: mz merge   or   mz merge run" >&2; exit 1 ;;
+    esac
+    ;;
+
+  *)
+    echo "Unknown command '$cmd'." >&2
+    echo >&2
+    usage >&2
+    exit 1
+    ;;
+esac
