@@ -17,6 +17,9 @@
  *     and /api/submit accepts anything sensible and returns a fake pull request.
  *     NOTHING IS SENT TO GITHUB. Each submission is printed here instead.
  *
+ * /__diag is a page that checks, in the browser you open it in, whether files are stale
+ * and whether the theme logic works. Use it when a page looks half-restyled.
+ *
  * Binds to 127.0.0.1 only. Needs no dependencies and no secrets.
  */
 import http from 'node:http';
@@ -53,6 +56,65 @@ try {
   }
 } catch { /* offline: the saved copy is fine for design work */ }
 
+
+/* ------------------------------------------------------------------ *
+ * /__diag : a page you open in the browser that looks wrong. It checks, in that
+ * browser, the things that make a page look half-restyled: a stale cached file,
+ * the theme logic, and storage. Preview-only: it is not part of PUBLISH/.
+ * ------------------------------------------------------------------ */
+const DIAG_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Preview diagnostics</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px}
+h1{font-size:22px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #8884;padding:6px 8px;text-align:left;vertical-align:top}
+.ok{color:#0a7d3c;font-weight:700}.bad{color:#b3261e;font-weight:700}code,pre{font:13px ui-monospace,Menlo,monospace}pre{white-space:pre-wrap;background:#8881;padding:12px;border-radius:8px}
+iframe{position:absolute;left:-9999px;width:1100px;height:700px}</style>
+<script src="/theme.js"></script></head><body>
+<h1>Preview diagnostics</h1>
+<p>Open this in the browser where the page looks wrong. It takes a few seconds. Then copy the box at the bottom and send it to me.</p>
+<table id="t"></table><h2>Copy this</h2><pre id="out">running…</pre><iframe id="f"></iframe>
+<script>
+(async () => {
+  const rows = [], text = [];
+  const add = (name, ok, detail) => { rows.push('<tr><td>' + name + '</td><td class="' + (ok === true ? 'ok' : ok === false ? 'bad' : '') + '">' + (ok === true ? 'OK' : ok === false ? 'PROBLEM' : '') + '</td><td>' + (detail || '') + '</td></tr>'); text.push((ok === true ? '[ok]  ' : ok === false ? '[BAD] ' : '[info] ') + name + (detail ? ' :: ' + String(detail).replace(/<[^>]+>/g, '') : '')); };
+  const sha = async (t) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))).slice(0, 6).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  add('Browser', null, navigator.userAgent);
+  add('Device says dark?', null, String(matchMedia('(prefers-color-scheme: dark)').matches) + ' (Firefox privacy "resist fingerprinting" always reports light)');
+  let ls; try { localStorage.setItem('__t', '1'); ls = localStorage.getItem('__t') === '1'; localStorage.removeItem('__t'); } catch (e) { ls = false; }
+  add('localStorage works', ls, ls ? '' : 'blocked, so the theme choice cannot be remembered (the page still works)');
+  add('theme.js set a theme', !!document.documentElement.getAttribute('data-theme'), 'data-theme = ' + document.documentElement.getAttribute('data-theme'));
+
+  // 1. Is the browser's copy of each file the one on disk?
+  const files = ['/theme.css', '/theme.js', '/style.css', '/contribute/style.css', '/contribute/index.html', '/contribute/script.js'];
+  for (const f of files) {
+    try {
+      const cached = await (await fetch(f)).text();                       // however the browser normally fetches it
+      const fresh = await (await fetch(f, { cache: 'reload' })).text();  // forced to ask the server
+      const same = cached === fresh;
+      add(f, same, same ? 'matches the file on disk (' + (await sha(fresh)) + ')' : 'STALE: the browser would use ' + (await sha(cached)) + ' but disk has ' + (await sha(fresh)) + '. Hard reload (Ctrl+Shift+R) or clear the cache for 127.0.0.1.');
+    } catch (e) { add(f, false, String(e)); }
+  }
+
+  // 2. Load the real page in a frame and read what the browser actually applied.
+  const frame = document.getElementById('f');
+  for (const theme of ['light', 'dark']) {
+    await new Promise((res) => { frame.onload = res; try { localStorage.setItem('mv-theme', theme); } catch (e) {} frame.src = '/contribute/?diag=' + theme + Date.now(); });
+    await new Promise(r => setTimeout(r, 1500));
+    const d = frame.contentDocument, w = frame.contentWindow;
+    const cs = (el, p) => el ? w.getComputedStyle(el)[p] : 'missing';
+    const want = theme === 'dark' ? { bg: 'rgb(5, 28, 30)', link: 'rgb(241, 234, 220)' } : { bg: 'rgb(250, 245, 234)', link: 'rgb(14, 38, 38)' };
+    const bg = cs(d.body, 'backgroundColor'), link = cs(d.querySelector('.site-nav a'), 'color'), code = cs(d.querySelector('.format-help > code'), 'backgroundColor');
+    add('Contribute page, ' + theme + ': page background', bg === want.bg, bg + ' (expected ' + want.bg + ')');
+    add('Contribute page, ' + theme + ': nav link colour', link === want.link, link + ' (expected ' + want.link + (link === 'rgb(29, 107, 74)' ? ', and this green is the OLD stylesheet' : '') + ')');
+    add('Contribute page, ' + theme + ': code sample background', code === 'rgb(14, 38, 38)', code + ' (expected rgb(14, 38, 38))');
+  }
+  try { localStorage.removeItem('mv-theme'); } catch (e) {}
+
+  document.getElementById('t').innerHTML = rows.join('');
+  document.getElementById('out').textContent = text.join('\\n');
+})();
+</script></body></html>`;
+
 const send = (res, status, body, type = 'application/json') => {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Preview-Mock': '1' });
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
@@ -81,6 +143,8 @@ function api(req, res, pathname) {
 http.createServer((req, res) => {
   let pathname;
   try { pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { return send(res, 400, 'Bad request', 'text/plain'); }
+
+  if (pathname === '/__diag') return send(res, 200, DIAG_HTML, 'text/html; charset=utf-8');
 
   if (pathname.startsWith('/api/')) return withApi ? api(req, res, pathname) : send(res, 404, { ok: false, error: 'API disabled (--no-api).' });
 
