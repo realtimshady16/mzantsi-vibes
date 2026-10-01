@@ -136,8 +136,13 @@
   background: var(--row);
   color: var(--text);
 }
-.res-row.soon { opacity: .5; cursor: default; }
-.res-row.soon:hover { opacity: .5; }
+/* Dimmed so it reads as "not yet", but 70% rather than the design's 50%: at 50% the
+   description is 2.6:1 against its card, under the 4.5:1 that small text needs. */
+.res-row.soon { opacity: .7; cursor: default; }
+.res-row.soon:hover { opacity: .7; }
+/* The description is the "Coming soon" label itself, so give it the full body colour:
+   70% of the secondary colour would be 4.0:1; 70% of the body colour is about 6:1. */
+.res-row.soon .res-desc { color: var(--text); }
 
 .res-name { font-size: 17px; font-weight: 700; line-height: 1.3; }
 .res-desc { margin-top: 4px; font-size: 14px; line-height: 1.45; color: var(--text-2); }
