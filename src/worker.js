@@ -89,7 +89,7 @@ export default {
     if (url.pathname === '/api/sections' && request.method === 'GET') {
       try {
         const config = readConfig(env);
-        return await handleSections({ config, gh: github(config.token) });
+        return await handleSections({ config, gh: github(config.githubAuth) });
       } catch (err) {
         console.error('sections failed:', err?.stack || err);
         return json({ ok: false, error: 'Could not load the section list.' }, 502);
@@ -102,7 +102,7 @@ export default {
       }
       try {
         const config = readConfig(env);
-        return await handleSubmitRequest({ request, config, gh: github(config.token) });
+        return await handleSubmitRequest({ request, config, gh: github(config.githubAuth) });
       } catch (err) {
         console.error('submit config failed:', err?.stack || err);
         return json({ ok: false, error: 'The contribute form is not configured yet.' }, 500);
@@ -112,7 +112,7 @@ export default {
     if (url.pathname === '/action') {
       try {
         const config = readConfig(env);
-        return await handleAction({ request, config, gh: github(config.token), url });
+        return await handleAction({ request, config, gh: github(config.githubAuth), url });
       } catch (err) {
         console.error('action failed:', err?.stack || err);
         return new Response('Something went wrong.', { status: 500 });
@@ -137,7 +137,7 @@ export default {
    */
   async scheduled(event, env, ctx) {
     const config = readConfig(env);
-    const gh = github(config.token);
+    const gh = github(config.githubAuth);
 
     if (event.cron === CRON_DIGEST) {
       ctx.waitUntil(
