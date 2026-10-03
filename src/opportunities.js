@@ -486,9 +486,31 @@ export function metaDescription(html) {
   return '';
 }
 
-// Each lookup is one subrequest, and a Worker invocation gets 50 on the free plan.
-// A run already uses about 15 (10 searches, 3 closing pages, the issue), so 20 fits.
-export const MAX_PAGE_LOOKUPS = 20;
+// A Worker invocation may make 50 outbound requests on the free plan, and a redirect
+// counts as another. A real run uses about 30 before any page is read: 10 searches,
+// 3 closing-soon pages, ~3 to authenticate, ~9 for the PR and ~3 for the issue.
+// 10 lookups (one request each, see pageUrl) leaves a margin of about 10. The first
+// deployed run used 20 lookups that each redirected, and failed on this limit.
+export const MAX_PAGE_LOOKUPS = 10;
+
+/**
+ * The URL to read a lead's page from. zabursaries answers a path without its
+ * trailing slash with a 301, which would double the cost of the lookup, so ask
+ * for the slash form. Returns null for pages that cannot hold one lead's date:
+ * a zabursaries page one path segment deep is a hub ("/law-bursaries-south-africa",
+ * "/mba-postgraduate"); a single bursary is "/<faculty>/<bursary>".
+ */
+export function pageUrl(url) {
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  if (sourceOf(url) !== 'zabursaries') return u.href;
+  const path = u.pathname.replace(/\/+$/, '');
+  if (path.split('/').filter(Boolean).length < 2) return null;
+  u.pathname = path + '/';
+  u.search = '';
+  u.hash = '';
+  return u.href;
+}
 
 /**
  * Search snippets rarely carry the deadline (real zabursaries snippets had none),
@@ -497,14 +519,17 @@ export const MAX_PAGE_LOOKUPS = 20;
  * that says it has already closed is dropped. Failures just leave the lead undated.
  */
 export async function enrichDeadlines(findings, { fetchPage = fetch, now = new Date(), onResult, max = MAX_PAGE_LOOKUPS } = {}) {
-  const wanted = findings.filter((f) => !f.closes && f.pass !== 'closing' && sourceOf(f.url) !== 'broader search').slice(0, max);
+  const wanted = findings
+    .filter((f) => !f.closes && f.pass !== 'closing' && sourceOf(f.url) !== 'broader search' && pageUrl(f.url))
+    .slice(0, max);
 
   await Promise.all(wanted.map(async (f) => {
     try {
-      const res = await fetchPage(f.url, {
+      // 'manual': a redirect is not followed (each one would cost another subrequest), so the lead stays undated.
+      const res = await fetchPage(pageUrl(f.url), {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
         signal: AbortSignal.timeout(10000),
-        redirect: 'follow',
+        redirect: 'manual',
       });
       if (!res.ok) return onResult?.({ enrich: true, url: f.url, note: `page returned ${res.status}` });
       const html = await res.text();

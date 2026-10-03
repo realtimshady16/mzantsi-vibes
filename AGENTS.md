@@ -65,7 +65,7 @@ No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
 ```
 
-All ten must pass before a PR (59, 48, 43, 69, 166, 23, 39, 36, 39 and 44 checks as of writing).
+All ten must pass before a PR (59, 48, 43, 69, 170, 23, 39, 36, 39 and 45 checks as of writing).
 `test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (148 checks)
@@ -158,7 +158,10 @@ All four pages share `PUBLISH/theme.css` (tokens, header, footer, zigzag band) a
 7. **Web text is untrusted.** Opportunity titles and snippets go into an issue that
    pings people and renders links, so they are made inert (`inert()` in
    `opportunities.js`). Keep that when changing the output.
-8. **Tavily costs credits.** One basic search is 1 credit, and a dry run spends the same
+8. **A Worker run may make only 50 outbound requests** (free plan), and a redirect counts as another. The weekly job
+   uses about 38 in a worst case (`test-opportunity-pr.mjs` counts them). Anything that adds a `fetch` to it must
+   keep that test under its limit: the first deployed run failed on exactly this.
+9. **Tavily costs credits.** One basic search is 1 credit, and a dry run spends the same
    as a real run. The weekly run is 10. Don't loop over it while testing; use
    `mz opps tune --only … --explain`.
 

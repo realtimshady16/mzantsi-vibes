@@ -151,8 +151,8 @@ node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dr
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
-node test/test-opportunity-pr.mjs # 44 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
-node test/test-opportunities.mjs # 166 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunity-pr.mjs # 45 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
+node test/test-opportunities.mjs # 170 checks — opportunity digest, Tavily and GitHub faked
 node test/browser/run.mjs      # 148 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
@@ -229,8 +229,10 @@ goes near the README, and there is no deduplication between weeks.
 - **Closing dates:** Tavily's snippets rarely contain the deadline (real
   zabursaries snippets had none), so a date comes from two places, in order: the
   result's title and snippet, then, for a lead still without one, **the page
-  itself** (zabursaries and graduates24 only, at most 20 pages per run so the
-  Worker stays well inside its 50-subrequest limit; a page that cannot be read
+  itself** (zabursaries and graduates24 only, at most 10 pages per run, each asked for
+  once in its canonical form and never through a redirect, and never a zabursaries
+  hub page, so the Worker stays inside its 50-request limit (a redirect counts as
+  a second request; the first deployed run failed on this); a page that cannot be read
   just leaves the lead undated). The rules are conservative, because a wrong
   deadline is worse than a missing one: the field label ("Closing Date", or
   zabursaries' "WHEN IS THE CLOSING DATE FOR THE X BURSARY? 22 September 2026")

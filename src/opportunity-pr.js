@@ -116,19 +116,28 @@ export async function openOpportunityPr({ config, gh, plan, now = new Date() }) 
   const base = await gh.getDefaultBranchSha(config.owner, config.repo);
   const branch = branchName(config, now);
   await gh.createBranch(config.owner, config.repo, branch, base);
-  await gh.commitReadme(config.owner, config.repo, branch, { path: OPPS_PATH, content: plan.markdown, sha: plan.sha });
 
-  const n = plan.entries.length;
-  const pr = await gh.createPullRequest(config.owner, config.repo, {
-    title: `contribute: Add ${n} opportunit${n === 1 ? 'y' : 'ies'} with closing dates (weekly digest)`,
-    head: branch,
-    base: 'main',
-    body: prBody(plan.entries, plan, now),
-  });
+  try {
+    await gh.commitReadme(config.owner, config.repo, branch, { path: OPPS_PATH, content: plan.markdown, sha: plan.sha });
 
-  for (const [name, meta] of Object.entries(LABEL_META)) await gh.ensureLabel(config.owner, config.repo, name, meta.color, meta.description);
-  await gh.addLabels(config.owner, config.repo, pr.number, [LABELS.pending]).catch(() => {});
-  return { number: pr.number, url: pr.html_url };
+    const n = plan.entries.length;
+    const pr = await gh.createPullRequest(config.owner, config.repo, {
+      title: `contribute: Add ${n} opportunit${n === 1 ? 'y' : 'ies'} with closing dates (weekly digest)`,
+      head: branch,
+      base: 'main',
+      body: prBody(plan.entries, plan, now),
+    });
+
+    // Only the label this PR needs: each label costs a request, and a Worker run has a limit.
+    const pending = LABEL_META[LABELS.pending];
+    await gh.ensureLabel(config.owner, config.repo, LABELS.pending, pending.color, pending.description);
+    await gh.addLabels(config.owner, config.repo, pr.number, [LABELS.pending]).catch(() => {});
+    return { number: pr.number, url: pr.html_url };
+  } catch (err) {
+    // Don't leave an empty branch behind (best effort: the run may be out of requests).
+    await gh.deleteBranch(config.owner, config.repo, branch).catch(() => {});
+    throw err;
+  }
 }
 
 /**
