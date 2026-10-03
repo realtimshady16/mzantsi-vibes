@@ -500,3 +500,22 @@ a.resource-item:hover {
 @media (max-width: 400px) {
   .path-grid { grid-template-columns: 1fr; }
 }
+
+/* Time-sensitive entries (from OPPORTUNITIES.md or a {closes: …} block) */
+.deadline-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--green-light);
+  color: var(--green);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.deadline-badge.closing-soon {
+  background: var(--orange-light);
+  color: var(--orange);
+}

@@ -149,6 +149,7 @@ node test/test-integration.mjs # 39 checks — real README read from GitHub, mut
 node test/test-review.mjs     # 69 checks — digest, signed links, batch merge
 node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dry runs, new-section fix
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
+node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-opportunities.mjs # 101 checks — opportunity digest, Tavily and GitHub faked
 ```
 

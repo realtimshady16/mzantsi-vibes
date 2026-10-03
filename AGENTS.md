@@ -28,6 +28,9 @@ The site fetches `README.md` from `main` on GitHub at runtime
   keyword in `PUBLISH/script.js`. Renaming one breaks the site **and** the form.
 - `src/readme.js` (`normalizeMarkdown`, `applyNew`, `applyEdit`) is what keeps
   submissions in that shape. Change it with its tests (`test/test-normalize.mjs`).
+- Time-sensitive entries go in `OPPORTUNITIES.md` (not yet written by the form or the digest). An entry
+  may end with `{closes: 2026-11-30; tags: bursary}`; the site hides it after that date, and a `closes` it
+  cannot read hides the entry. Format: `OPPORTUNITIES.md`, parser: `PUBLISH/entry-meta.js`.
 - Never put test data in the README. Test entries get closed or rejected, never merged.
 
 ## Layout
@@ -43,17 +46,20 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | `src/admin.js` | `POST /api/admin/run`: runs a job by hand (token-protected) |
 | `src/opportunities.js` | Weekly Tavily opportunity digest → one GitHub issue |
 | `scripts/mz`, `trigger.mjs`, `run-opportunities.mjs` | Run and tune things by hand |
-| `test/` | Seven dependency-free suites |
+| `OPPORTUNITIES.md` | Time-sensitive entries (deadlines). Same structure as the README; hidden by date once `closes` passes |
+| `PUBLISH/entry-meta.js` | Parser for the `{closes: …; tags: …}` block, shared by the site and `src/readme.js` |
+| `scripts/dev-site.mjs` | Serve the site locally from the working copy (`--sample` adds fake opportunities) |
+| `test/` | Eight dependency-free suites |
 
 ## Commands
 
 No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 
 ```bash
-for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration; do node test/$t.mjs | tail -3; done
+for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta; do node test/$t.mjs | tail -3; done
 ```
 
-All seven must pass before a PR (59, 48, 43, 69, 101, 23 and 39 checks as of writing).
+All eight must pass before a PR (59, 48, 43, 69, 101, 23, 39 and 36 checks as of writing).
 `test.mjs` and `test-integration.mjs` fetch the real README from GitHub. The rest are
 fully faked: no network, nothing sent, nothing merged. Two of them print
 error-looking lines on purpose (`admin run failed: explode`, `opportunity label

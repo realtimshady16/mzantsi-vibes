@@ -129,7 +129,16 @@ const CONTENT = {
    CONFIG — edit these if the repo moves
    ============================================= */
 
-const README_URL = 'https://raw.githubusercontent.com/realtimshady16/mzantsi-vibes/main/README.md';
+const RAW_BASE = 'https://raw.githubusercontent.com/realtimshady16/mzantsi-vibes/main/';
+const README_URL = RAW_BASE + 'README.md';
+/* Time-sensitive entries (bursary deadlines, vac work) live in their own file
+   so a stale one can be dropped by date. Same ##/### structure as the README. */
+const OPPORTUNITIES_URL = RAW_BASE + 'OPPORTUNITIES.md';
+
+/* On localhost (scripts/dev-site.mjs) read the working copy instead of GitHub,
+   so a content or parser change can be seen before it is merged. */
+const LOCAL_DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
+const sourceUrl = (githubUrl, file) => (LOCAL_DEV ? `/__content/${file}` : githubUrl);
 
 /* PILLAR_MARKERS — maps each site pillar to keywords that identify
    its ## heading in the README. Case-insensitive partial match.
@@ -273,7 +282,7 @@ function isStopHeading(headingText) {
   return STOP_HEADINGS.some(s => lower.includes(s));
 }
 
-function parseReadme(markdown) {
+function parseReadme(markdown, today = EntryMeta.todayInSA()) {
   const lines = markdown.split('\n');
 
   /* pillars holds ordered subsections per pillar.
@@ -334,7 +343,14 @@ function parseReadme(markdown) {
 
     /* List item with a link */
     if (/^[-*]\s/.test(trimmed) && trimmed.includes('[')) {
-      const content = trimmed.replace(/^[-*]\s+/, '').trim();
+      /* Optional trailing {closes: …; tags: …} block — see entry-meta.js */
+      const split = EntryMeta.splitEntryMeta(trimmed.replace(/^[-*]\s+/, '').trim());
+      const content = split.text;
+      const meta = split.meta;
+      if (EntryMeta.isHidden(split, today)) {
+        if (split.errors.length) console.warn('Mzantsi Vibes: hiding entry with bad metadata:', content, split.errors);
+        continue;
+      }
       const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
       let match;
       const links = [];
@@ -352,7 +368,7 @@ function parseReadme(markdown) {
         const descMatch = content.match(/\s[—–]\s(.+)$/);
         const desc = descMatch ? stripMarkdown(descMatch[1]).trim() : '';
 
-        bucket.push({ name, url: links[0].url, desc });
+        bucket.push({ name, url: links[0].url, desc, meta });
       } else if (/coming soon/i.test(content)) {
         const name = stripMarkdown(
           content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
@@ -375,6 +391,20 @@ function parseReadme(markdown) {
   }
 
   return { pillars, pillarOrder };
+}
+
+/* Fold `extra` into `base`. A section with the same name joins that section
+   (after the evergreen entries); a new name is added at the end of its pillar. */
+function mergeParsed(base, extra) {
+  for (const pillar of Object.keys(extra.pillars)) {
+    for (const name of extra.pillarOrder[pillar]) {
+      if (!base.pillars[pillar][name]) {
+        base.pillars[pillar][name] = [];
+        base.pillarOrder[pillar].push(name);
+      }
+      base.pillars[pillar][name].push(...extra.pillars[pillar][name]);
+    }
+  }
 }
 
 /* =============================================
@@ -406,6 +436,19 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+const SOON_DAYS = 14;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/* "Closes 30 Nov 2026", or "Closes today" / "Closing soon" near the date. */
+function deadlineBadge(meta) {
+  if (!meta || !meta.closes) return '';
+  const days = EntryMeta.daysBetween(EntryMeta.todayInSA(), meta.closes);
+  const [y, m, d] = meta.closes.split('-').map(Number);
+  const label = days === 0 ? 'Closes today' : `Closes ${d} ${MONTHS[m - 1]} ${y}`;
+  const soon = days <= SOON_DAYS ? ' closing-soon' : '';
+  return `<span class="deadline-badge${soon}">${escHtml(label)}</span>`;
+}
+
 function renderResourceList(resources) {
   if (!resources || resources.length === 0) return '';
   const items = resources.map(r => {
@@ -425,7 +468,7 @@ function renderResourceList(resources) {
       <a class="resource-item" href="${escHtml(r.url)}" target="_blank" rel="noopener">
         <div class="resource-icon">${icon}</div>
         <div class="resource-text">
-          <div class="resource-name">${escHtml(r.name)}</div>
+          <div class="resource-name">${escHtml(r.name)} ${deadlineBadge(r.meta)}</div>
           ${descHtml}
         </div>
         <div class="resource-arrow">↗</div>
@@ -487,13 +530,24 @@ async function init() {
   const s = CONTENT.states;
 
   try {
-    const res = await fetch(README_URL, {
+    const res = await fetch(sourceUrl(README_URL, 'README.md'), {
       headers: { 'Accept': 'text/plain, */*' },
       cache: 'no-cache',
     });
     if (!res.ok) throw new Error('Failed to fetch README');
-    const markdown = await res.text();
-    const parsed = parseReadme(markdown);
+    const parsed = parseReadme(await res.text());
+
+    /* The opportunities file is optional: if it is missing or down, the
+       evergreen content still renders. */
+    try {
+      const opp = await fetch(sourceUrl(OPPORTUNITIES_URL, 'OPPORTUNITIES.md'), {
+        headers: { 'Accept': 'text/plain, */*' },
+        cache: 'no-cache',
+      });
+      if (opp.ok) mergeParsed(parsed, parseReadme(await opp.text()));
+    } catch (err) {
+      console.warn('Mzantsi Vibes: could not load OPPORTUNITIES.md:', err);
+    }
 
     renderSection('study-content',   'study',    parsed);
     renderSection('work-content',    'work',     parsed);
