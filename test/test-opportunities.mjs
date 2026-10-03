@@ -7,8 +7,7 @@
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
   isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
-  extractDeadline, entryLine, pasteBlock, htmlToText, metaDescription, enrichDeadlines, pageUrl, MAX_PAGE_LOOKUPS, DEADLINE_LOOKUPS, DESCRIPTION_LOOKUPS,
-  parseClosingLists, describeFromPages, genericDesc,
+  extractDeadline, entryLine, pasteBlock, parseClosingLists, genericDesc, ZA_CRAWL_DELAY_MS,
 } from '../src/opportunities.js';
 import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -112,17 +111,17 @@ sec('closing-soon pages (built, not searched)');
 {
   const asked = [];
   const pageFetch = async (url) => { asked.push(url); return { status: /december/.test(url) ? 404 : 200 }; };
-  const pages = await closingPages({ now: NOW, fetchPage: pageFetch });
+  const pages = await closingPages({ now: NOW, fetchPage: pageFetch , delayMs: 0 });
   ok('asks for this month and the next two', asked.length === 3 && asked[0].includes('october-2026') && asked[1].includes('november-2026') && asked[2].includes('december-2026'), asked.join(' '));
   ok('a month that does not exist (404) is left out', pages.length === 2 && !pages.some((p) => p.url.includes('december')));
   ok('they point at the real zabursaries URL shape',
     pages[0].url === 'https://www.zabursaries.co.za/bursaries-closing-in-october-2026/' && pages[0].title === 'Bursaries closing in October 2026');
   ok('they are labelled zabursaries / Closing soon', pages.every((p) => p.source === 'zabursaries' && p.category === 'Closing soon'));
-  const blocked = await closingPages({ now: NOW, fetchPage: async () => { throw new Error('network'); } });
+  const blocked = await closingPages({ now: NOW, fetchPage: async () => { throw new Error('network'); } , delayMs: 0 });
   ok('a blocked or failed check still yields the leads', blocked.length === 3);
-  const forbidden = await closingPages({ now: NOW, fetchPage: async () => ({ status: 406 }) });
+  const forbidden = await closingPages({ now: NOW, fetchPage: async () => ({ status: 406 }) , delayMs: 0 });
   ok('only 404/410 rules a page out; 406 (site blocks scripts) does not', forbidden.length === 3);
-  const year = await closingPages({ now: new Date('2026-12-10T00:00:00Z'), fetchPage: async () => ({ status: 200 }) });
+  const year = await closingPages({ now: new Date('2026-12-10T00:00:00Z'), fetchPage: async () => ({ status: 200 }) , delayMs: 0 });
   ok('December rolls over to January of next year', year[1].url.includes('january-2027') && year[2].url.includes('february-2027'));
 }
 
@@ -204,7 +203,7 @@ sec('the issue');
     return [];
   });
   const collected = await collect({ key: 'k', searches: plan, fetchImpl: t.fetchImpl, now: NOW });
-  const closing = await closingPages({ now: NOW, fetchPage: async () => ({ status: 200 }) });
+  const closing = await closingPages({ now: NOW, fetchPage: async () => ({ status: 200 }) , delayMs: 0 });
   const { failures, searched } = collected;
   const findings = [...closing, ...collected.findings];
   const { title, body } = renderDigest({ findings, failures, searched, now: NOW });
@@ -290,32 +289,32 @@ sec('running it');
   const config = { tavilyKey: 'k', owner: 'o', repo: 'r' };
   const good = () => fakeTavily(() => [result('X', 'https://www.zabursaries.co.za/x/')]);
 
-  const dry = await runOpportunityDigest({ config, gh, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), dryRun: true, now: NOW });
+  const dry = await runOpportunityDigest({ closingDelayMs: 0, config, gh, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), dryRun: true, now: NOW });
   ok('dry run returns the issue text and creates nothing', dry.body.includes('Opportunity') || dry.title.startsWith('Opportunity') , '') ;
   ok('dry run did not touch GitHub', gh.calls.length === 0);
   ok('dry run reports the weekly credit cost: 10', dry.credits === 10 && dry.searches === 10);
   ok('the weekly dry run has no broader section', !/Broader search/.test(dry.body));
 
-  const live = await runOpportunityDigest({ config, gh, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW });
+  const live = await runOpportunityDigest({ closingDelayMs: 0, config, gh, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW });
   const created = gh.calls.find((c) => c[0] === 'createIssue');
   ok('a real run opens exactly one issue', gh.calls.filter((c) => c[0] === 'createIssue').length === 1 && live.issueUrl.endsWith('/7'));
   ok('on the configured repo, with the dated title', created[1] === 'o' && created[2] === 'r' && created[3].title === 'Opportunity digest — 2026-10-05');
   ok('labelled for filtering', created[3].labels.includes(OPPS_LABEL));
 
   const noLabel = { calls: [], async ensureLabel() { throw new Error('403'); }, async createIssue(o, r, i) { this.calls.push(i); return { html_url: 'u', number: 1 }; } };
-  await runOpportunityDigest({ config, gh: noLabel, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW });
+  await runOpportunityDigest({ closingDelayMs: 0, config, gh: noLabel, fetchImpl: good().fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW });
   ok('a label failure does not lose the digest', noLabel.calls.length === 1 && noLabel.calls[0].labels.length === 0);
 
   const partial = fakeTavily((b, n) => (n === 3 ? 500 : [result('X', `https://www.zabursaries.co.za/p${n}/`)]));
-  const p = await runOpportunityDigest({ config, gh: { ...gh, calls: [], ensureLabel: async () => {}, createIssue: async (o, r, i) => ({ html_url: 'u', number: 2, _i: i }) }, fetchImpl: partial.fetchImpl, fetchPage: async () => ({ status: 200 }), dryRun: true, now: NOW });
+  const p = await runOpportunityDigest({ closingDelayMs: 0, config, gh: { ...gh, calls: [], ensureLabel: async () => {}, createIssue: async (o, r, i) => ({ html_url: 'u', number: 2, _i: i }) }, fetchImpl: partial.fetchImpl, fetchPage: async () => ({ status: 200 }), dryRun: true, now: NOW });
   ok('one failed search is reported in the issue, not hidden', p.failures === 1 && p.body.includes('1 of 10 searches failed'));
 
   let threw = '';
-  try { await runOpportunityDigest({ config, gh, fetchImpl: fakeTavily(() => 401).fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW }); } catch (e) { threw = e.message; }
+  try { await runOpportunityDigest({ closingDelayMs: 0, config, gh, fetchImpl: fakeTavily(() => 401).fetchImpl, fetchPage: async () => ({ status: 200 }), now: NOW }); } catch (e) { threw = e.message; }
   ok('every search failing throws (and points at the key) instead of posting an empty issue', /All 10 searches failed/.test(threw) && /TAVILY_API_KEY/.test(threw), threw);
 
   let noKey = '';
-  try { await runOpportunityDigest({ config: { ...config, tavilyKey: '' }, gh, now: NOW }); } catch (e) { noKey = e.message; }
+  try { await runOpportunityDigest({ closingDelayMs: 0, config: { ...config, tavilyKey: '' }, gh, now: NOW }); } catch (e) { noKey = e.message; }
   ok('a missing key gives a clear instruction', /wrangler secret put TAVILY_API_KEY/.test(noKey), noKey);
 }
 
@@ -411,88 +410,6 @@ sec('closing dates: paste-ready lines are valid OPPORTUNITIES.md entries');
 }
 
 /* -------------------------------------------------------------- */
-sec('closing dates: reading the page when the snippet has none');
-{
-  ok('htmlToText drops scripts, styles and tags, decodes entities, collapses space',
-    htmlToText('<style>p{}</style><script>var a="closes 1 Jan 2027"</script><p>Closing&nbsp;date:<b> 30 November 2026</b></p>  <p>Tom&#8217;s &amp; Co</p>') === "Closing date: 30 November 2026 Tom's & Co");
-
-  const meta = '<meta name="description" content="The Open Bursary covers &quot;scarce skills&quot; studies. Apply now for 2027." />';
-  ok('metaDescription reads the page summary and decodes entities', metaDescription(`<head>${meta}</head>`) === 'The Open Bursary covers "scarce skills" studies. Apply now for 2027.');
-  ok('...whatever the attribute order, quote style, or og: variant', metaDescription(`<meta content='A good long summary of the page here.' property='og:description'>`) === 'A good long summary of the page here.');
-  ok('...and ignores a missing, empty or too-short one', metaDescription('<html></html>') === '' && metaDescription('<meta name="description" content="">') === '' && metaDescription('<meta name="description" content="Short">') === '');
-  ok('...and keeps web text inert', !/@[a-z]|\[|\]/i.test(metaDescription('<meta name="description" content="Mail @everyone [click](http://evil.example) now please ok">')));
-
-  const page = (body) => `<html><body><nav>CLOSING SOON & BLOG</nav><main>${body}</main></body></html>`;
-  const pages = {
-    'https://www.zabursaries.co.za/bursaries/open/': `<html><head>${meta}</head>` + page('<h2>WHEN IS THE CLOSING DATE FOR THE OPEN BURSARY?</h2><p>30 November 2026. (Applications after this date…)</p>'),
-    'https://www.zabursaries.co.za/bursaries/closed/': page('<h2>WHEN IS THE CLOSING DATE FOR THE OLD BURSARY? 31 July 2026.</h2>'),
-    'https://www.zabursaries.co.za/bursaries/nodate/': page('<p>Apply through the company website.</p>'),
-    'https://www.zabursaries.co.za/bursaries/hub/': page('<p>Closing date: 30 Nov 2026</p><p>Closing date: 15 Dec 2026</p>'),
-    'https://www.graduates24.com/j/job': page('<h4>Job Summary</h4> Closing Date  18 December 2026 Date Listed 17 Sep 2026 <h4>Other Opportunities</h4> NTT  Closes 09 Oct 2026'),
-  };
-  const asked = [];
-  const fetchPage = async (url) => {
-    asked.push(url);
-    if (url.endsWith('/boom/')) throw new Error('timeout');
-    if (url.endsWith('/gone/')) return { ok: false, status: 404, text: async () => '' };
-    return { ok: true, status: 200, text: async () => pages[url] ?? '' };
-  };
-  const f = (url, extra = {}) => ({ title: url.split('/').pop(), url, desc: '', source: 'zabursaries', pass: 'scoped', category: 'Bursaries', tag: null, ...extra });
-  const input = [
-    f('https://www.zabursaries.co.za/bursaries/open'), f('https://www.zabursaries.co.za/bursaries/closed'), f('https://www.zabursaries.co.za/bursaries/nodate'),
-    f('https://www.zabursaries.co.za/bursaries/hub'), f('https://www.graduates24.com/j/job', { source: 'graduates24' }),
-    f('https://www.zabursaries.co.za/bursaries/already', { closes: '2026-12-31' }),
-    f('https://www.zabursaries.co.za/bursaries/gone'), f('https://www.zabursaries.co.za/bursaries/boom'),
-    f('https://www.zabursaries.co.za/law-bursaries-south-africa'),
-    f('https://jobs.example.co.za/1', { pass: 'broad', source: 'broader search' }),
-    { title: 'Bursaries closing in October 2026', url: 'https://www.zabursaries.co.za/bursaries-closing-in-october-2026/', pass: 'closing', category: 'Closing soon', source: 'zabursaries' },
-  ];
-  const notes = [];
-  const out = await enrichDeadlines(input, { fetchPage, now: NOW, onResult: (e) => notes.push(e), max: 20 });
-  const by = (n) => out.find((x) => x.title === n);
-
-  ok('a page that states one future closing date gives the lead a closes', by('open').closes === '2026-11-30');
-  ok("the page's own summary replaces the search fragment as the description", by('open').desc === 'The Open Bursary covers "scarce skills" studies. Apply now for 2027.', by('open').desc);
-  ok('a page with no summary keeps the snippet description', by('nodate').desc === '');
-  ok('a page that says it has closed drops the lead', !by('closed') && notes.some((e) => /2026-07-31 has already passed — dropped/.test(e.note)));
-  ok('a page with no date leaves the lead undated, and in', by('nodate') && !('closes' in by('nodate')));
-  ok('a page with two closing dates leaves it undated (not a guess)', by('hub') && !('closes' in by('hub')));
-  ok("a job page's own label beats the sidebar's rows", by('job').closes === '2026-12-18');
-  ok('a lead that already has a date is not fetched again', !asked.some((u) => u.endsWith('/already')) && by('already').closes === '2026-12-31');
-  ok('a 404 or a timeout leaves the lead in, undated, and explains', by('gone') && by('boom') && !by('gone').closes && !by('boom').closes &&
-    notes.some((e) => /returned 404/.test(e.note)) && notes.some((e) => /could not read the page: timeout/.test(e.note)));
-  ok('pages are asked for once, in their canonical form, and a redirect is never followed',
-    asked.every((u) => !u.endsWith('isfap') ) && asked.filter((u) => u.includes('zabursaries')).every((u) => u.endsWith('/')) && new Set(asked).size === asked.length);
-  ok('a redirect (301) leaves the lead undated rather than costing a second request', await (async () => {
-    const seen = [];
-    const out2 = await enrichDeadlines([f('https://www.zabursaries.co.za/bursaries/moved')], { fetchPage: async (u, init) => { seen.push(init.redirect); return { ok: false, status: 301, text: async () => '' }; }, now: NOW });
-    return seen.join() === 'manual' && out2.length === 1 && !out2[0].closes;
-  })());
-  ok('a zabursaries hub page (one path segment) is not fetched, and a bursary page two segments deep is', !asked.some((u) => /zabursaries\.co\.za\/[^/]+\/?$/.test(u)) && asked.some((u) => u.endsWith('/bursaries/open/')));
-  ok('broader-search results are never fetched (only the two trusted sites)', !asked.some((u) => u.includes('example.co.za')) && by('1'));
-  ok('the closing-soon pages are not fetched', !asked.some((u) => u.includes('bursaries-closing-in')));
-
-  const many = Array.from({ length: DEADLINE_LOOKUPS + 15 }, (_, i) => f(`https://www.zabursaries.co.za/bursaries/n${i}`));
-  const askedMany = [];
-  await enrichDeadlines(many, { fetchPage: async (u) => { askedMany.push(u); return { ok: true, status: 200, text: async () => '' }; }, now: NOW });
-  ok(`by default at most ${DEADLINE_LOOKUPS} pages are read for dates (the Worker's subrequest limit)`, askedMany.length === DEADLINE_LOOKUPS && DEADLINE_LOOKUPS === 4);
-  ok('the two lookup budgets together fit the shared pool', DEADLINE_LOOKUPS + DESCRIPTION_LOOKUPS <= MAX_PAGE_LOOKUPS && MAX_PAGE_LOOKUPS === 12);
-  ok('pageUrl: slash form for zabursaries, untouched elsewhere, hubs and junk refused',
-    pageUrl('https://www.zabursaries.co.za/a/b') === 'https://www.zabursaries.co.za/a/b/' && pageUrl('https://www.zabursaries.co.za/a/b/?x=1#h') === 'https://www.zabursaries.co.za/a/b/' &&
-    pageUrl('https://www.zabursaries.co.za/a') === null && pageUrl('https://www.zabursaries.co.za/') === null && pageUrl('https://www.graduates24.com/some-job') === 'https://www.graduates24.com/some-job' && pageUrl('not a url') === null);
-
-  // End to end: the weekly run's issue carries the date it read from the page.
-  const searchResult = (title, url) => ({ title, url, content: 'A bursary for students.', score: 0.9 });
-  const t = fakeTavily((body) => (/engineering/.test(body.query)
-    ? [searchResult('Open Bursary', 'https://www.zabursaries.co.za/bursaries/open'), searchResult('Old Bursary', 'https://www.zabursaries.co.za/bursaries/closed')]
-    : []));
-  const run = await runOpportunityDigest({ config: { tavilyKey: 'k', owner: 'o', repo: 'r' }, fetchImpl: t.fetchImpl, fetchPage, dryRun: true, now: NOW });
-  ok('the issue lists the lead whose page gave a date, with it', run.body.includes('[Open Bursary]') && run.body.includes('**closes 2026-11-30**'));
-  ok('...in the paste block', run.body.includes('{closes: 2026-11-30; tags: bursary, deadline; source: zabursaries.co.za}'));
-  ok('the lead whose page says it closed is not in the issue', !run.body.includes('Old Bursary'));
-}
-
-/* -------------------------------------------------------------- */
 sec("zabursaries' monthly pages: individual bursaries with dates");
 {
   // Rows copied from the real "Bursaries closing in October 2026" page.
@@ -529,24 +446,25 @@ sec("zabursaries' monthly pages: individual bursaries with dates");
   ok('pages with no html or no list give nothing', parseClosingLists([{}, { html: '' }, { html: '<ul><li>nothing</li></ul>' }], NOW).length === 0);
 
   // closingPages keeps the body it already fetched, so reading the list costs no extra request.
-  const pages = await closingPages({ now: NOW, fetchPage: async (u) => (u.includes('december') ? { status: 404 } : { status: 200, ok: true, text: async () => html }) });
+  const pages = await closingPages({ now: NOW, fetchPage: async (u) => (u.includes('december') ? { status: 404 } : { status: 200, ok: true, text: async () => html }), delayMs: 0 });
   ok('closingPages attaches the page body without it showing in the finding', pages.length === 2 && pages.every((p) => typeof p.html === 'string' && p.html.length > 100) && !JSON.stringify(pages).includes('closing:'));
   ok('...and parseClosingLists reads straight from them', parseClosingLists(pages, NOW).length === 5);
-  const blocked = await closingPages({ now: NOW, fetchPage: async () => ({ status: 200 }) });
+  const blocked = await closingPages({ now: NOW, fetchPage: async () => ({ status: 200 }) , delayMs: 0 });
   ok('a response with no body (as the older fakes) still yields the page lead', blocked.length === 3 && blocked.every((p) => p.html === undefined));
 
-  const same = list[0];
-  ok('genericDesc names the faculty, or just "Bursary"', genericDesc({ tag: 'Engineering' }).startsWith('Engineering bursary.') && genericDesc({ tag: null }).startsWith('Bursary.'));
-  const page = (meta) => ({ ok: true, status: 200, text: async () => `<head>${meta}</head>` });
-  const fetched = [];
-  const some = [list[1], list[2], list[3], { ...list[4], desc: 'Already has one that is long enough.' }].map((e) => ({ ...e }));
-  await describeFromPages(some, { max: 2, fetchPage: async (u, init) => { fetched.push([u, init.redirect]); return page(`<meta name="description" content="The page's own summary of ${u.split('/').filter(Boolean).pop()} for students.">`); } });
-  ok('the first few get their page summary, at most max requests', fetched.length === 2 && some[0].desc.includes('samancor-chrome-bursary') && some[1].desc.includes('aws-skills'));
-  ok('...asked for once, in canonical form, never through a redirect', fetched.every(([u, r]) => u.endsWith('/') && r === 'manual'));
-  ok('the rest get the plain line, and one that has a description is left alone', some[2].desc.endsWith('See the page for who can apply and how.') && some[3].desc === 'Already has one that is long enough.');
-  const failing = [{ ...list[1] }];
-  await describeFromPages(failing, { fetchPage: async () => { throw new Error('timeout'); } });
-  ok('a page that cannot be read falls back to the plain line', failing[0].desc.startsWith('Engineering bursary.'));
+  ok('genericDesc is our own plain line, naming the faculty or just "Bursary"', genericDesc({ tag: 'Engineering' }) === 'Engineering bursary. See the page for who can apply and how.' && genericDesc({ tag: null }).startsWith('Bursary.'));
+
+  // robots.txt on zabursaries asks for Crawl-delay: 30. The monthly pages are read one at a time, that far apart.
+  const events = []; let inFlight = 0, maxInFlight = 0;
+  const slowFetch = async (u) => { inFlight++; maxInFlight = Math.max(maxInFlight, inFlight); events.push(['get', u.match(/closing-in-(\w+)/)[1]]); await Promise.resolve(); inFlight--; return { status: 200, ok: true, text: async () => html }; };
+  const naps = [];
+  await closingPages({ now: NOW, fetchPage: slowFetch, sleep: async (ms) => { naps.push(ms); events.push(['sleep', ms]); } });
+  ok('the crawl delay is the 30 seconds robots.txt asks for', ZA_CRAWL_DELAY_MS === 30000);
+  ok('the three monthly pages are fetched one at a time, with a full delay between each', maxInFlight === 1 && events.map((e) => e[0]).join() === 'get,sleep,get,sleep,get' && naps.every((n) => n === 30000) && naps.length === 2, JSON.stringify(events));
+  ok('no wait before the first request or after the last', events[0][0] === 'get' && events[events.length - 1][0] === 'get');
+  const missing = await closingPages({ now: NOW, fetchPage: async () => ({ status: 404 }), sleep: async () => {} });
+  ok('a missing month does not stop the next one being checked', missing.length === 0);
+  ok('the default really waits (a short override proves the clock is used)', await (async () => { const t0 = Date.now(); await closingPages({ now: NOW, fetchPage: async () => ({ status: 404 }), delayMs: 20 }); return Date.now() - t0 >= 35; })());
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);

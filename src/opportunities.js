@@ -164,13 +164,19 @@ export function includesClosing(only) {
   return !only || !only.length || only.some((w) => /closing|^all$/i.test(w.trim()));
 }
 
+// zabursaries.co.za/robots.txt asks every crawler for `Crawl-delay: 30`. These monthly pages are
+// the only requests this job makes to that site itself, and it makes them one at a time, this far apart.
+export const ZA_CRAWL_DELAY_MS = 30000;
+const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * zabursaries keeps "closing soon" on one page per month, at
  * /bursaries-closing-in-<month>-<year>/. Build this month's and the next two
  * and keep the ones that exist. Only a 404/410 rules a page out: a blocked or
  * slow request still yields a lead, since a human reviews the list anyway.
+ * One at a time, ZA_CRAWL_DELAY_MS apart (see above): at most 3 requests, about a minute.
  */
-export async function closingPages({ now = new Date(), fetchPage = fetch } = {}) {
+export async function closingPages({ now = new Date(), fetchPage = fetch, sleep = sleepMs, delayMs = ZA_CRAWL_DELAY_MS } = {}) {
   const pages = [];
   for (let i = 0; i < 3; i++) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
@@ -178,22 +184,22 @@ export async function closingPages({ now = new Date(), fetchPage = fetch } = {})
     pages.push({ label, url: `https://www.${ZA}/bursaries-closing-in-${MONTHS[d.getUTCMonth()]}-${d.getUTCFullYear()}/` });
   }
 
-  const checked = await Promise.all(
-    pages.map(async (page) => {
-      try {
-        const res = await fetchPage(page.url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
-          signal: AbortSignal.timeout(10000),
-        });
-        if (res.status === 404 || res.status === 410) return null;
-        // Keep the body: the list on the page is read by parseClosingLists, at no extra request.
-        if (res.ok && typeof res.text === 'function') Object.defineProperty(page, 'html', { value: await res.text(), enumerable: false });
-        return page;
-      } catch {
-        return page;
-      }
-    })
-  );
+  const checked = [];
+  for (const [i, page] of pages.entries()) {
+    if (i > 0) await sleep(delayMs);
+    try {
+      const res = await fetchPage(page.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.status === 404 || res.status === 410) continue;
+      // Keep the body: the list on the page is read by parseClosingLists, at no extra request.
+      if (res.ok && typeof res.text === 'function') Object.defineProperty(page, 'html', { value: await res.text(), enumerable: false });
+      checked.push(page);
+    } catch {
+      checked.push(page);
+    }
+  }
 
   return checked.filter(Boolean).map((page) => {
     const { label, url } = page;
@@ -244,34 +250,13 @@ export function parseClosingLists(pages, now = new Date()) {
   return out;
 }
 
-/** A plain description for a bursary whose page was not read, so no entry goes out bare. */
+/**
+ * Our own words for a bursary, for the public site. We do not copy a listing's description or
+ * snippet onto the site: the sites we read claim copyright in their text, and one forbids
+ * republishing it. The entry gives the name, the date and a link; the page says the rest.
+ */
 export function genericDesc(f) {
   return `${f.tag ? `${f.tag} bursary` : 'Bursary'}. See the page for who can apply and how.`;
-}
-
-// Page lookups share one budget (see MAX_PAGE_LOOKUPS): a few go to search leads with no
-// date, the rest to the descriptions of the bursaries chosen for the PR.
-export const DEADLINE_LOOKUPS = 4;
-export const DESCRIPTION_LOOKUPS = 8;
-
-/**
- * Give leads without a description the page's own meta description, soonest first,
- * at most `max` pages. Anything not read, or whose page has none, gets genericDesc.
- */
-export async function describeFromPages(entries, { fetchPage = fetch, max = DESCRIPTION_LOOKUPS } = {}) {
-  const todo = entries.filter((f) => !f.desc && pageUrl(f.url)).slice(0, max);
-  await Promise.all(todo.map(async (f) => {
-    try {
-      const res = await fetchPage(pageUrl(f.url), {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
-        signal: AbortSignal.timeout(10000),
-        redirect: 'manual',
-      });
-      if (res.ok) f.desc = metaDescription(await res.text());
-    } catch { /* falls back to the generic line */ }
-  }));
-  for (const f of entries) if (!f.desc) f.desc = genericDesc(f);
-  return entries;
 }
 
 /* ------------------------------------------------------------------ *
@@ -527,98 +512,6 @@ function decodeEntities(text) {
     .replace(/&amp;/g, '&');
 }
 
-/** Page HTML → plain text, enough to read a date out of. */
-export function htmlToText(html) {
-  return decodeEntities(
-    String(html ?? '')
-      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-  )
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * The page's own summary (its meta or og description). Search snippets are
- * whichever chunk of the page matched best, often a mid-sentence fragment; the
- * page's description is written to stand alone.
- */
-export function metaDescription(html) {
-  for (const tag of String(html ?? '').match(/<meta\b[^>]*>/gi) || []) {
-    if (!/\b(?:name|property)\s*=\s*["'](?:description|og:description)["']/i.test(tag)) continue;
-    const m = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
-    const text = m ? truncate(inert(decodeEntities(m[1] ?? m[2])), MAX_DESC) : '';
-    if (text.length >= 20) return text;
-  }
-  return '';
-}
-
-// A Worker invocation may make 50 outbound requests on the free plan, and a redirect
-// counts as another. A real run uses about 30 before any page is read: 10 searches,
-// 3 closing-soon pages, ~3 to authenticate, ~9 for the PR and ~3 for the issue.
-// 10 lookups (one request each, see pageUrl) leaves a margin of about 10. The first
-// deployed run used 20 lookups that each redirected, and failed on this limit.
-export const MAX_PAGE_LOOKUPS = 12;
-
-/**
- * The URL to read a lead's page from. zabursaries answers a path without its
- * trailing slash with a 301, which would double the cost of the lookup, so ask
- * for the slash form. Returns null for pages that cannot hold one lead's date:
- * a zabursaries page one path segment deep is a hub ("/law-bursaries-south-africa",
- * "/mba-postgraduate"); a single bursary is "/<faculty>/<bursary>".
- */
-export function pageUrl(url) {
-  let u;
-  try { u = new URL(url); } catch { return null; }
-  if (sourceOf(url) !== 'zabursaries') return u.href;
-  const path = u.pathname.replace(/\/+$/, '');
-  if (path.split('/').filter(Boolean).length < 2) return null;
-  u.pathname = path + '/';
-  u.search = '';
-  u.hash = '';
-  return u.href;
-}
-
-/**
- * Search snippets rarely carry the deadline (real zabursaries snippets had none),
- * but the bursary pages themselves state it. For leads still without a date, read
- * the page, from the two trusted sites only, and take the date from there. A page
- * that says it has already closed is dropped. Failures just leave the lead undated.
- */
-export async function enrichDeadlines(findings, { fetchPage = fetch, now = new Date(), onResult, max = DEADLINE_LOOKUPS } = {}) {
-  const wanted = findings
-    .filter((f) => !f.closes && f.pass !== 'closing' && sourceOf(f.url) !== 'broader search' && pageUrl(f.url))
-    .slice(0, max);
-
-  await Promise.all(wanted.map(async (f) => {
-    try {
-      // 'manual': a redirect is not followed (each one would cost another subrequest), so the lead stays undated.
-      const res = await fetchPage(pageUrl(f.url), {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
-        signal: AbortSignal.timeout(10000),
-        redirect: 'manual',
-      });
-      if (!res.ok) return onResult?.({ enrich: true, url: f.url, note: `page returned ${res.status}` });
-      const html = await res.text();
-      // The page's own summary reads better than whichever chunk the search matched.
-      const summary = metaDescription(html);
-      if (summary) f.desc = summary;
-      const deadline = extractDeadline(htmlToText(html), now);
-      if (!deadline) return onResult?.({ enrich: true, url: f.url, note: 'no single closing date on the page' });
-      if (deadline.past) {
-        f.closed = deadline.date;
-        return onResult?.({ enrich: true, url: f.url, note: `closing date ${deadline.date} has already passed — dropped` });
-      }
-      f.closes = deadline.date;
-      onResult?.({ enrich: true, url: f.url, note: `closes ${deadline.date}` });
-    } catch (err) {
-      onResult?.({ enrich: true, url: f.url, note: `could not read the page: ${err?.message || err}` });
-    }
-  }));
-
-  return findings.filter((f) => !f.closed);
-}
-
 const DATE_RE = /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+20\d\d\b/gi;
 
 /**
@@ -844,18 +737,18 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
  * are final. It returns { lines, result }: `lines` go into the issue after its
  * opening paragraph, and `result` is merged into what this returns.
  */
-export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, onResult, onFindings }) {
+export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, closingDelayMs = ZA_CRAWL_DELAY_MS, onResult, onFindings }) {
   if (!config.tavilyKey) {
     throw new Error('TAVILY_API_KEY is not set. Add it with: wrangler secret put TAVILY_API_KEY');
   }
 
   const searches = planned || planSearches();
   const [closing, collected] = await Promise.all([
-    skipClosing ? [] : closingPages({ now, fetchPage }),
+    skipClosing ? [] : closingPages({ now, fetchPage, delayMs: closingDelayMs }),
     collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult }),
   ]);
   const { failures, searched } = collected;
-  const findings = [...closing, ...(await enrichDeadlines(collected.findings, { fetchPage, now, onResult }))];
+  const findings = [...closing, ...collected.findings];
   // The individual bursaries on the monthly pages go to the PR, not the issue (it would list dozens).
   const listed = parseClosingLists(closing, now);
 
