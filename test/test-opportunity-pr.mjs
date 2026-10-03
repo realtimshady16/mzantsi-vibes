@@ -73,6 +73,7 @@ function fakeGh({ opps = skeleton, readme = '# README\n\n-   [Listed](https://ww
     createBranch: rec('createBranch', async () => ({})),
     commitReadme: rec('commitReadme', async () => ({})),
     createPullRequest: rec('createPullRequest', async (o, r, pr) => ({ number: 77, html_url: 'https://github.com/o/r/pull/77', ...pr })),
+    deleteBranch: rec('deleteBranch', async () => ({})),
     ensureLabel: rec('ensureLabel', async () => ({})),
     addLabels: rec('addLabels', async () => ({})),
     createIssue: rec('createIssue', async (o, r, i) => ({ number: 9, html_url: 'https://github.com/o/r/issues/9', ...i })),
@@ -193,6 +194,29 @@ sec('runWeeklyOpportunities: the whole job');
   const dupGh = fakeGh({ readme: '# R\n\n-   [Sasol](https://www.zabursaries.co.za/engineering-bursaries-south-africa/sasol-bursary) — Already.\n' });
   await runWeeklyOpportunities(base(dupGh));
   ok('a lead already in the README is not proposed again', dupGh.of('createPullRequest').length === 0 && /already listed/.test(dupGh.of('createIssue')[0][3].body));
+}
+
+/* -------------------------------------------------------------- */
+sec('the Worker\'s 50-request limit');
+{
+  // The first deployed run failed with "Too many subrequests": 20 page lookups that each
+  // redirected, on top of the searches and the PR. Count every outbound request in a worst case.
+  let n = 0;
+  const gh = fakeGh();
+  const counted = {};
+  for (const [k, v] of Object.entries(gh)) if (typeof v === 'function' && !['names', 'of'].includes(k)) counted[k] = async (...a) => { n += k === 'ensureLabel' ? 2 : 1; return v(...a); };
+  const tavilyFetch = async (url, init) => {
+    n++;
+    const q = JSON.parse(init.body).query;
+    const results = Array.from({ length: 5 }, (_, i) => ({ title: `B ${q.slice(0, 6)} ${i}`, url: `https://www.zabursaries.co.za/f${q.length}/${encodeURIComponent(q.slice(0, 6))}-${i}`, content: 'A bursary.', score: 0.9 }));
+    return { ok: true, status: 200, json: async () => ({ results }) };
+  };
+  const pageFetch = async (u) => { n++; return { ok: true, status: 200, text: async () => '<p>Closing date: 30 November 2026</p>' }; };
+  const AUTH = 2; // JWT -> installation id -> token
+  const out = await runWeeklyOpportunities({ config, gh: { ...gh, ...counted }, fetchImpl: tavilyFetch, fetchPage: pageFetch, now: NOW });
+  const total = n + AUTH;
+  ok('a worst-case run (50 dated leads, PR and issue both opened) stays under the limit with a margin', out.pr?.number === 77 && out.issueUrl && total <= 45, `used ${total} of 50`);
+  console.log(`        (worst case used ${total} of 50)`);
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);

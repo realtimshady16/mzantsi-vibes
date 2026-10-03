@@ -7,7 +7,7 @@
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
   isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
-  extractDeadline, entryLine, pasteBlock, htmlToText, metaDescription, enrichDeadlines, MAX_PAGE_LOOKUPS,
+  extractDeadline, entryLine, pasteBlock, htmlToText, metaDescription, enrichDeadlines, pageUrl, MAX_PAGE_LOOKUPS,
 } from '../src/opportunities.js';
 import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -423,25 +423,26 @@ sec('closing dates: reading the page when the snippet has none');
 
   const page = (body) => `<html><body><nav>CLOSING SOON & BLOG</nav><main>${body}</main></body></html>`;
   const pages = {
-    'https://www.zabursaries.co.za/e/open': `<html><head>${meta}</head>` + page('<h2>WHEN IS THE CLOSING DATE FOR THE OPEN BURSARY?</h2><p>30 November 2026. (Applications after this date…)</p>'),
-    'https://www.zabursaries.co.za/e/closed': page('<h2>WHEN IS THE CLOSING DATE FOR THE OLD BURSARY? 31 July 2026.</h2>'),
-    'https://www.zabursaries.co.za/e/nodate': page('<p>Apply through the company website.</p>'),
-    'https://www.zabursaries.co.za/e/hub': page('<p>Closing date: 30 Nov 2026</p><p>Closing date: 15 Dec 2026</p>'),
+    'https://www.zabursaries.co.za/bursaries/open/': `<html><head>${meta}</head>` + page('<h2>WHEN IS THE CLOSING DATE FOR THE OPEN BURSARY?</h2><p>30 November 2026. (Applications after this date…)</p>'),
+    'https://www.zabursaries.co.za/bursaries/closed/': page('<h2>WHEN IS THE CLOSING DATE FOR THE OLD BURSARY? 31 July 2026.</h2>'),
+    'https://www.zabursaries.co.za/bursaries/nodate/': page('<p>Apply through the company website.</p>'),
+    'https://www.zabursaries.co.za/bursaries/hub/': page('<p>Closing date: 30 Nov 2026</p><p>Closing date: 15 Dec 2026</p>'),
     'https://www.graduates24.com/j/job': page('<h4>Job Summary</h4> Closing Date  18 December 2026 Date Listed 17 Sep 2026 <h4>Other Opportunities</h4> NTT  Closes 09 Oct 2026'),
   };
   const asked = [];
   const fetchPage = async (url) => {
     asked.push(url);
-    if (url.endsWith('/boom')) throw new Error('timeout');
-    if (url.endsWith('/gone')) return { ok: false, status: 404, text: async () => '' };
+    if (url.endsWith('/boom/')) throw new Error('timeout');
+    if (url.endsWith('/gone/')) return { ok: false, status: 404, text: async () => '' };
     return { ok: true, status: 200, text: async () => pages[url] ?? '' };
   };
   const f = (url, extra = {}) => ({ title: url.split('/').pop(), url, desc: '', source: 'zabursaries', pass: 'scoped', category: 'Bursaries', tag: null, ...extra });
   const input = [
-    f('https://www.zabursaries.co.za/e/open'), f('https://www.zabursaries.co.za/e/closed'), f('https://www.zabursaries.co.za/e/nodate'),
-    f('https://www.zabursaries.co.za/e/hub'), f('https://www.graduates24.com/j/job', { source: 'graduates24' }),
-    f('https://www.zabursaries.co.za/e/already', { closes: '2026-12-31' }),
-    f('https://www.zabursaries.co.za/e/gone'), f('https://www.zabursaries.co.za/e/boom'),
+    f('https://www.zabursaries.co.za/bursaries/open'), f('https://www.zabursaries.co.za/bursaries/closed'), f('https://www.zabursaries.co.za/bursaries/nodate'),
+    f('https://www.zabursaries.co.za/bursaries/hub'), f('https://www.graduates24.com/j/job', { source: 'graduates24' }),
+    f('https://www.zabursaries.co.za/bursaries/already', { closes: '2026-12-31' }),
+    f('https://www.zabursaries.co.za/bursaries/gone'), f('https://www.zabursaries.co.za/bursaries/boom'),
+    f('https://www.zabursaries.co.za/law-bursaries-south-africa'),
     f('https://jobs.example.co.za/1', { pass: 'broad', source: 'broader search' }),
     { title: 'Bursaries closing in October 2026', url: 'https://www.zabursaries.co.za/bursaries-closing-in-october-2026/', pass: 'closing', category: 'Closing soon', source: 'zabursaries' },
   ];
@@ -459,18 +460,29 @@ sec('closing dates: reading the page when the snippet has none');
   ok('a lead that already has a date is not fetched again', !asked.some((u) => u.endsWith('/already')) && by('already').closes === '2026-12-31');
   ok('a 404 or a timeout leaves the lead in, undated, and explains', by('gone') && by('boom') && !by('gone').closes && !by('boom').closes &&
     notes.some((e) => /returned 404/.test(e.note)) && notes.some((e) => /could not read the page: timeout/.test(e.note)));
+  ok('pages are asked for once, in their canonical form, and a redirect is never followed',
+    asked.every((u) => !u.endsWith('isfap') ) && asked.filter((u) => u.includes('zabursaries')).every((u) => u.endsWith('/')) && new Set(asked).size === asked.length);
+  ok('a redirect (301) leaves the lead undated rather than costing a second request', await (async () => {
+    const seen = [];
+    const out2 = await enrichDeadlines([f('https://www.zabursaries.co.za/bursaries/moved')], { fetchPage: async (u, init) => { seen.push(init.redirect); return { ok: false, status: 301, text: async () => '' }; }, now: NOW });
+    return seen.join() === 'manual' && out2.length === 1 && !out2[0].closes;
+  })());
+  ok('a zabursaries hub page (one path segment) is not fetched, and a bursary page two segments deep is', !asked.some((u) => /zabursaries\.co\.za\/[^/]+\/?$/.test(u)) && asked.some((u) => u.endsWith('/bursaries/open/')));
   ok('broader-search results are never fetched (only the two trusted sites)', !asked.some((u) => u.includes('example.co.za')) && by('1'));
   ok('the closing-soon pages are not fetched', !asked.some((u) => u.includes('bursaries-closing-in')));
 
-  const many = Array.from({ length: MAX_PAGE_LOOKUPS + 15 }, (_, i) => f(`https://www.zabursaries.co.za/e/n${i}`));
+  const many = Array.from({ length: MAX_PAGE_LOOKUPS + 15 }, (_, i) => f(`https://www.zabursaries.co.za/bursaries/n${i}`));
   const askedMany = [];
   await enrichDeadlines(many, { fetchPage: async (u) => { askedMany.push(u); return { ok: true, status: 200, text: async () => '' }; }, now: NOW });
-  ok(`at most ${MAX_PAGE_LOOKUPS} pages are read per run (the Worker's subrequest limit)`, askedMany.length === MAX_PAGE_LOOKUPS && MAX_PAGE_LOOKUPS === 20);
+  ok(`at most ${MAX_PAGE_LOOKUPS} pages are read per run (the Worker's subrequest limit)`, askedMany.length === MAX_PAGE_LOOKUPS && MAX_PAGE_LOOKUPS === 10);
+  ok('pageUrl: slash form for zabursaries, untouched elsewhere, hubs and junk refused',
+    pageUrl('https://www.zabursaries.co.za/a/b') === 'https://www.zabursaries.co.za/a/b/' && pageUrl('https://www.zabursaries.co.za/a/b/?x=1#h') === 'https://www.zabursaries.co.za/a/b/' &&
+    pageUrl('https://www.zabursaries.co.za/a') === null && pageUrl('https://www.zabursaries.co.za/') === null && pageUrl('https://www.graduates24.com/some-job') === 'https://www.graduates24.com/some-job' && pageUrl('not a url') === null);
 
   // End to end: the weekly run's issue carries the date it read from the page.
   const searchResult = (title, url) => ({ title, url, content: 'A bursary for students.', score: 0.9 });
   const t = fakeTavily((body) => (/engineering/.test(body.query)
-    ? [searchResult('Open Bursary', 'https://www.zabursaries.co.za/e/open'), searchResult('Old Bursary', 'https://www.zabursaries.co.za/e/closed')]
+    ? [searchResult('Open Bursary', 'https://www.zabursaries.co.za/bursaries/open'), searchResult('Old Bursary', 'https://www.zabursaries.co.za/bursaries/closed')]
     : []));
   const run = await runOpportunityDigest({ config: { tavilyKey: 'k', owner: 'o', repo: 'r' }, fetchImpl: t.fetchImpl, fetchPage, dryRun: true, now: NOW });
   ok('the issue lists the lead whose page gave a date, with it', run.body.includes('[Open Bursary]') && run.body.includes('**closes 2026-11-30**'));
