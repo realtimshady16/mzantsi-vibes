@@ -16,7 +16,7 @@ import { handleSubmit } from './submit.js';
 import { handleAction } from './action.js';
 import { handleAdminRun } from './admin.js';
 import { runDigest, runBatchMerge } from './cron.js';
-import { runOpportunityDigest } from './opportunities.js';
+import { runWeeklyOpportunities } from './opportunity-pr.js';
 import { handleIndex } from './content-index.js';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -175,7 +175,7 @@ export default {
 
     if (event.cron === CRON_OPPS) {
       ctx.waitUntil(
-        runOpportunityDigest({ config, gh })
+        runWeeklyOpportunities({ config, gh })
           .then((r) => console.log('opportunity digest:', JSON.stringify({ ...r, body: undefined })))
           .catch((e) => console.error('opportunity digest failed:', e?.stack || e))
       );

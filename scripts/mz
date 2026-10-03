@@ -9,7 +9,7 @@
 #   mz digest                 preview the review digest: who gets emailed, which PRs
 #   mz digest send            send the review digest email for real
 #   mz opps                   run the opportunity searches and show the issue (10 Tavily credits, posts nothing)
-#   mz opps post              run them and open the real GitHub issue (10 credits)
+#   mz opps post              run them, open the real issue and the PR of dated leads (10 credits)
 #   mz opps tune [flags]      tune the searches locally, e.g.  mz opps tune --only job --explain
 #   mz merge                  preview what the 18:00 job would merge and close
 #   mz merge run              run the 18:00 job now
@@ -101,10 +101,10 @@ case "$cmd" in
       "")
         trigger opportunities --dry-run
         echo
-        echo "(Preview only. Nothing was posted. To open the issue: mz opps post)"
+        echo "(Preview only. Nothing was posted or opened. To open the issue and PR: mz opps post)"
         ;;
       post)
-        confirm "run the opportunity searches (10 Tavily credits) and open a real GitHub issue"
+        confirm "run the opportunity searches (10 Tavily credits), open a real GitHub issue, and open a PR adding any dated leads to OPPORTUNITIES.md"
         trigger opportunities
         ;;
       tune)

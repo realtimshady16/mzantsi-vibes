@@ -7,7 +7,7 @@
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
   isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
-  extractDeadline, entryLine, pasteBlock, htmlToText, enrichDeadlines, MAX_PAGE_LOOKUPS,
+  extractDeadline, entryLine, pasteBlock, htmlToText, metaDescription, enrichDeadlines, MAX_PAGE_LOOKUPS,
 } from '../src/opportunities.js';
 import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -415,9 +415,15 @@ sec('closing dates: reading the page when the snippet has none');
   ok('htmlToText drops scripts, styles and tags, decodes entities, collapses space',
     htmlToText('<style>p{}</style><script>var a="closes 1 Jan 2027"</script><p>Closing&nbsp;date:<b> 30 November 2026</b></p>  <p>Tom&#8217;s &amp; Co</p>') === "Closing date: 30 November 2026 Tom's & Co");
 
+  const meta = '<meta name="description" content="The Open Bursary covers &quot;scarce skills&quot; studies. Apply now for 2027." />';
+  ok('metaDescription reads the page summary and decodes entities', metaDescription(`<head>${meta}</head>`) === 'The Open Bursary covers "scarce skills" studies. Apply now for 2027.');
+  ok('...whatever the attribute order, quote style, or og: variant', metaDescription(`<meta content='A good long summary of the page here.' property='og:description'>`) === 'A good long summary of the page here.');
+  ok('...and ignores a missing, empty or too-short one', metaDescription('<html></html>') === '' && metaDescription('<meta name="description" content="">') === '' && metaDescription('<meta name="description" content="Short">') === '');
+  ok('...and keeps web text inert', !/@[a-z]|\[|\]/i.test(metaDescription('<meta name="description" content="Mail @everyone [click](http://evil.example) now please ok">')));
+
   const page = (body) => `<html><body><nav>CLOSING SOON & BLOG</nav><main>${body}</main></body></html>`;
   const pages = {
-    'https://www.zabursaries.co.za/e/open': page('<h2>WHEN IS THE CLOSING DATE FOR THE OPEN BURSARY?</h2><p>30 November 2026. (Applications after this date…)</p>'),
+    'https://www.zabursaries.co.za/e/open': `<html><head>${meta}</head>` + page('<h2>WHEN IS THE CLOSING DATE FOR THE OPEN BURSARY?</h2><p>30 November 2026. (Applications after this date…)</p>'),
     'https://www.zabursaries.co.za/e/closed': page('<h2>WHEN IS THE CLOSING DATE FOR THE OLD BURSARY? 31 July 2026.</h2>'),
     'https://www.zabursaries.co.za/e/nodate': page('<p>Apply through the company website.</p>'),
     'https://www.zabursaries.co.za/e/hub': page('<p>Closing date: 30 Nov 2026</p><p>Closing date: 15 Dec 2026</p>'),
@@ -444,6 +450,8 @@ sec('closing dates: reading the page when the snippet has none');
   const by = (n) => out.find((x) => x.title === n);
 
   ok('a page that states one future closing date gives the lead a closes', by('open').closes === '2026-11-30');
+  ok("the page's own summary replaces the search fragment as the description", by('open').desc === 'The Open Bursary covers "scarce skills" studies. Apply now for 2027.', by('open').desc);
+  ok('a page with no summary keeps the snippet description', by('nodate').desc === '');
   ok('a page that says it has closed drops the lead', !by('closed') && notes.some((e) => /2026-07-31 has already passed — dropped/.test(e.note)));
   ok('a page with no date leaves the lead undated, and in', by('nodate') && !('closes' in by('nodate')));
   ok('a page with two closing dates leaves it undated (not a guess)', by('hub') && !('closes' in by('hub')));

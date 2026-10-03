@@ -16,12 +16,12 @@
 
 import { verifyAdminToken } from './tokens.js';
 import { runDigest, runBatchMerge } from './cron.js';
-import { runOpportunityDigest } from './opportunities.js';
+import { runWeeklyOpportunities } from './opportunity-pr.js';
 
 export const JOBS = {
   digest: ({ config, gh, dryRun }) => runDigest({ config, gh, dryRun }),
   merge: ({ config, gh, dryRun }) => runBatchMerge({ config, gh, dryRun }),
-  opportunities: ({ config, gh, dryRun }) => runOpportunityDigest({ config, gh, dryRun }),
+  opportunities: ({ config, gh, dryRun }) => runWeeklyOpportunities({ config, gh, dryRun }),
 };
 
 const json = (body, status = 200) =>
