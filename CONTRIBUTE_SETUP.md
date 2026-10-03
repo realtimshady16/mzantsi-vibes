@@ -151,9 +151,9 @@ node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dr
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
-node test/test-opportunity-pr.mjs # 45 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
-node test/test-opportunities.mjs # 170 checks — opportunity digest, Tavily and GitHub faked
-node test/browser/run.mjs      # 148 checks — the six pages in headless Chromium (needs Chromium; skips without it)
+node test/test-opportunity-pr.mjs # 62 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
+node test/test-opportunities.mjs # 169 checks — opportunity digest, Tavily and GitHub faked
+node test/browser/run.mjs      # 154 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
 `test-integration.mjs` reads the real README from GitHub. The repo is public so
@@ -209,7 +209,16 @@ goes near the README, and there is no deduplication between weeks.
 - **Closing soon:** zabursaries keeps these on one page per month
   (`/bursaries-closing-in-november-2026/`). Tavily's index missed the current
   month's page, so the job builds this month's and the next two URLs and keeps
-  the ones that exist (a 404 rules a page out). No search, no credits.
+  the ones that exist (a 404 rules a page out). No search, no credits. The issue
+  links each page, and **the page itself is also read** (the same request): each
+  row is `<li><a href=…>Bursary name</a> (closing: 8 October 2026)</li>`, an
+  individual bursary with its own date, which is far more useful than the link.
+  Rows with no date ("closing: none – applications are accepted anytime"), closed
+  rows and rows not on zabursaries are skipped. These go to the PR below (not into
+  the issue, which would list dozens). **These three requests are the only ones the
+  job makes to zabursaries itself, one at a time, 30 seconds apart** (their
+  `robots.txt` asks for `Crawl-delay: 30`), so this step takes about a minute.
+  A dry run therefore takes about a minute longer than before.
 - **Trusted pass:** bursaries by the six README faculties (zabursaries only,
   filed by the faculty in each URL), then learnerships, graduate programmes,
   jobs and training/vac work on both sites (`include_domains`). Everything but
@@ -226,35 +235,35 @@ goes near the README, and there is no deduplication between weeks.
   dropped; titles that only mention past years are dropped; page chrome
   ("Create My CV", WhatsApp banners, sidebars of other listings) is stripped
   from descriptions. A lead with no usable description shows title and link only.
-- **Closing dates:** Tavily's snippets rarely contain the deadline (real
-  zabursaries snippets had none), so a date comes from two places, in order: the
-  result's title and snippet, then, for a lead still without one, **the page
-  itself** (zabursaries and graduates24 only, at most 10 pages per run, each asked for
-  once in its canonical form and never through a redirect, and never a zabursaries
-  hub page, so the Worker stays inside its 50-request limit (a redirect counts as
-  a second request; the first deployed run failed on this); a page that cannot be read
-  just leaves the lead undated). The rules are conservative, because a wrong
-  deadline is worse than a missing one: the field label ("Closing Date", or
-  zabursaries' "WHEN IS THE CLOSING DATE FOR THE X BURSARY? 22 September 2026")
-  is trusted first, then a sentence ("close on", "deadline is", "apply by",
-  lowercase "closes 30 Nov 2026"); a year is required; capitalised
-  "Closes: 30 Sep 2026" is a listing row for *another* opening and is ignored;
-  more than one distinct date at the same level means a listing, so no date is
-  reported. A lead whose date has passed is dropped (`--explain` lists each page
-  read and what it found). Dated leads show `closes YYYY-MM-DD`, and the issue
-  ends with a collapsed **Ready to paste into OPPORTUNITIES.md** block: one line
-  per dated lead in the `{closes; tags; source}` format, under the heading it goes
-  in. Undated leads are not in it, because an entry with no date never expires. The
-  block is a fallback for when the PR below is skipped or fails.
+- **Closing dates:** a date comes from the monthly lists above, or from a search
+  result's title and snippet. The job never fetches a bursary or job page itself
+  to look for one (see "What the sources allow" below). The snippet rules are
+  conservative, because a wrong deadline is worse than a missing one: the field
+  label ("Closing Date") is trusted first, then a sentence ("close on", "deadline
+  is", "apply by", lowercase "closes 30 Nov 2026"); a year is required;
+  capitalised "Closes: 30 Sep 2026" is a listing row for *another* opening and is
+  ignored; more than one distinct date at the same level means a listing, so no
+  date is reported. A lead whose date has passed is dropped. Dated leads show
+  `closes YYYY-MM-DD`, and the issue ends with a collapsed **Ready to paste into
+  OPPORTUNITIES.md** block: one line per dated lead in the `{closes; tags; source}`
+  format, under the heading it goes in. Undated leads are not in it, because an
+  entry with no date never expires. The block is a fallback for when the PR below
+  is skipped or fails.
 - **The PR of dated leads:** the same run then opens **one pull request** adding
   the dated leads to `OPPORTUNITIES.md` (Bursaries under *Paying for It*, the rest
   under *Finding Work*; the file's headings are created if missing). It is opened
   by the **GitHub App**, from a `contribute/opps-<date>-<id>` branch, labelled
   `needs-review`, so it appears in the 08:00 digest email with Approve and Reject
   links and is only merged by the 18:00 job once approved. It is never pushed to
-  `main`. Limits: only the two trusted sites; one such PR open at a time (the
+  `main`. Limits: **bursaries from zabursaries only** (nothing of Graduates24's
+  goes onto the site, see below); **every entry gets our own plain description**
+  ("Engineering bursary. See the page for who can apply and how."), never text
+  copied from a page or a search snippet; one such PR open at a time (the
   next week says so and skips); at most 15 entries, soonest first; anything whose
-  link is already in `README.md` or `OPPORTUNITIES.md` is skipped. The entries
+  link is already in `README.md` or `OPPORTUNITIES.md` is skipped; only entries
+  closing tomorrow or later (a PR is approved and merged after it is opened, so one
+  closing today would be dead on arrival). The monthly lists are the main supply:
+  the soonest 15 go in the first PR, and the next 15 a week later. The entries
   are read back through the site's own parser before the PR is opened, and if one
   would not come out with its link and date, no PR is opened. If the PR cannot be
   opened for any reason, the issue is still posted and says why. Check each date
@@ -263,6 +272,32 @@ goes near the README, and there is no deduplication between weeks.
 - **Cost:** 10 basic searches = **10 Tavily credits per run** (15 with the
   broader pass). No advanced search.
 - **Issue label:** `opportunity-digest`, created on first use.
+
+### What the sources allow
+
+Read on 2026-10-03; this is a practical reading, not legal advice, and the sites'
+pages can change. Re-read them before widening what the job does.
+
+- **graduates24.com** (Terms & Conditions, `/terms&conditions`): §5.1 forbids
+  "systematic or automated data collection … without our express written
+  consent" and accessing the site "using any robot, spider or other automated
+  means"; §4.2 forbids downloading material beyond browser use; §4.4 forbids
+  republishing or redistributing it. Its `robots.txt` allows `*` but blocks AI
+  crawlers (GPTBot, ClaudeBot, CCBot…). **So this project never fetches
+  Graduates24 itself and nothing of theirs is written to the site.** Its leads
+  appear only as links in the weekly issue, found by Tavily (which does its own
+  crawling). Consent can be asked for through the form on `/contact`; with it,
+  the structured listing cards (title, link, `Closes:` date) could be read.
+- **zabursaries.co.za:** no terms of use page (the usual URLs return 404), only a
+  privacy policy with a disclaimer ("published in good faith … at your own risk").
+  The footer says "Copyright ZA Bursaries", so their text is not free to copy.
+  `robots.txt` has no `Disallow`, only `Crawl-delay: 30`. So: **three requests per
+  run, 30 seconds apart; only names, dates and links are taken, and descriptions
+  are our own words.** The site invites bursary providers to list for free
+  (info@zabursaries.co.za); asking permission to use their closing dates would be
+  polite and likely welcome.
+- Every entry carries `source: <site>` and links to the original page. The site
+  tells users to check dates themselves and not to rely on it alone.
 
 Setup is one secret: `wrangler secret put TAVILY_API_KEY` (key from
 <https://app.tavily.com>). Without it only this job fails, with a clear message

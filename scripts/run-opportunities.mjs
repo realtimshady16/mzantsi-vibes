@@ -132,10 +132,8 @@ console.error(`Running ${searches.length} searches (~${searches.length} Tavily c
 
 // --explain collects every decision, grouped under the search that produced it.
 const trace = new Map();
-const pageNotes = [];
 const onResult = explain
   ? (e) => {
-      if (e.enrich) return pageNotes.push(e);
       if (!trace.has(e.search)) trace.set(e.search, []);
       trace.get(e.search).push(e);
     }
@@ -172,11 +170,6 @@ if (explain) {
       else if (e.kept) console.error(`  KEEP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}`);
       else console.error(`  DROP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}\n         ↳ ${e.reason}`);
     }
-  }
-  if (pageNotes.length) {
-    console.error('=== closing dates read from the pages themselves ===\n');
-    for (const e of pageNotes) console.error(`  ${e.url}\n         ↳ ${e.note}`);
-    console.error('');
   }
 }
 

@@ -16,7 +16,7 @@ import { parseReadme } from '../PUBLISH/content-parse.js';
 import { todayInSA } from '../PUBLISH/entry-meta.js';
 import { LABELS, LABEL_META } from './github.js';
 import { insertEntries, linkTargets } from './opportunities-file.js';
-import { entryLine, destinationOf, sourceOf, urlKey, sastDate, inert, runOpportunityDigest } from './opportunities.js';
+import { entryLine, destinationOf, sourceOf, urlKey, sastDate, inert, runOpportunityDigest, genericDesc } from './opportunities.js';
 
 export const OPPS_PATH = 'OPPORTUNITIES.md';
 export const MAX_ENTRIES = 15;
@@ -55,25 +55,33 @@ async function openDigestPull(config, gh) {
  * Work out what the PR would add, without changing anything.
  * Returns { skipped } or { entries, markdown, sha, skippedDuplicates }.
  */
-export async function planOpportunityPr({ config, gh, findings, now = new Date(), fetchImpl }) {
+export async function planOpportunityPr({ config, gh, findings, listed = [], now = new Date(), fetchImpl }) {
   const open = await openDigestPull(config, gh);
   if (open) return { skipped: `PR #${open.number} from an earlier run is still open. Approve or reject it first.` };
 
   const today = todayInSA(now);
   const src = await readSources({ config, gh, fetchImpl });
-  const listed = new Set([...linkTargets(src.opps), ...linkTargets(src.readme)].map(urlKey));
+  const already = new Set([...linkTargets(src.opps), ...linkTargets(src.readme)].map(urlKey));
 
-  // Trusted sites only, with a closing date that has not passed, soonest first.
-  const dated = findings
-    .filter((f) => f.pass !== 'broad' && f.closes && f.closes >= today && sourceOf(f.url) !== 'broader search' && entryLine(f))
+  // Trusted sites only, closing tomorrow or later (a PR is approved and merged after it is opened, so
+  // an entry closing today would be dead on arrival), soonest first. `listed` are the
+  // individual bursaries from zabursaries' monthly pages; a search lead for the same page wins
+  // (it was read more closely).
+  const unique = new Map();
+  for (const f of [...findings, ...listed]) if (!unique.has(urlKey(f.url))) unique.set(urlKey(f.url), f);
+  // Bursaries from zabursaries only. Graduates24's terms forbid automated collection and republishing
+  // (see CONTRIBUTE_SETUP.md, "What the sources allow"), so nothing of theirs goes onto the site.
+  const dated = [...unique.values()]
+    .filter((f) => f.closes && f.closes > today && f.category === 'Bursaries' && sourceOf(f.url) === 'zabursaries' && entryLine(f))
     .sort((a, b) => a.closes.localeCompare(b.closes));
-  const fresh = dated.filter((f) => !listed.has(urlKey(f.url)));
+  const fresh = dated.filter((f) => !already.has(urlKey(f.url)));
   const skippedDuplicates = dated.length - fresh.length;
   if (!fresh.length) {
     return { skipped: dated.length ? `all ${dated.length} dated leads are already listed.` : 'no lead this week had a closing date.', skippedDuplicates };
   }
 
-  const picked = fresh.slice(0, MAX_ENTRIES);
+  // Our own description, never the page's or the search snippet's text. Copies, so the issue keeps its bullets.
+  const picked = fresh.slice(0, MAX_ENTRIES).map((f) => ({ ...f, desc: genericDesc(f) }));
   const additions = picked.map((f) => ({ ...destinationOf(f), line: entryLine(f) }));
   const markdown = insertEntries(src.opps, additions);
 
@@ -87,10 +95,13 @@ export async function planOpportunityPr({ config, gh, findings, now = new Date()
     if (!e || e.meta?.closes !== f.closes) throw new Error(`"${f.title}" would not read back from OPPORTUNITIES.md with its closing date; no PR opened.`);
   }
 
-  return { entries: picked, additions, markdown, sha: src.oppsSha, skippedDuplicates, hiddenByCap: fresh.length - picked.length };
+  return {
+    entries: picked, additions, markdown, sha: src.oppsSha, skippedDuplicates, hiddenByCap: fresh.length - picked.length,
+    fromLists: picked.filter((f) => f.pass === 'closing-list').length,
+  };
 }
 
-function prBody(entries, { skippedDuplicates, hiddenByCap }, now) {
+function prBody(entries, { skippedDuplicates, hiddenByCap, fromLists }, now) {
   const items = entries.map((f) => {
     const { pillar, section } = destinationOf(f);
     return `- **[${f.title.replace(/[\[\]]/g, '')}](${f.url})**: closes **${f.closes}** · ${pillar} › ${section} · _${sourceOf(f.url)}_`;
@@ -98,10 +109,11 @@ function prBody(entries, { skippedDuplicates, hiddenByCap }, now) {
   return [
     '### Weekly opportunity digest: closing dates',
     '',
-    `Opened by the weekly digest on ${sastDate(now)}. Each lead below had a closing date, read from its page or search result. **Check each date against the page before approving**: a wrong date hides a live opportunity, or keeps a closed one showing.`,
+    `Opened by the weekly digest on ${sastDate(now)}. Each entry below is a bursary with a closing date, taken from zabursaries' own "bursaries closing in…" lists (or, rarely, a search result). **Check each date against the bursary's own page before approving**: a wrong date hides a live opportunity, or keeps a closed one showing.`,
     '',
     ...items,
     '',
+    ...(fromLists ? [`${fromLists} of these come from zabursaries' monthly "bursaries closing in…" lists; the rest from this week's searches.`, ''] : []),
     ...(hiddenByCap ? [`${hiddenByCap} more dated lead${hiddenByCap === 1 ? '' : 's'} left for next week (at most ${MAX_ENTRIES} per PR).`, ''] : []),
     ...(skippedDuplicates ? [`${skippedDuplicates} already listed, skipped.`, ''] : []),
     'Each entry hides itself on its closing date, so nothing here needs removing later. Merge is handled by the daily batch job after review.',
@@ -147,10 +159,10 @@ export async function openOpportunityPr({ config, gh, plan, now = new Date() }) 
  */
 export async function runWeeklyOpportunities({ openPr = true, fetchContent, ...opts }) {
   const onFindings = openPr
-    ? async ({ findings, now, dryRun }) => {
+    ? async ({ findings, listed, now, dryRun }) => {
         const { config, gh } = opts;
         try {
-          const plan = await planOpportunityPr({ config, gh, findings, now, fetchImpl: fetchContent });
+          const plan = await planOpportunityPr({ config, gh, findings, listed, now, fetchImpl: fetchContent });
           if (plan.skipped) return { lines: [`📬 No PR this week: ${plan.skipped}`, ''], result: { pr: null, prSkipped: plan.skipped } };
 
           const n = plan.entries.length;

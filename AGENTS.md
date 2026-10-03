@@ -31,6 +31,8 @@ The site fetches `README.md` from `main` on GitHub at runtime
 - Time-sensitive entries go in `OPPORTUNITIES.md` (the form does not write there; the weekly digest opens a PR of dated leads, reviewed like any contribution). An entry
   may end with `{closes: 2026-11-30; tags: bursary}`; the site hides it after that date, and a `closes` it
   cannot read hides the entry. Format: `OPPORTUNITIES.md`, parser: `PUBLISH/entry-meta.js`.
+- Pages with a deadline pill show a disclaimer ("check the official page, we are not your only source"): the
+  project's decision is that checking is the user's job, so a date that is stale or wrong is acceptable if that is said.
 - Never put test data in the README. Test entries get closed or rejected, never merged.
 
 ## Layout
@@ -65,10 +67,10 @@ No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
 ```
 
-All ten must pass before a PR (59, 48, 43, 69, 170, 23, 39, 36, 39 and 45 checks as of writing).
+All ten must pass before a PR (59, 48, 43, 69, 169, 23, 39, 36, 39 and 62 checks as of writing).
 `test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
-node test/browser/run.mjs      # the six page tests, in headless Chromium (148 checks)
+node test/browser/run.mjs      # the six page tests, in headless Chromium (154 checks)
 ```
 
 The browser tests start their own preview server and drive the real pages: the editor, filters,
@@ -159,9 +161,13 @@ All four pages share `PUBLISH/theme.css` (tokens, header, footer, zigzag band) a
    pings people and renders links, so they are made inert (`inert()` in
    `opportunities.js`). Keep that when changing the output.
 8. **A Worker run may make only 50 outbound requests** (free plan), and a redirect counts as another. The weekly job
-   uses about 38 in a worst case (`test-opportunity-pr.mjs` counts them). Anything that adds a `fetch` to it must
+   uses about 30 in a worst case (`test-opportunity-pr.mjs` counts them). Anything that adds a `fetch` to it must
    keep that test under its limit: the first deployed run failed on exactly this.
-9. **Tavily costs credits.** One basic search is 1 credit, and a dry run spends the same
+9. **Respect the sources** (details in `CONTRIBUTE_SETUP.md`, "What the sources allow"). Never fetch graduates24.com
+   yourself and never put its text on the site: its terms forbid automated access and republishing. For
+   zabursaries.co.za make only the three monthly-page requests, one at a time, 30 seconds apart (its
+   `robots.txt` crawl delay), take names, dates and links only, and write our own descriptions. Tests enforce this.
+10. **Tavily costs credits.** One basic search is 1 credit, and a dry run spends the same
    as a real run. The weekly run is 10. Don't loop over it while testing; use
    `mz opps tune --only … --explain`.
 

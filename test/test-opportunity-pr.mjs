@@ -90,10 +90,11 @@ sec('planOpportunityPr: what goes in and what is left out');
     finding('Late', { closes: '2026-12-20' }), finding('Soon', { closes: '2026-10-20' }), finding('Mid'),
     finding('Undated', { closes: undefined }),
     finding('Past', { closes: '2026-10-04' }),
+    finding('Today', { closes: '2026-10-05' }),
     finding('Broad', { pass: 'broad', source: 'broader search', url: 'https://jobs.example.co.za/1' }),
     finding('Closing page', { pass: 'closing', category: 'Closing soon', closes: undefined }),
   ] });
-  ok('only dated, open, trusted leads go in, soonest closing first', plan.entries.map((f) => f.title).join() === 'Soon,Mid,Late', plan.entries.map((f) => f.title).join());
+  ok('only dated, trusted leads closing tomorrow or later go in (not today, not past), soonest first', plan.entries.map((f) => f.title).join() === 'Soon,Mid,Late', plan.entries.map((f) => f.title).join());
   ok('the markdown has them under the right pillar and section', (() => { const p = parseReadme(plan.markdown, '2026-10-05'); return p.pillars.study['Paying for It'].map((e) => e.name).join() === 'Soon,Mid,Late'; })());
   ok('it carries the file sha for the commit', plan.sha === 'opps-sha');
   ok('planning writes nothing', gh.names().every((n) => ['getReadme', 'listOpenPulls'].includes(n)));
@@ -125,6 +126,44 @@ sec('planOpportunityPr: what goes in and what is left out');
   ok('with no GitHub login (a preview) it reads the public raw files', preview.entries.length === 1 && rawCalls.length === 2 && rawCalls.every((u) => u.startsWith('https://raw.githubusercontent.com/o/r/main/')));
 }
 
+sec('planOpportunityPr: entries from the monthly lists');
+{
+  const listedEntry = (name, closes, extra = {}) => ({ title: name, url: `https://www.zabursaries.co.za/engineering-bursaries-south-africa/${name.toLowerCase().replace(/\W+/g, '-')}/`, desc: '', source: 'zabursaries', pass: 'closing-list', category: 'Bursaries', tag: 'Engineering', closes, ...extra });
+  const PLAIN = 'Engineering bursary. See the page for who can apply and how.';
+
+  const listed = [listedEntry('L Late', '2026-12-01'), listedEntry('L Soon', '2026-10-08'), listedEntry('L Mid', '2026-11-05')];
+  const search = finding('Searched', { closes: '2026-10-20', desc: 'Copied snippet text that must not reach the site.' });
+  const plan = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [search], listed });
+  ok('list entries and search leads are merged, soonest first', plan.entries.map((f) => f.title).join() === 'L Soon,Searched,L Mid,L Late', plan.entries.map((f) => f.title).join());
+  ok("every entry gets OUR plain description, never a page's or a search snippet's text", plan.entries.every((f) => f.desc === PLAIN) && !plan.markdown.includes('Copied snippet text'), plan.entries.map((f) => f.desc).join('|'));
+  ok('the lead itself is not changed (the issue keeps its own bullet text)', search.desc === 'Copied snippet text that must not reach the site.');
+  ok('the PR knows how many came from the lists', plan.fromLists === 3);
+  ok('planning reads no bursary page at all (it takes no fetchPage)', planOpportunityPr.length <= 1);
+
+  const same = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [{ ...finding('Same'), url: 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/same-bursary' }], listed: [listedEntry('Same Bursary', '2026-10-09')] });
+  ok('a search lead and a list entry for the same page are one entry, the search lead', same.entries.length === 1 && same.entries[0].title === 'Same' && same.fromLists === 0);
+
+  const inOpps = insertEntries(skeleton, [{ pillar: STUDY, section: 'Paying for It', line: L('L Mid').replace('https://x.org/l-mid', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/l-mid/') }]);
+  const dedup = await planOpportunityPr({ config, gh: fakeGh({ opps: inOpps }), now: NOW, findings: [], listed });
+  ok('a list entry already in OPPORTUNITIES.md is not proposed again', dedup.entries.map((f) => f.title).join() === 'L Soon,L Late' && dedup.skippedDuplicates === 1);
+
+  const many = Array.from({ length: 30 }, (_, i) => listedEntry(`Many ${i}`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`));
+  const big = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [], listed: many });
+  ok(`30 list entries: ${MAX_ENTRIES} go in, the soonest, and the rest wait`, big.entries.length === MAX_ENTRIES && big.hiddenByCap === 15);
+  ok('every line still reads back through the site parser with its date (it would have thrown)', parseReadme(big.markdown, '2026-10-05').pillars.study['Paying for It'].length === MAX_ENTRIES);
+  ok('the PR body says how many came from the lists', (await (async () => { const g = fakeGh(); await openOpportunityPr({ config, gh: g, plan, now: NOW }); return g.of('createPullRequest')[0][3].body; })()).includes("3 of these come from zabursaries' monthly"));
+
+  // What the sources allow (CONTRIBUTE_SETUP.md): Graduates24's terms forbid automated collection and republishing.
+  const g24 = { title: 'Citi Internship', url: 'https://www.graduates24.com/citi-internship', desc: 'x', source: 'graduates24', pass: 'scoped', category: 'Graduate programmes', tag: null, closes: '2026-11-30' };
+  const g24b = { ...g24, title: 'A bursary on g24', url: 'https://www.graduates24.com/some-bursary', category: 'Bursaries' };
+  const none = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [g24, g24b], listed: [] });
+  ok('nothing from Graduates24 is ever proposed for the site, whatever its category', Boolean(none.skipped) && !none.entries);
+  const mixed = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [g24, g24b], listed: [listedEntry('Only Z', '2026-11-01')] });
+  ok('...even alongside zabursaries entries', mixed.entries.map((f) => f.title).join() === 'Only Z' && !mixed.markdown.includes('graduates24'));
+  const learn = { ...finding('Zab Learnership'), category: 'Learnerships' };
+  ok('only bursaries are proposed (the plain description says "bursary")', (await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [learn], listed: [] })).skipped !== undefined);
+}
+
 /* -------------------------------------------------------------- */
 sec('openOpportunityPr: it is a normal contribution PR');
 {
@@ -141,7 +180,7 @@ sec('openOpportunityPr: it is a normal contribution PR');
   const made = gh.of('createPullRequest')[0][3];
   ok('the PR targets main from that branch', made.base === 'main' && made.head === branch);
   ok('the title says how many', made.title === 'contribute: Add 2 opportunities with closing dates (weekly digest)', made.title);
-  ok('the body lists each entry with its date and link, and says to check the dates', made.body.includes('closes **2026-10-20**') && made.body.includes('zabursaries.co.za/engineering-bursaries-south-africa/soon') && /Check each date against the page/.test(made.body));
+  ok('the body lists each entry with its date and link, and says to check the dates', made.body.includes('closes **2026-10-20**') && made.body.includes('zabursaries.co.za/engineering-bursaries-south-africa/soon') && /Check each date against the bursary's own page/.test(made.body));
   ok('it is labelled needs-review, like a form submission', gh.of('addLabels')[0][4].join() === LABELS.pending);
   const asPull = { user: { type: 'Bot' }, head: { ref: branch, repo: { full_name: 'o/r' } } };
   ok('the existing review flow recognises it (isContributionPull)', isContributionPull(asPull, config));
@@ -160,7 +199,7 @@ sec('runWeeklyOpportunities: the whole job');
       : [];
     return { ok: true, status: 200, json: async () => ({ results }) };
   };
-  const base = (gh, extra = {}) => ({ config, gh, fetchImpl: tavily(), fetchPage, now: NOW, ...extra });
+  const base = (gh, extra = {}) => ({ config, gh, fetchImpl: tavily(), fetchPage, now: NOW, closingDelayMs: 0, ...extra });
 
   const gh = fakeGh();
   const real = await runWeeklyOpportunities(base(gh));
@@ -197,10 +236,39 @@ sec('runWeeklyOpportunities: the whole job');
 }
 
 /* -------------------------------------------------------------- */
+sec('what the weekly job asks of the two sites');
+{
+  // Terms and robots.txt (CONTRIBUTE_SETUP.md, "What the sources allow"): never fetch Graduates24 ourselves
+  // (its terms forbid automated access), and read zabursaries only through its three monthly pages,
+  // one at a time, 30 seconds apart.
+  const hosts = [];
+  const log = [];
+  let inFlight = 0, maxInFlight = 0;
+  const pageFetch = async (u) => {
+    hosts.push(new URL(u).hostname); log.push(u);
+    inFlight++; maxInFlight = Math.max(maxInFlight, inFlight); await Promise.resolve(); inFlight--;
+    return { ok: true, status: 200, text: async () => '<ul></ul>' };
+  };
+  const results = (q) => /engineering/.test(q)
+    ? [{ title: 'Sasol Bursary', url: 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/sasol-bursary', content: 'Closing date: 30 November 2026.', score: 0.9 }]
+    : [{ title: 'G24 thing', url: 'https://www.graduates24.com/some-learnership', content: 'Applications close on 15 Dec 2026.', score: 0.9 }];
+  const gh = fakeGh();
+  const out = await runWeeklyOpportunities({
+    config, gh, now: NOW, fetchPage: pageFetch, closingDelayMs: 0,
+    fetchImpl: async (u, init) => ({ ok: true, status: 200, json: async () => ({ results: results(JSON.parse(init.body).query) }) }),
+  });
+  ok('the job itself makes no request to graduates24.com', !hosts.some((h) => h.includes('graduates24')), hosts.join());
+  ok('and only the three monthly pages to zabursaries.co.za', hosts.length <= 3 && log.every((u) => /\/bursaries-closing-in-[a-z]+-\d{4}\/$/.test(u)), log.join());
+  ok('one at a time', maxInFlight === 1);
+  ok('a Graduates24 lead still appears in the issue as a link (from the search), but never in the PR or on the site',
+    gh.of('createIssue')[0][3].body.includes('graduates24.com/some-learnership') && !gh.of('commitReadme')[0]?.[4].content.includes('graduates24'));
+}
+
 sec('the Worker\'s 50-request limit');
 {
-  // The first deployed run failed with "Too many subrequests": 20 page lookups that each
-  // redirected, on top of the searches and the PR. Count every outbound request in a worst case.
+  // The first deployed run failed with "Too many subrequests": 20 page lookups that each redirected, on top of
+  // the searches and the PR. The page lookups are gone; count every outbound request in a worst case anyway:
+  // 50 dated search leads AND three monthly pages of 40 bursaries each, PR and issue both opened.
   let n = 0;
   const gh = fakeGh();
   const counted = {};
@@ -208,14 +276,16 @@ sec('the Worker\'s 50-request limit');
   const tavilyFetch = async (url, init) => {
     n++;
     const q = JSON.parse(init.body).query;
-    const results = Array.from({ length: 5 }, (_, i) => ({ title: `B ${q.slice(0, 6)} ${i}`, url: `https://www.zabursaries.co.za/f${q.length}/${encodeURIComponent(q.slice(0, 6))}-${i}`, content: 'A bursary.', score: 0.9 }));
+    const results = Array.from({ length: 5 }, (_, i) => ({ title: `B ${q.slice(0, 6)} ${i}`, url: `https://www.zabursaries.co.za/f${q.length}/${encodeURIComponent(q.slice(0, 6))}-${i}`, content: 'A bursary. Closing date: 30 November 2026.', score: 0.9 }));
     return { ok: true, status: 200, json: async () => ({ results }) };
   };
-  const pageFetch = async (u) => { n++; return { ok: true, status: 200, text: async () => '<p>Closing date: 30 November 2026</p>' }; };
-  const AUTH = 2; // JWT -> installation id -> token
-  const out = await runWeeklyOpportunities({ config, gh: { ...gh, ...counted }, fetchImpl: tavilyFetch, fetchPage: pageFetch, now: NOW });
+  const monthRows = (m) => '<ul>' + Array.from({ length: 40 }, (_, i) => `<li><strong><a href="https://www.zabursaries.co.za/engineering-bursaries-south-africa/m${m}-b${i}/">M${m} B${i}</a></strong> (closing: ${1 + (i % 27)} ${['October', 'November', 'December'][m]} 2026)</li>`).join('') + '</ul>';
+  let month = 0;
+  const pageFetch = async () => { n++; const html = monthRows(month++ % 3); return { ok: true, status: 200, text: async () => html }; };
+  const AUTH = 4; // JWT -> installation id -> token, doubled for the two reads that start together
+  const out = await runWeeklyOpportunities({ config, gh: { ...gh, ...counted }, fetchImpl: tavilyFetch, fetchPage: pageFetch, now: NOW, closingDelayMs: 0 });
   const total = n + AUTH;
-  ok('a worst-case run (50 dated leads, PR and issue both opened) stays under the limit with a margin', out.pr?.number === 77 && out.issueUrl && total <= 45, `used ${total} of 50`);
+  ok('a worst-case run (50 dated leads plus 120 list rows; PR and issue both opened) stays well under the limit', out.pr?.number === 77 && out.issueUrl && out.pr.entries === MAX_ENTRIES && total <= 40, `used ${total} of 50`);
   console.log(`        (worst case used ${total} of 50)`);
 }
 

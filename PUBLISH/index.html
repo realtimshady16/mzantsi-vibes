@@ -72,6 +72,7 @@
       <div class="chips" id="search-chips" role="group"></div>
     </form>
     <p class="search-status" id="search-status" role="status" aria-live="polite"></p>
+    <p class="deadline-note hidden" id="search-deadline-note"></p>
     <div id="search-results"></div>
   </section>
 
@@ -104,6 +105,9 @@
 
   <!-- CONTENT SECTIONS -->
   <main class="main-content wrap">
+
+    <!-- Shown only when a deadline is on screen -->
+    <p class="deadline-note hidden" id="deadline-note"></p>
 
     <!-- LOADING STATE -->
     <div id="loading-state" class="loading-state">

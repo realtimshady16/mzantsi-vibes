@@ -60,12 +60,22 @@ ok('the clear button appears', await ev(`!document.getElementById('search-clear'
 await type('zzzzqq');
 ok('no match shows the empty message', (await ev(`!!document.querySelector('#search-results .res-empty')`)) && (await names()).length === 0);
 
+sec('Deadline disclaimer in results');
+const sn = `(()=>{const n=document.getElementById('search-deadline-note');return {shown:getComputedStyle(n).display!=='none',text:n.textContent}})()`;
+await type('funza');
+const withPill = await ev(sn);
+ok('results that carry a deadline show the disclaimer', withPill.shown && /check the official page/i.test(withPill.text), JSON.stringify(withPill));
+await type('nsfas');
+ok('results with no deadline do not', (await ev(sn)).shown === false);
+await type('bursary');
+
 sec('Clearing');
 await key('Escape', 'Escape');
 await sleep(300);
 ok('Escape clears the box and brings the cards back', (await ev(`document.getElementById('search-input').value===''`)) && !(await mainHidden()) && (await names()).length === 0);
 await type('nsfas'); await click('#search-clear'); await sleep(200);
 ok('the clear button does too', !(await mainHidden()));
+ok('clearing removes the disclaimer from the search area', (await ev(sn)).shown === false);
 
 sec('Filters');
 await click('[data-pillar="work"]'); await sleep(200);
