@@ -7,7 +7,7 @@
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
   isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
-  extractDeadline, entryLine, pasteBlock,
+  extractDeadline, entryLine, pasteBlock, htmlToText, enrichDeadlines, MAX_PAGE_LOOKUPS,
 } from '../src/opportunities.js';
 import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -333,14 +333,23 @@ sec('closing dates: extraction');
   ok('an opening date alone is not a deadline', date('Applications open 1 Nov 2026') === null);
   ok('an unrelated date after a full stop is not taken', date('Applications close. Interviews are on 4 Dec 2026') === null);
   ok('a date with no closing word is ignored', date('Posted 3 Oct 2026. Great bursary.') === null);
-  ok('two different closing dates (a sidebar of other listings) → none, not a guess', date('Closes 30 Nov 2026 ... Closes 5 Dec 2026') === null);
+  ok('two different closing dates in a sentence → none, not a guess', date('closes 30 Nov 2026 ... closes 5 Dec 2026') === null);
   ok('the same date twice is still one date', date('Closes 30 Nov 2026. Remember: closing date 30 November 2026') === '2026-11-30');
   ok('an impossible date is rejected', date('closes 31 Feb 2027') === null);
   ok('a date without a year is not guessed', date('Closes 30 November') === null);
   ok('a closing date in the past is flagged', dl('Applications closed on 3 Mar 2026').past === true);
-  ok('the closing day itself is not past', dl('Closes 5 Oct 2026').past === false);
+  ok('the closing day itself is not past', dl('closes 5 Oct 2026').past === false);
   ok('"today" is judged in South Africa (22:30 UTC is already tomorrow)',
-    extractDeadline('Closes 5 Oct 2026', new Date('2026-10-05T22:30:00Z')).past === true);
+    extractDeadline('closes 5 Oct 2026', new Date('2026-10-05T22:30:00Z')).past === true);
+  // Wording taken from real graduates24 / zabursaries results (see the PR).
+  ok('capitalised "Closes: 30 Sep 2026" is a listing row, never taken', date('2026 Learnerships\n Pretoria  Closes: 30 Sep 2026\n Other Co: Programme\n Durban  Closes: 30 Sep 2026') === null);
+  ok('a listing page of rows with several dates → none', date('Closes 09 Oct 2026 Inlumi 30 Sep 2026 NTT Closes 09 Oct 2026 Simah 30 Sep 2026 Eskom Closes 08 Oct 2026') === null);
+  ok("a job page's own \"Closing Date\" label beats the sidebar's rows",
+    date('#### Job Summary\n Company  Home Affairs\n Closing Date  18 September 2026\n Date Listed17 September 2026\n#### Other Opportunities\n Freedom Stationery  KwaZulu-Natal  01 Oct 2026\n NTT DATA  Closes 09 Oct 2026') === '2026-09-18');
+  ok('two different "Closing Date" labels → none', date('Closing Date 18 Sep 2026 ... Closing Date 20 Sep 2026') === null);
+  ok("zabursaries' question form: \"WHEN IS THE CLOSING DATE FOR THE ESKOM BURSARY? 22 September 2026.\"",
+    date('WHEN IS THE CLOSING DATE FOR THE ESKOM BURSARY? 22 September 2026. (Applications submitted after this date will not be accepted)') === '2026-09-22');
+  ok('a month name alone in a nav ("BURSARIES CLOSING IN NOVEMBER 2026") is not a date', date('CLOSING SOON & BLOG ... BURSARIES CLOSING IN NOVEMBER 2026 BURSARIES CLOSING IN OCTOBER 2026') === null);
   ok('empty and non-text input is safe', date('') === null && date(undefined) === null && date(null) === null);
 }
 
@@ -398,6 +407,67 @@ sec('closing dates: paste-ready lines are valid OPPORTUNITIES.md entries');
   ok('a category with no home has no line', entryLine({ ...f, category: 'Closing soon' }) === null);
   ok('learnerships go to Finding Work with their own tag', /\{closes: 2026-12-15; tags: learnership, deadline; source: graduates24\.com\}/.test(entryLine({ title: 'L', url: 'https://www.graduates24.com/l/', desc: '', category: 'Learnerships', tag: null, closes: '2026-12-15' })));
   ok('pasteBlock is empty for no leads', pasteBlock([]).length === 0);
+}
+
+/* -------------------------------------------------------------- */
+sec('closing dates: reading the page when the snippet has none');
+{
+  ok('htmlToText drops scripts, styles and tags, decodes entities, collapses space',
+    htmlToText('<style>p{}</style><script>var a="closes 1 Jan 2027"</script><p>Closing&nbsp;date:<b> 30 November 2026</b></p>  <p>Tom&#8217;s &amp; Co</p>') === "Closing date: 30 November 2026 Tom's & Co");
+
+  const page = (body) => `<html><body><nav>CLOSING SOON & BLOG</nav><main>${body}</main></body></html>`;
+  const pages = {
+    'https://www.zabursaries.co.za/e/open': page('<h2>WHEN IS THE CLOSING DATE FOR THE OPEN BURSARY?</h2><p>30 November 2026. (Applications after this date…)</p>'),
+    'https://www.zabursaries.co.za/e/closed': page('<h2>WHEN IS THE CLOSING DATE FOR THE OLD BURSARY? 31 July 2026.</h2>'),
+    'https://www.zabursaries.co.za/e/nodate': page('<p>Apply through the company website.</p>'),
+    'https://www.zabursaries.co.za/e/hub': page('<p>Closing date: 30 Nov 2026</p><p>Closing date: 15 Dec 2026</p>'),
+    'https://www.graduates24.com/j/job': page('<h4>Job Summary</h4> Closing Date  18 December 2026 Date Listed 17 Sep 2026 <h4>Other Opportunities</h4> NTT  Closes 09 Oct 2026'),
+  };
+  const asked = [];
+  const fetchPage = async (url) => {
+    asked.push(url);
+    if (url.endsWith('/boom')) throw new Error('timeout');
+    if (url.endsWith('/gone')) return { ok: false, status: 404, text: async () => '' };
+    return { ok: true, status: 200, text: async () => pages[url] ?? '' };
+  };
+  const f = (url, extra = {}) => ({ title: url.split('/').pop(), url, desc: '', source: 'zabursaries', pass: 'scoped', category: 'Bursaries', tag: null, ...extra });
+  const input = [
+    f('https://www.zabursaries.co.za/e/open'), f('https://www.zabursaries.co.za/e/closed'), f('https://www.zabursaries.co.za/e/nodate'),
+    f('https://www.zabursaries.co.za/e/hub'), f('https://www.graduates24.com/j/job', { source: 'graduates24' }),
+    f('https://www.zabursaries.co.za/e/already', { closes: '2026-12-31' }),
+    f('https://www.zabursaries.co.za/e/gone'), f('https://www.zabursaries.co.za/e/boom'),
+    f('https://jobs.example.co.za/1', { pass: 'broad', source: 'broader search' }),
+    { title: 'Bursaries closing in October 2026', url: 'https://www.zabursaries.co.za/bursaries-closing-in-october-2026/', pass: 'closing', category: 'Closing soon', source: 'zabursaries' },
+  ];
+  const notes = [];
+  const out = await enrichDeadlines(input, { fetchPage, now: NOW, onResult: (e) => notes.push(e) });
+  const by = (n) => out.find((x) => x.title === n);
+
+  ok('a page that states one future closing date gives the lead a closes', by('open').closes === '2026-11-30');
+  ok('a page that says it has closed drops the lead', !by('closed') && notes.some((e) => /2026-07-31 has already passed — dropped/.test(e.note)));
+  ok('a page with no date leaves the lead undated, and in', by('nodate') && !('closes' in by('nodate')));
+  ok('a page with two closing dates leaves it undated (not a guess)', by('hub') && !('closes' in by('hub')));
+  ok("a job page's own label beats the sidebar's rows", by('job').closes === '2026-12-18');
+  ok('a lead that already has a date is not fetched again', !asked.some((u) => u.endsWith('/already')) && by('already').closes === '2026-12-31');
+  ok('a 404 or a timeout leaves the lead in, undated, and explains', by('gone') && by('boom') && !by('gone').closes && !by('boom').closes &&
+    notes.some((e) => /returned 404/.test(e.note)) && notes.some((e) => /could not read the page: timeout/.test(e.note)));
+  ok('broader-search results are never fetched (only the two trusted sites)', !asked.some((u) => u.includes('example.co.za')) && by('1'));
+  ok('the closing-soon pages are not fetched', !asked.some((u) => u.includes('bursaries-closing-in')));
+
+  const many = Array.from({ length: MAX_PAGE_LOOKUPS + 15 }, (_, i) => f(`https://www.zabursaries.co.za/e/n${i}`));
+  const askedMany = [];
+  await enrichDeadlines(many, { fetchPage: async (u) => { askedMany.push(u); return { ok: true, status: 200, text: async () => '' }; }, now: NOW });
+  ok(`at most ${MAX_PAGE_LOOKUPS} pages are read per run (the Worker's subrequest limit)`, askedMany.length === MAX_PAGE_LOOKUPS && MAX_PAGE_LOOKUPS === 20);
+
+  // End to end: the weekly run's issue carries the date it read from the page.
+  const searchResult = (title, url) => ({ title, url, content: 'A bursary for students.', score: 0.9 });
+  const t = fakeTavily((body) => (/engineering/.test(body.query)
+    ? [searchResult('Open Bursary', 'https://www.zabursaries.co.za/e/open'), searchResult('Old Bursary', 'https://www.zabursaries.co.za/e/closed')]
+    : []));
+  const run = await runOpportunityDigest({ config: { tavilyKey: 'k', owner: 'o', repo: 'r' }, fetchImpl: t.fetchImpl, fetchPage, dryRun: true, now: NOW });
+  ok('the issue lists the lead whose page gave a date, with it', run.body.includes('[Open Bursary]') && run.body.includes('**closes 2026-11-30**'));
+  ok('...in the paste block', run.body.includes('{closes: 2026-11-30; tags: bursary, deadline; source: zabursaries.co.za}'));
+  ok('the lead whose page says it closed is not in the issue', !run.body.includes('Old Bursary'));
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);

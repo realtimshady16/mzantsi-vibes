@@ -64,7 +64,7 @@ No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index; do node test/$t.mjs | tail -3; done
 ```
 
-All nine must pass before a PR (59, 48, 43, 69, 140, 23, 39, 36 and 39 checks as of writing).
+All nine must pass before a PR (59, 48, 43, 69, 160, 23, 39, 36 and 39 checks as of writing).
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (148 checks)
 ```

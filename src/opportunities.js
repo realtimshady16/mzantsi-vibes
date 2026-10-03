@@ -386,17 +386,25 @@ const DATE_PART = [
   `(20\\d\\d)-(\\d{2})-(\\d{2})`,
   `(\\d{1,2})[/.](\\d{1,2})[/.](20\\d\\d)`,
 ].join('|');
-// A closing word, then a few non-sentence characters, then the date. No "." or
-// line break in between: "applications close. Interviews are on 4 Dec 2026" must not match.
-const CLOSING_RE = new RegExp(
-  `\\b(?:clos(?:es|ing|ed|e)(?:\\s+date)?|deadline|apply\\s+(?:by|before)|due(?:\\s+date)?|no\\s+later\\s+than)\\b[^\\d.\\n!?]{0,30}?(?:${DATE_PART})`,
-  'gi'
-);
+// No "." or line break between a closing word and its date: "applications close.
+// Interviews are on 4 Dec 2026" must not match.
+const GAP = '[^\\d.!?\\n]{0,40}?';
+
+// Every pattern's first capture group is the closing word; the date groups follow.
+// (A) The field label: "Closing Date  18 September 2026" or zabursaries'
+//     "WHEN IS THE CLOSING DATE FOR THE ESKOM BURSARY? 22 September 2026."
+const LABELLED_RE = new RegExp(`\\b(closing\\s+date)(?:\\s+for\\s+[^?\\n]{1,100}\\?|${GAP})\\s*(?:${DATE_PART})`, 'gi');
+// (B) A closing word in a sentence: "close on", "deadline is", "apply by", "no later than".
+const PROSE_RE = new RegExp(`\\b(clos(?:e|es|ing|ed)\\s+(?:on|by|at)|deadline(?:\\s+(?:is|for))?|apply\\s+(?:by|before)|no\\s+later\\s+than)\\b${GAP}\\s*(?:${DATE_PART})`, 'gi');
+// (C) "closes 30 Nov 2026" straight into the date. Listing rows are written "Closes: 30 Sep 2026"
+//     or "Closes 09 Oct 2026" next to *other* listings, so only the lowercase form, as it is
+//     written in a sentence, is trusted.
+const BARE_RE = new RegExp(`\\b(clos(?:es|e|ing|ed))[\\s:]{1,3}(?:${DATE_PART})`, 'gi');
 
 const pad = (n) => String(n).padStart(2, '0');
 const monthNumber = (m) => MONTHS.findIndex((full) => full.startsWith(m.toLowerCase().slice(0, 3))) + 1;
 
-/** Turn one regex hit's groups into YYYY-MM-DD, or null if it is not a real date. */
+/** Turn one regex hit's date groups into YYYY-MM-DD, or null if it is not a real date. */
 function isoFromGroups(g) {
   const [dMon, mon1, y1, mon2, d2, y2, y3, m3, d3, dd4, mm4, y4] = g;
   let y, m, d;
@@ -408,23 +416,86 @@ function isoFromGroups(g) {
   return isValidDate(iso) ? iso : null;
 }
 
+function datesFrom(text, re, accept = () => true) {
+  const found = new Set();
+  for (const m of text.matchAll(re)) {
+    const iso = accept(m[1]) && isoFromGroups(m.slice(2));
+    if (iso) found.add(iso);
+  }
+  return found;
+}
+
 /**
- * Find the closing date in a result's title and snippet. Conservative on purpose:
- * a date is only taken when a closing word sits right before it, and when the
- * text names more than one closing date it is the sidebar's list of other
- * listings, so no date is reported rather than a wrong one. A wrong deadline is
- * worse than a missing one. A year is required.
+ * Find the closing date in a page's text or a search snippet. Conservative on
+ * purpose, because a wrong deadline is worse than a missing one:
+ *   - the field label ("Closing Date") is trusted first; a sentence ("close on",
+ *     "deadline is", "apply by", lowercase "closes 30 Nov 2026") is the fallback;
+ *   - a year is required, and an impossible date is rejected;
+ *   - more than one distinct date at the same level is a listing of other
+ *     openings (these sites append one), so it reports none rather than a guess;
+ *   - capitalised "Closes: 30 Sep 2026" is a listing row, never taken.
  * Returns { date, past } or null. `past` means it has already closed.
  */
 export function extractDeadline(text, now = new Date()) {
-  const found = new Set();
-  for (const m of String(text ?? '').matchAll(CLOSING_RE)) {
-    const iso = isoFromGroups(m.slice(1));
-    if (iso) found.add(iso);
-  }
-  if (found.size !== 1) return null;
-  const [date] = found;
+  const t = String(text ?? '');
+  const levels = [
+    datesFrom(t, LABELLED_RE),
+    new Set([...datesFrom(t, PROSE_RE), ...datesFrom(t, BARE_RE, (kw) => kw === kw.toLowerCase())]),
+  ];
+  const level = levels.find((l) => l.size > 0);
+  if (!level || level.size !== 1) return null;
+  const [date] = level;
   return { date, past: date < todayInSA(now) };
+}
+
+/** Page HTML → plain text, enough to read a date out of. */
+export function htmlToText(html) {
+  return String(html ?? '')
+    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#8217;|&rsquo;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Each lookup is one subrequest, and a Worker invocation gets 50 on the free plan.
+// A run already uses about 15 (10 searches, 3 closing pages, the issue), so 20 fits.
+export const MAX_PAGE_LOOKUPS = 20;
+
+/**
+ * Search snippets rarely carry the deadline (real zabursaries snippets had none),
+ * but the bursary pages themselves state it. For leads still without a date, read
+ * the page, from the two trusted sites only, and take the date from there. A page
+ * that says it has already closed is dropped. Failures just leave the lead undated.
+ */
+export async function enrichDeadlines(findings, { fetchPage = fetch, now = new Date(), onResult, max = MAX_PAGE_LOOKUPS } = {}) {
+  const wanted = findings.filter((f) => !f.closes && f.pass !== 'closing' && sourceOf(f.url) !== 'broader search').slice(0, max);
+
+  await Promise.all(wanted.map(async (f) => {
+    try {
+      const res = await fetchPage(f.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
+        signal: AbortSignal.timeout(10000),
+        redirect: 'follow',
+      });
+      if (!res.ok) return onResult?.({ enrich: true, url: f.url, note: `page returned ${res.status}` });
+      const deadline = extractDeadline(htmlToText(await res.text()), now);
+      if (!deadline) return onResult?.({ enrich: true, url: f.url, note: 'no single closing date on the page' });
+      if (deadline.past) {
+        f.closed = deadline.date;
+        return onResult?.({ enrich: true, url: f.url, note: `closing date ${deadline.date} has already passed — dropped` });
+      }
+      f.closes = deadline.date;
+      onResult?.({ enrich: true, url: f.url, note: `closes ${deadline.date}` });
+    } catch (err) {
+      onResult?.({ enrich: true, url: f.url, note: `could not read the page: ${err?.message || err}` });
+    }
+  }));
+
+  return findings.filter((f) => !f.closed);
 }
 
 const DATE_RE = /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+20\d\d\b/gi;
@@ -652,7 +723,7 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
     collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult }),
   ]);
   const { failures, searched } = collected;
-  const findings = [...closing, ...collected.findings];
+  const findings = [...closing, ...(await enrichDeadlines(collected.findings, { fetchPage, now, onResult }))];
 
   // Every search failing means a bad key or an outage. Don't open an empty issue.
   if (failures.length === searched) {
