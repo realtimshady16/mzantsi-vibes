@@ -151,7 +151,7 @@ node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dr
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
-node test/test-opportunities.mjs # 101 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunities.mjs # 140 checks — opportunity digest, Tavily and GitHub faked
 node test/browser/run.mjs      # 148 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
@@ -225,6 +225,17 @@ goes near the README, and there is no deduplication between weeks.
   dropped; titles that only mention past years are dropped; page chrome
   ("Create My CV", WhatsApp banners, sidebars of other listings) is stripped
   from descriptions. A lead with no usable description shows title and link only.
+- **Closing dates:** a date is read from each result's title and snippet only
+  when a closing word ("closing date", "closes", "deadline", "apply by", "no
+  later than") sits right before it, and a year is required. Text with more than
+  one closing date is a sidebar of other listings, so no date is reported rather
+  than a guess. A lead whose date has already passed is dropped (`--explain` says
+  so). Leads with a date show `closes YYYY-MM-DD`, and the issue ends with a
+  collapsed **Ready to paste into OPPORTUNITIES.md** block: one line per dated
+  lead, in the `{closes; tags; source}` format, grouped under the heading it goes
+  in. Undated leads are left out of it, because an entry with no date never
+  expires. A human still checks each date against the page and pastes the line;
+  nothing writes to the repo.
 - **Cost:** 10 basic searches = **10 Tavily credits per run** (15 with the
   broader pass). No advanced search.
 - **Issue label:** `opportunity-digest`, created on first use.

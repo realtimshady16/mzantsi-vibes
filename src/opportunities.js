@@ -16,6 +16,8 @@
  * built and checked directly (Tavily's index missed the current month's page).
  */
 
+import { isValidDate, todayInSA } from '../PUBLISH/entry-meta.js';
+
 export const OPPS_LABEL = 'opportunity-digest';
 export const OPPS_LABEL_META = {
   color: '1d76db',
@@ -372,6 +374,59 @@ export function facultyFromUrl(url) {
   return null;
 }
 
+/* ------------------------------------------------------------------ *
+ * Closing dates
+ * ------------------------------------------------------------------ */
+
+const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+// "30 November 2026", "30th of Nov 2026", "November 30, 2026", "2026-11-30", "30/11/2026" (South Africa writes day first)
+const DATE_PART = [
+  `(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_RE}\\.?,?\\s+(20\\d\\d)`,
+  `${MONTH_RE}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(20\\d\\d)`,
+  `(20\\d\\d)-(\\d{2})-(\\d{2})`,
+  `(\\d{1,2})[/.](\\d{1,2})[/.](20\\d\\d)`,
+].join('|');
+// A closing word, then a few non-sentence characters, then the date. No "." or
+// line break in between: "applications close. Interviews are on 4 Dec 2026" must not match.
+const CLOSING_RE = new RegExp(
+  `\\b(?:clos(?:es|ing|ed|e)(?:\\s+date)?|deadline|apply\\s+(?:by|before)|due(?:\\s+date)?|no\\s+later\\s+than)\\b[^\\d.\\n!?]{0,30}?(?:${DATE_PART})`,
+  'gi'
+);
+
+const pad = (n) => String(n).padStart(2, '0');
+const monthNumber = (m) => MONTHS.findIndex((full) => full.startsWith(m.toLowerCase().slice(0, 3))) + 1;
+
+/** Turn one regex hit's groups into YYYY-MM-DD, or null if it is not a real date. */
+function isoFromGroups(g) {
+  const [dMon, mon1, y1, mon2, d2, y2, y3, m3, d3, dd4, mm4, y4] = g;
+  let y, m, d;
+  if (y1) { d = Number(dMon); m = monthNumber(mon1); y = Number(y1); }
+  else if (y2) { d = Number(d2); m = monthNumber(mon2); y = Number(y2); }
+  else if (y3) { y = Number(y3); m = Number(m3); d = Number(d3); }
+  else { d = Number(dd4); m = Number(mm4); y = Number(y4); }
+  const iso = `${y}-${pad(m)}-${pad(d)}`;
+  return isValidDate(iso) ? iso : null;
+}
+
+/**
+ * Find the closing date in a result's title and snippet. Conservative on purpose:
+ * a date is only taken when a closing word sits right before it, and when the
+ * text names more than one closing date it is the sidebar's list of other
+ * listings, so no date is reported rather than a wrong one. A wrong deadline is
+ * worse than a missing one. A year is required.
+ * Returns { date, past } or null. `past` means it has already closed.
+ */
+export function extractDeadline(text, now = new Date()) {
+  const found = new Set();
+  for (const m of String(text ?? '').matchAll(CLOSING_RE)) {
+    const iso = isoFromGroups(m.slice(1));
+    if (iso) found.add(iso);
+  }
+  if (found.size !== 1) return null;
+  const [date] = found;
+  return { date, past: date < todayInSA(now) };
+}
+
 const DATE_RE = /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+20\d\d\b/gi;
 
 /**
@@ -409,6 +464,9 @@ function judge(result, search, now) {
   const title = oneLine(result.title, 120) || hostOf(url);
   if (isStale(title, now)) return { reason: 'title only mentions past years' };
 
+  const deadline = extractDeadline(`${result.title}. ${result.content}`, now);
+  if (deadline?.past) return { reason: `closing date ${deadline.date} has already passed` };
+
   const source = sourceOf(url);
   return {
     finding: {
@@ -416,6 +474,7 @@ function judge(result, search, now) {
       url,
       desc: usableDesc(oneLine(result.content, MAX_DESC, result.title)),
       source,
+      ...(deadline && { closes: deadline.date }),
       pass: search.pass,
       category: search.category,
       tag: search.category !== 'Bursaries' ? null : source === 'zabursaries' ? facultyFromUrl(url) : search.tag || null,
@@ -466,7 +525,57 @@ export async function collect({ key, searches, fetchImpl, now = new Date(), onRe
  * The issue
  * ------------------------------------------------------------------ */
 
-const bullet = (f) => `- [${f.title}](${f.url})${f.desc ? ` — ${f.desc}` : ''} · _${f.source}_`;
+const bullet = (f) =>
+  `- [${f.title}](${f.url})${f.desc ? ` — ${f.desc}` : ''} · _${f.source}_${f.closes ? ` · **closes ${f.closes}**` : ''}`;
+
+/* ------------------------------------------------------------------ *
+ * Paste-ready entries for OPPORTUNITIES.md
+ * ------------------------------------------------------------------ */
+
+// Where each category belongs in OPPORTUNITIES.md (same pillar and section names as the README).
+const DESTINATION = {
+  Bursaries: { pillar: "🎓 I'm Going to Study", section: 'Paying for It', tag: 'bursary' },
+  Learnerships: { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'learnership' },
+  'Graduate programmes': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'graduate-programme' },
+  'Job openings': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'job' },
+  'Training & vac work': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'vac-work' },
+};
+
+const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** One line in the OPPORTUNITIES.md format (see that file), or null if it has no deadline. */
+export function entryLine(f) {
+  const dest = DESTINATION[f.category];
+  if (!dest || !f.closes) return null;
+  // Web text must not be able to add or break the {…} block, or split the name at an em dash.
+  const clean = (t) => String(t).replace(/[{}]/g, '').replace(/\s[—–]\s/g, ' - ').trim();
+  const tags = [dest.tag, f.tag && slug(f.tag), 'deadline'].filter(Boolean);
+  const desc = f.desc ? ` — ${clean(f.desc)}` : '';
+  return `-   [${clean(f.title)}](${f.url})${desc} {closes: ${f.closes}; tags: ${[...new Set(tags)].join(', ')}; source: ${hostOf(f.url)}}`;
+}
+
+/** The "Ready to paste" block: only leads with a deadline found, grouped by where they go. */
+export function pasteBlock(findings) {
+  const groups = new Map();
+  for (const f of findings) {
+    const line = entryLine(f);
+    if (!line) continue;
+    const { pillar, section } = DESTINATION[f.category];
+    const key = `${pillar}\u0000${section}`;
+    groups.set(key, [...(groups.get(key) || []), line]);
+  }
+  if (!groups.size) return [];
+
+  const total = [...groups.values()].reduce((n, l) => n + l.length, 0);
+  const out = ['---', '', '<details>', `<summary>📋 Ready to paste into OPPORTUNITIES.md (${total} with a closing date)</summary>`, '',
+    'Check each date against the page first, then add the line under its heading. Leads without a closing date are not here: they could never expire.', ''];
+  for (const [key, lines] of groups) {
+    const [pillar, section] = key.split('\u0000');
+    out.push(`Under \`## ${pillar}\` → \`### ${section}\`:`, '', '```markdown', ...lines, '```', '');
+  }
+  out.push('</details>', '');
+  return out;
+}
 
 function section(heading, level, items) {
   const h = '#'.repeat(level);
@@ -517,6 +626,8 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
   if (withBroad) {
     body.push('---', '', '## 🌍 Broader search (less trusted)', '', ...CATEGORY_ORDER.flatMap((c) => categoryBlock(broad, c, 3)));
   }
+
+  body.push(...pasteBlock(findings.filter((f) => f.pass !== 'closing')));
 
   if (failures.length) {
     body.push('---', '', `⚠️ ${failures.length} of ${searched} searches failed, so this list is incomplete:`, '');

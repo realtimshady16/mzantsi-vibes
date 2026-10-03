@@ -28,7 +28,7 @@ The site fetches `README.md` from `main` on GitHub at runtime
   keyword in `PUBLISH/content-parse.js`. Renaming one breaks the site **and** the form.
 - `src/readme.js` (`normalizeMarkdown`, `applyNew`, `applyEdit`) is what keeps
   submissions in that shape. Change it with its tests (`test/test-normalize.mjs`).
-- Time-sensitive entries go in `OPPORTUNITIES.md` (not yet written by the form or the digest). An entry
+- Time-sensitive entries go in `OPPORTUNITIES.md` (the form does not write there; the weekly digest drafts paste-ready lines for a human to add). An entry
   may end with `{closes: 2026-11-30; tags: bursary}`; the site hides it after that date, and a `closes` it
   cannot read hides the entry. Format: `OPPORTUNITIES.md`, parser: `PUBLISH/entry-meta.js`.
 - Never put test data in the README. Test entries get closed or rejected, never merged.
@@ -64,7 +64,7 @@ No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index; do node test/$t.mjs | tail -3; done
 ```
 
-All nine must pass before a PR (59, 48, 43, 69, 101, 23, 39, 36 and 39 checks as of writing).
+All nine must pass before a PR (59, 48, 43, 69, 140, 23, 39, 36 and 39 checks as of writing).
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (148 checks)
 ```

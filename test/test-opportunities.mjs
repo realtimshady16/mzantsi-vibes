@@ -7,7 +7,11 @@
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
   isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
+  extractDeadline, entryLine, pasteBlock,
 } from '../src/opportunities.js';
+import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
+import { parseReadme } from '../PUBLISH/content-parse.js';
+import { applyNew } from '../src/readme.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -312,6 +316,88 @@ sec('running it');
   let noKey = '';
   try { await runOpportunityDigest({ config: { ...config, tavilyKey: '' }, gh, now: NOW }); } catch (e) { noKey = e.message; }
   ok('a missing key gives a clear instruction', /wrangler secret put TAVILY_API_KEY/.test(noKey), noKey);
+}
+
+/* -------------------------------------------------------------- */
+sec('closing dates: extraction');
+{
+  const dl = (t) => extractDeadline(t, NOW);
+  const date = (t) => dl(t)?.date ?? null;
+  ok('"Closing date: 30 November 2026"', date('Sasol Bursary. Closing date: 30 November 2026. Apply online.') === '2026-11-30');
+  ok('short month, ordinal and "of"', date('Applications close on 15th of Oct 2026') === '2026-10-15');
+  ok('month first: "Deadline: November 30, 2026"', date('Deadline: November 30, 2026') === '2026-11-30');
+  ok('ISO date', date('closes 2026-12-01') === '2026-12-01');
+  ok('SA day-first numeric date, past a weekday', date('Closing Date: Thursday, 30/11/2026') === '2026-11-30');
+  ok('"apply by" and "no later than"', date('Apply by 14 Dec 2026') === '2026-12-14' && date('Submit no later than 9 January 2027') === '2027-01-09');
+  ok('the closing date is picked over an opening date', date('Opens 1 Nov 2026, closes 30 Nov 2026') === '2026-11-30');
+  ok('an opening date alone is not a deadline', date('Applications open 1 Nov 2026') === null);
+  ok('an unrelated date after a full stop is not taken', date('Applications close. Interviews are on 4 Dec 2026') === null);
+  ok('a date with no closing word is ignored', date('Posted 3 Oct 2026. Great bursary.') === null);
+  ok('two different closing dates (a sidebar of other listings) → none, not a guess', date('Closes 30 Nov 2026 ... Closes 5 Dec 2026') === null);
+  ok('the same date twice is still one date', date('Closes 30 Nov 2026. Remember: closing date 30 November 2026') === '2026-11-30');
+  ok('an impossible date is rejected', date('closes 31 Feb 2027') === null);
+  ok('a date without a year is not guessed', date('Closes 30 November') === null);
+  ok('a closing date in the past is flagged', dl('Applications closed on 3 Mar 2026').past === true);
+  ok('the closing day itself is not past', dl('Closes 5 Oct 2026').past === false);
+  ok('"today" is judged in South Africa (22:30 UTC is already tomorrow)',
+    extractDeadline('Closes 5 Oct 2026', new Date('2026-10-05T22:30:00Z')).past === true);
+  ok('empty and non-text input is safe', date('') === null && date(undefined) === null && date(null) === null);
+}
+
+/* -------------------------------------------------------------- */
+sec('closing dates: in findings and the issue');
+{
+  const t = fakeTavily((body) => {
+    if (/engineering/.test(body.query)) return [
+      result('Sasol Bursary', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/sasol-bursary', 'For engineers. Closing date: 30 November 2026.'),
+      result('Old Bursary', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/old-bursary', 'Closing date: 30 June 2026.'),
+      result('Undated Bursary', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/undated', 'No date given.'),
+    ];
+    if (/learnership/.test(body.query)) return [result('A learnership', 'https://www.graduates24.com/l/', 'Paid. Applications close 15 Dec 2026.')];
+    return [];
+  });
+  const seen = [];
+  const { findings } = await collect({ key: 'k', searches: planSearches(), fetchImpl: t.fetchImpl, now: NOW, onResult: (r) => seen.push(r) });
+  const by = (name) => findings.find((f) => f.title === name);
+
+  ok('a found deadline is on the finding', by('Sasol Bursary')?.closes === '2026-11-30' && by('A learnership')?.closes === '2026-12-15');
+  ok('a lead with no deadline has no closes key', by('Undated Bursary') && !('closes' in by('Undated Bursary')));
+  ok('a lead whose deadline has passed is dropped', !by('Old Bursary'));
+  ok('...and --explain says why', seen.some((r) => r.kept === false && /2026-06-30 has already passed/.test(r.reason)));
+
+  const { body } = renderDigest({ findings, failures: [], searched: 10, now: NOW });
+  ok('the bullet shows the closing date', body.includes('_zabursaries_ · **closes 2026-11-30**'));
+  ok('an undated bullet is unchanged', /\[Undated Bursary\]\([^)]+\) — No date given\. · _zabursaries_\n/.test(body));
+  ok('there is a paste-ready block, collapsed', body.includes('<details>') && body.includes('Ready to paste into OPPORTUNITIES.md (2 with a closing date)'));
+  ok('it says where each line goes', body.includes("Under `## 🎓 I'm Going to Study` → `### Paying for It`") && body.includes("Under `## 💼 I'm Going to Work` → `### Finding Work`"));
+  ok('only dated leads are in it', !body.slice(body.indexOf('<details>')).includes('Undated Bursary'));
+  ok('the block comes before the footer and after the leads', body.indexOf('<details>') > body.indexOf('A learnership'));
+  ok('no block at all when nothing has a deadline', !renderDigest({ findings: [{ title: 'X', url: 'https://x.org/a', desc: '', source: 'zabursaries', pass: 'scoped', category: 'Bursaries', tag: null }], failures: [], searched: 1, now: NOW }).body.includes('<details>'));
+}
+
+/* -------------------------------------------------------------- */
+sec('closing dates: paste-ready lines are valid OPPORTUNITIES.md entries');
+{
+  const f = { title: 'Sasol Bursary', url: 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/sasol-bursary', desc: 'For engineers.', source: 'zabursaries', pass: 'scoped', category: 'Bursaries', tag: 'Engineering', closes: '2026-11-30' };
+  const line = entryLine(f);
+  ok('the line has the README shape and the block', line === '-   [Sasol Bursary](https://www.zabursaries.co.za/engineering-bursaries-south-africa/sasol-bursary) — For engineers. {closes: 2026-11-30; tags: bursary, engineering, deadline; source: zabursaries.co.za}', line);
+
+  const parsed = splitEntryMeta(line.replace(/^-\s+/, ''));
+  ok('the site reads the block back with no errors', parsed.errors.length === 0 && parsed.meta.closes === '2026-11-30' && parsed.meta.tags.join() === 'bursary,engineering,deadline');
+  const page = parseReadme(`## 🎓 I'm Going to Study\n\n### Paying for It\n\n${line}\n`, '2026-10-05').pillars.study['Paying for It'];
+  ok('the site parser shows it as a card with the right name, link and description', page.length === 1 && page[0].name === 'Sasol Bursary' && page[0].desc === 'For engineers.' && page[0].meta.closes === '2026-11-30', JSON.stringify(page));
+  let accepted = true;
+  try { applyNew(`## 🎓 I'm Going to Study\n\n### Paying for It\n\n-   [N](https://n.org) — x\n`, { pillar: "I'm Going to Study", section: 'Paying for It', content: line }); } catch { accepted = false; }
+  ok('the form would accept it too', accepted);
+
+  const hostile = entryLine({ ...f, title: 'Evil {closes: 2099-01-01} Bursary — Free', desc: 'x {tags: pwned} y — z' });
+  const h = splitEntryMeta(hostile.replace(/^-\s+/, ''));
+  ok('braces in web text cannot add to or replace the block', h.errors.length === 0 && h.meta.closes === '2026-11-30' && !h.meta.tags.includes('pwned'), hostile);
+  ok('an em dash in a title does not split the name', parseReadme(`## 🎓 I'm Going to Study\n\n### S\n\n${hostile}\n`, '2026-10-05').pillars.study.S[0].name === 'Evil closes: 2099-01-01 Bursary - Free');
+  ok('a lead with no deadline has no line', entryLine({ ...f, closes: undefined }) === null);
+  ok('a category with no home has no line', entryLine({ ...f, category: 'Closing soon' }) === null);
+  ok('learnerships go to Finding Work with their own tag', /\{closes: 2026-12-15; tags: learnership, deadline; source: graduates24\.com\}/.test(entryLine({ title: 'L', url: 'https://www.graduates24.com/l/', desc: '', category: 'Learnerships', tag: null, closes: '2026-12-15' })));
+  ok('pasteBlock is empty for no leads', pasteBlock([]).length === 0);
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);
