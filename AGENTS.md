@@ -28,6 +28,9 @@ The site fetches `README.md` from `main` on GitHub at runtime
   keyword in `PUBLISH/script.js`. Renaming one breaks the site **and** the form.
 - `src/readme.js` (`normalizeMarkdown`, `applyNew`, `applyEdit`) is what keeps
   submissions in that shape. Change it with its tests (`test/test-normalize.mjs`).
+- Time-sensitive entries go in `OPPORTUNITIES.md` (not yet written by the form or the digest). An entry
+  may end with `{closes: 2026-11-30; tags: bursary}`; the site hides it after that date, and a `closes` it
+  cannot read hides the entry. Format: `OPPORTUNITIES.md`, parser: `PUBLISH/entry-meta.js`.
 - Never put test data in the README. Test entries get closed or rejected, never merged.
 
 ## Layout
@@ -36,6 +39,8 @@ The site fetches `README.md` from `main` on GitHub at runtime
 |---|---|
 | `README.md` | The content (see above) |
 | `PUBLISH/` | The static site: `index.html` (Home), `tasks/`, `allstars/`, `contribute/` |
+| `OPPORTUNITIES.md` | Time-sensitive entries (deadlines). Same structure as the README; hidden by date once `closes` passes |
+| `PUBLISH/entry-meta.js` | Parser for the `{closes: …; tags: …}` block, shared by the site and `src/readme.js` |
 | `PUBLISH/theme.css`, `theme.js` | The shared design system and the light/night toggle (see "Design system") |
 | `PUBLISH/contribute/` | The form (Quill + Turndown + marked, **vendored** in `vendor/`) |
 | `src/worker.js` | Entry: routing and the three crons |
@@ -45,20 +50,20 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | `src/admin.js` | `POST /api/admin/run`: runs a job by hand (token-protected) |
 | `src/opportunities.js` | Weekly Tavily opportunity digest → one GitHub issue |
 | `scripts/mz`, `trigger.mjs`, `run-opportunities.mjs` | Run and tune things by hand |
-| `scripts/preview.mjs` | Local preview of the site with a mock API |
-| `test/` | Seven dependency-free suites, plus `test/browser/` (needs Chromium) |
+| `scripts/preview.mjs` | Local preview of the site with a mock API; reads the working-copy README/OPPORTUNITIES (`--sample` adds fake entries) |
+| `test/` | Eight dependency-free suites, plus `test/browser/` (needs Chromium) |
 
 ## Commands
 
 No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 
 ```bash
-for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration; do node test/$t.mjs | tail -3; done
+for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta; do node test/$t.mjs | tail -3; done
 ```
 
-All seven must pass before a PR (59, 48, 43, 69, 101, 23 and 39 checks as of writing).
+All eight must pass before a PR (59, 48, 43, 69, 101, 23, 39 and 36 checks as of writing).
 ```bash
-node test/browser/run.mjs      # the four page tests, in headless Chromium (108 checks)
+node test/browser/run.mjs      # the five page tests, in headless Chromium (120 checks)
 ```
 
 The browser tests start their own preview server and drive the real pages: the editor, filters,

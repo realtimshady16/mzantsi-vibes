@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { findChromium } from './lib.mjs';
 
-const TESTS = ['test-theme', 'test-contribute', 'test-tasks', 'test-allstars'];
+const TESTS = ['test-theme', 'test-contribute', 'test-tasks', 'test-allstars', 'test-home'];
 
 if (!findChromium()) {
   console.log('\n  SKIPPED the browser tests: no Chromium on the PATH.\n');
