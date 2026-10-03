@@ -38,7 +38,7 @@ await load({ opps: OPPS });
 sec('Opportunities merged into the pillar');
 ok('no script errors', errors.length === 0, JSON.stringify(errors));
 const n = await names();
-ok('evergreen entry first, then the open ones, in file order', JSON.stringify(n) === JSON.stringify(['NSFAS', 'Soon', 'Later', 'Today', 'Undated']), JSON.stringify(n));
+ok('time-sensitive entries first (in file order), then the evergreen one', JSON.stringify(n) === JSON.stringify(['Soon', 'Later', 'Today', 'Undated', 'NSFAS']), JSON.stringify(n));
 ok('expired entry is not shown', !n.includes('Gone'));
 ok('entry with an unreadable date is not shown', !n.includes('Broken'));
 const pills = await ev(`[...document.querySelectorAll('#study-content .res-row')].map(r=>[r.querySelector('.res-name').textContent.trim(), (r.querySelector('.res-deadline')||{}).textContent||null, !!r.querySelector('.res-deadline.soon')])`);

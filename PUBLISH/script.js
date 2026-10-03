@@ -111,6 +111,18 @@ const CONTENT = {
     url: '/contribute',
   },
 
+  /* ---- SEARCH ---- */
+  search: {
+    label: 'Search the guide',
+    placeholder: 'Try "bursary", "CV" or "NSFAS"',
+    clear: 'Clear search',
+    filtersLabel: 'Filter results',
+    tagsLabel: 'Tags',
+    results: (n) => `${n} result${n === 1 ? '' : 's'}`,
+    capped: (n) => `Showing the first ${n}. Add a word to narrow it down.`,
+    empty: 'Nothing matched. Try fewer words, or clear the filters.',
+  },
+
   /* ---- LOADING / ERROR STATES ---- */
   states: {
     loading: 'Loading resources...',
@@ -259,6 +271,7 @@ const SECTION_TONES = ['lilac', 'peach', 'butter', 'sage', 'blush'];
 
 function renderRow(r) {
   const desc = r.desc ? `<div class="res-desc">${escHtml(r.desc)}</div>` : '';
+  const crumb = r.crumb ? `<div class="res-crumb">${escHtml(r.crumb)}</div>` : '';
 
   /* No link yet: a "coming soon" placeholder, shown dimmed and not clickable. */
   if (!r.url) {
@@ -275,6 +288,7 @@ function renderRow(r) {
   return `
     <a class="res-row" href="${escHtml(r.url)}" target="_blank" rel="noopener">
       <div>
+        ${crumb}
         <div class="res-name">${escHtml(r.name)}</div>
         ${desc}
         ${deadlineBadge(r.meta)}
@@ -314,6 +328,7 @@ function renderSection(targetId, pillarKey, parsedData) {
    ============================================= */
 
 function switchSection(sectionId, btn) {
+  clearSearch();
   document.querySelectorAll('.content-section').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.path-card').forEach(el => el.classList.remove('active'));
   const target = document.getElementById('section-' + sectionId);
@@ -377,4 +392,110 @@ async function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+/* =============================================
+   SEARCH — over /api/index.json (see src/content-index.js)
+   The box stays hidden if the index cannot be loaded.
+   ============================================= */
+
+const searchState = { entries: [], pillar: null, tags: new Set(), timer: null };
+const PILLAR_KEYS = ['study', 'work', 'unsure', 'everyone'];
+
+function pillarLabel(key) {
+  return CONTENT.paths[key].heading;
+}
+
+function chip(label, attrs, pressed) {
+  return `<button type="button" class="chip" ${attrs} aria-pressed="${pressed}">${escHtml(label)}</button>`;
+}
+
+function renderChips(tags) {
+  const c = CONTENT.search;
+  const pillars = PILLAR_KEYS.map(k => chip(pillarLabel(k), `data-pillar="${k}"`, searchState.pillar === k)).join('');
+  const tagChips = tags.length
+    ? `<span class="chip-group-label">${escHtml(c.tagsLabel)}</span>` +
+      tags.map(t => chip(t.tag, `data-tag="${escHtml(t.tag)}"`, searchState.tags.has(t.tag))).join('')
+    : '';
+  document.getElementById('search-chips').innerHTML = pillars + tagChips;
+}
+
+function runSearch() {
+  const query = document.getElementById('search-input').value;
+  const { pillar, tags } = searchState;
+  const active = query.trim() || pillar || tags.size;
+  const main = document.querySelector('.main-content');
+  const out = document.getElementById('search-results');
+  const status = document.getElementById('search-status');
+  document.getElementById('search-clear').classList.toggle('hidden', !active);
+
+  if (!active) {
+    out.innerHTML = '';
+    status.textContent = '';
+    main.classList.remove('hidden');
+    return;
+  }
+
+  const hits = SearchCore.search(searchState.entries, { query, pillar, tags: [...tags] });
+  const c = CONTENT.search;
+  main.classList.add('hidden');
+  status.textContent = hits.length ? c.results(hits.length) + (hits.length >= SearchCore.MAX_RESULTS ? '. ' + c.capped(SearchCore.MAX_RESULTS) : '') : '';
+  out.innerHTML = hits.length
+    ? `<section class="res-card tone-butter"><div class="res-rows">${hits.map(e => renderRow({
+        name: e.name, url: e.url, desc: e.desc,
+        meta: e.closes ? { closes: e.closes } : null,
+        crumb: `${pillarLabel(e.pillar)} › ${e.section}`,
+      })).join('')}</div></section>`
+    : `<p class="res-empty">${escHtml(c.empty)}</p>`;
+}
+
+function clearSearch() {
+  const input = document.getElementById('search-input');
+  if (!input) return;
+  input.value = '';
+  searchState.pillar = null;
+  searchState.tags.clear();
+  if (searchState.entries.length) {
+    document.querySelectorAll('#search-chips .chip').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    runSearch();
+  }
+}
+
+async function initSearch() {
+  const c = CONTENT.search;
+  try {
+    const res = await fetch('/api/index.json', { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`index ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data.entries)) throw new Error('bad index');
+    searchState.entries = data.entries;
+
+    set('search-label', c.label);
+    attr('search-input', 'placeholder', c.placeholder);
+    attr('search-clear', 'aria-label', c.clear);
+    set('search-clear', c.clear);
+    attr('search-chips', 'aria-label', c.filtersLabel);
+    renderChips(data.tags || []);
+
+    document.getElementById('search-input').addEventListener('input', () => {
+      clearTimeout(searchState.timer);
+      searchState.timer = setTimeout(runSearch, 120);
+    });
+    document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Escape') clearSearch(); });
+    document.getElementById('search-form').addEventListener('submit', e => { e.preventDefault(); runSearch(); });
+    document.getElementById('search-clear').addEventListener('click', clearSearch);
+    document.getElementById('search-chips').addEventListener('click', e => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      if (b.dataset.pillar) searchState.pillar = searchState.pillar === b.dataset.pillar ? null : b.dataset.pillar;
+      else if (searchState.tags.has(b.dataset.tag)) searchState.tags.delete(b.dataset.tag);
+      else searchState.tags.add(b.dataset.tag);
+      renderChips(data.tags || []);
+      runSearch();
+    });
+
+    document.getElementById('search').classList.remove('hidden');
+  } catch (err) {
+    console.warn('Mzantsi Vibes: search unavailable:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => { init().then(initSearch); });

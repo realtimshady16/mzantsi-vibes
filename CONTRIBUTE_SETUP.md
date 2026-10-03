@@ -150,8 +150,9 @@ node test/test-review.mjs     # 69 checks — digest, signed links, batch merge
 node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dry runs, new-section fix
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
+node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
 node test/test-opportunities.mjs # 101 checks — opportunity digest, Tavily and GitHub faked
-node test/browser/run.mjs      # 120 checks — the five pages in headless Chromium (needs Chromium; skips without it)
+node test/browser/run.mjs      # 148 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
 `test-integration.mjs` reads the real README from GitHub. The repo is public so
