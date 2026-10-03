@@ -260,8 +260,8 @@ sec('what the weekly job asks of the two sites');
   ok('the job itself makes no request to graduates24.com', !hosts.some((h) => h.includes('graduates24')), hosts.join());
   ok('and only the three monthly pages to zabursaries.co.za', hosts.length <= 3 && log.every((u) => /\/bursaries-closing-in-[a-z]+-\d{4}\/$/.test(u)), log.join());
   ok('one at a time', maxInFlight === 1);
-  ok('a Graduates24 lead still appears in the issue as a link (from the search), but never in the PR or on the site',
-    gh.of('createIssue')[0][3].body.includes('graduates24.com/some-learnership') && !gh.of('commitReadme')[0]?.[4].content.includes('graduates24'));
+  ok('a Graduates24 result is dropped altogether: not in the issue, not in the PR, not on the site',
+    !gh.of('createIssue')[0][3].body.includes('graduates24') && !gh.of('commitReadme')[0]?.[4].content.includes('graduates24'));
 }
 
 sec('the Worker\'s 50-request limit');

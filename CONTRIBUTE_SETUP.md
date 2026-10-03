@@ -152,7 +152,7 @@ node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
 node test/test-opportunity-pr.mjs # 62 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
-node test/test-opportunities.mjs # 169 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunities.mjs # 173 checks — opportunity digest, Tavily and GitHub faked
 node test/browser/run.mjs      # 154 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
@@ -221,11 +221,12 @@ goes near the README, and there is no deduplication between weeks.
   A dry run therefore takes about a minute longer than before.
 - **Trusted pass:** bursaries by the six README faculties (zabursaries only,
   filed by the faculty in each URL), then learnerships, graduate programmes,
-  jobs and training/vac work on both sites (`include_domains`). Everything but
+  jobs and training/vac work, also limited to zabursaries (`include_domains`;
+  Graduates24 was dropped, see "What the sources allow"). Everything but
   the evergreen faculty hubs is limited to the last month, which turns generic
   listing pages into specific postings.
 - **Broader pass (off in the weekly run):** one whole-web search per category,
-  with the two sites, social media and job-board search pages excluded. It is
+  with zabursaries, Graduates24, social media and job-board search pages excluded. It is
   kept in the code but not run by the cron, because real runs showed roughly
   half its results were noise (foreign employers, generic careers pages, job
   board listings). Run it on demand with `--with-broad` while tuning, and switch
@@ -255,8 +256,7 @@ goes near the README, and there is no deduplication between weeks.
   by the **GitHub App**, from a `contribute/opps-<date>-<id>` branch, labelled
   `needs-review`, so it appears in the 08:00 digest email with Approve and Reject
   links and is only merged by the 18:00 job once approved. It is never pushed to
-  `main`. Limits: **bursaries from zabursaries only** (nothing of Graduates24's
-  goes onto the site, see below); **every entry gets our own plain description**
+  `main`. Limits: **bursaries from zabursaries only**; **every entry gets our own plain description**
   ("Engineering bursary. See the page for who can apply and how."), never text
   copied from a page or a search snippet; one such PR open at a time (the
   next week says so and skips); at most 15 entries, soonest first; anything whose
@@ -283,11 +283,13 @@ pages can change. Re-read them before widening what the job does.
   consent" and accessing the site "using any robot, spider or other automated
   means"; §4.2 forbids downloading material beyond browser use; §4.4 forbids
   republishing or redistributing it. Its `robots.txt` allows `*` but blocks AI
-  crawlers (GPTBot, ClaudeBot, CCBot…). **So this project never fetches
-  Graduates24 itself and nothing of theirs is written to the site.** Its leads
-  appear only as links in the weekly issue, found by Tavily (which does its own
-  crawling). Consent can be asked for through the form on `/contact`; with it,
-  the structured listing cards (title, link, `Closes:` date) could be read.
+  crawlers (GPTBot, ClaudeBot, CCBot…). **So this project does not use
+  Graduates24 as a source at all:** it is not searched, not fetched, and any
+  result from it is dropped, so none of its text or links reach the weekly issue
+  or the site (the README's plain links to its pages are ordinary links, which
+  its terms do not restrict). Consent can be asked for through the form on
+  `/contact`; with it, its structured listing cards (title, link, `Closes:` date)
+  could be read.
 - **zabursaries.co.za:** no terms of use page (the usual URLs return 404), only a
   privacy policy with a disclaimer ("published in good faith … at your own risk").
   The footer says "Copyright ZA Bursaries", so their text is not free to copy.

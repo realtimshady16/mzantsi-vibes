@@ -69,8 +69,7 @@ export async function planOpportunityPr({ config, gh, findings, listed = [], now
   // (it was read more closely).
   const unique = new Map();
   for (const f of [...findings, ...listed]) if (!unique.has(urlKey(f.url))) unique.set(urlKey(f.url), f);
-  // Bursaries from zabursaries only. Graduates24's terms forbid automated collection and republishing
-  // (see CONTRIBUTE_SETUP.md, "What the sources allow"), so nothing of theirs goes onto the site.
+  // Bursaries from zabursaries only (and nothing from graduates24: see CONTRIBUTE_SETUP.md, "What the sources allow").
   const dated = [...unique.values()]
     .filter((f) => f.closes && f.closes > today && f.category === 'Bursaries' && sourceOf(f.url) === 'zabursaries' && entryLine(f))
     .sort((a, b) => a.closes.localeCompare(b.closes));

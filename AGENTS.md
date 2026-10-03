@@ -67,7 +67,7 @@ No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
 ```
 
-All ten must pass before a PR (59, 48, 43, 69, 169, 23, 39, 36, 39 and 62 checks as of writing).
+All ten must pass before a PR (59, 48, 43, 69, 173, 23, 39, 36, 39 and 62 checks as of writing).
 `test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (154 checks)
@@ -163,10 +163,11 @@ All four pages share `PUBLISH/theme.css` (tokens, header, footer, zigzag band) a
 8. **A Worker run may make only 50 outbound requests** (free plan), and a redirect counts as another. The weekly job
    uses about 30 in a worst case (`test-opportunity-pr.mjs` counts them). Anything that adds a `fetch` to it must
    keep that test under its limit: the first deployed run failed on exactly this.
-9. **Respect the sources** (details in `CONTRIBUTE_SETUP.md`, "What the sources allow"). Never fetch graduates24.com
-   yourself and never put its text on the site: its terms forbid automated access and republishing. For
-   zabursaries.co.za make only the three monthly-page requests, one at a time, 30 seconds apart (its
-   `robots.txt` crawl delay), take names, dates and links only, and write our own descriptions. Tests enforce this.
+9. **Respect the sources** (details in `CONTRIBUTE_SETUP.md`, "What the sources allow"). graduates24.com is not a source:
+   its terms forbid automated access and republishing, so never search it, fetch it, or put its text anywhere (the
+   digest drops any result from it). For zabursaries.co.za make only the three monthly-page requests, one at a time,
+   30 seconds apart (its `robots.txt` crawl delay), take names, dates and links only, and write our own
+   descriptions. Tests enforce this.
 10. **Tavily costs credits.** One basic search is 1 credit, and a dry run spends the same
    as a real run. The weekly run is 10. Don't loop over it while testing; use
    `mz opps tune --only … --explain`.
