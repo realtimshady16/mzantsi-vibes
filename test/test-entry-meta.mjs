@@ -113,9 +113,9 @@ eq('meta is attached and stripped from the description',
 ok('prose under a non-pillar heading is ignored', !JSON.stringify(extra).includes('Not a real entry'));
 
 ctx.mergeParsed(base, extra);
-eq('same-named section: opportunities follow the evergreen entries',
-  base.pillars.study['Paying for It'].map((r) => r.name), ['NSFAS', 'Commerce Bursaries', 'Open']);
-eq('new section is added at the end of the pillar', base.pillarOrder.study, ['Paying for It', 'Brand New']);
+eq('same-named section: time-sensitive entries come first',
+  base.pillars.study['Paying for It'].map((r) => r.name), ['Open', 'NSFAS', 'Commerce Bursaries']);
+eq('new section goes at the start of the pillar', base.pillarOrder.study, ['Brand New', 'Paying for It']);
 eq('untouched pillar is unchanged', base.pillarOrder.work, ['Jobs']);
 console.warn = warn;
 

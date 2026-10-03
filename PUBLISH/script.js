@@ -393,17 +393,21 @@ function parseReadme(markdown, today = EntryMeta.todayInSA()) {
   return { pillars, pillarOrder };
 }
 
-/* Fold `extra` into `base`. A section with the same name joins that section
-   (after the evergreen entries); a new name is added at the end of its pillar. */
+/* Fold `extra` into `base`, time-sensitive first: a section with the same name
+   gets the new entries ahead of the evergreen ones, and a new section goes at
+   the start of its pillar. */
 function mergeParsed(base, extra) {
   for (const pillar of Object.keys(extra.pillars)) {
+    const fresh = [];
     for (const name of extra.pillarOrder[pillar]) {
-      if (!base.pillars[pillar][name]) {
-        base.pillars[pillar][name] = [];
-        base.pillarOrder[pillar].push(name);
+      if (base.pillars[pillar][name]) {
+        base.pillars[pillar][name].unshift(...extra.pillars[pillar][name]);
+      } else {
+        base.pillars[pillar][name] = extra.pillars[pillar][name];
+        fresh.push(name);
       }
-      base.pillars[pillar][name].push(...extra.pillars[pillar][name]);
     }
+    base.pillarOrder[pillar].unshift(...fresh);
   }
 }
 
