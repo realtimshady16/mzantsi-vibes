@@ -1,13 +1,12 @@
 /**
- * Entry metadata ({closes: …; tags: …}) — the shared parser, the site's real
- * parseReadme/mergeParsed (loaded from PUBLISH/script.js), and the form's
+ * Entry metadata ({closes: …; tags: …}) — the shared parser, the shared
+ * parseReadme/mergeParsed (PUBLISH/content-parse.js), and the form's
  * validation. No network and no dependencies.
  *
  * Run: node test/test-entry-meta.mjs
  */
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 import { splitEntryMeta, isHidden, isValidDate, todayInSA, daysBetween } from '../PUBLISH/entry-meta.js';
+import { parseReadme, mergeParsed } from '../PUBLISH/content-parse.js';
 import { applyNew, applyEdit, normalizeMarkdown, PatchError } from '../src/readme.js';
 
 let pass = 0, fail = 0;
@@ -54,15 +53,8 @@ ok('no block → never hidden', !hid('[A](https://a.org) — x', '2099-01-01'));
 ok('unreadable closes fails closed (hidden)', hid('[A](https://a.org) — x {closes: soon}'));
 ok('a bad tag alone does not hide the entry', !hid('[A](https://a.org) — x {tags: BAD TAG}'));
 
-sec('the site parser (PUBLISH/script.js)');
-const src = readFileSync(new URL('../PUBLISH/script.js', import.meta.url), 'utf8');
-const ctx = {
-  console, EntryMeta: globalThis.EntryMeta,
-  location: { hostname: 'example.org' },
-  document: { addEventListener() {}, getElementById: () => null },
-};
-vm.createContext(ctx);
-vm.runInContext(src + '\nthis.parseReadme = parseReadme; this.mergeParsed = mergeParsed;', ctx);
+sec('the shared parser (PUBLISH/content-parse.js)');
+const ctx = { parseReadme, mergeParsed };
 const warn = console.warn; console.warn = () => {};
 
 const README = `# T

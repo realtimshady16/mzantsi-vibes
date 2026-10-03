@@ -140,19 +140,6 @@ const OPPORTUNITIES_URL = RAW_BASE + 'OPPORTUNITIES.md';
 const LOCAL_DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
 const sourceUrl = (githubUrl, file) => (LOCAL_DEV ? `/__content/${file}` : githubUrl);
 
-/* PILLAR_MARKERS — maps each site pillar to keywords that identify
-   its ## heading in the README. Case-insensitive partial match.
-   If you rename a pillar heading in the README, update the keyword here. */
-const PILLAR_MARKERS = {
-  study:    ["going to study"],
-  work:     ["going to work"],
-  unsure:   ["don't know", "dont know"],
-  everyone: ["for everyone"],
-};
-
-/* STOP_HEADINGS — ## headings that are NOT pillars and should be skipped */
-const STOP_HEADINGS = ["where are you", "contributing", "community", "contact"];
-
 /* =============================================
    POPULATE — writes CONTENT into the HTML
    ============================================= */
@@ -242,171 +229,6 @@ function attr(id, attribute, value) {
   const el = document.getElementById(id);
   if (el) el.setAttribute(attribute, value);
 }
-/* =============================================
-   PARSER — README markdown → structured data
-   Auto-discovers pillars and subsections from
-   ## and ### headings. No hardcoded section list.
-   New sections in the README appear automatically.
-   ============================================= */
-
-function stripMarkdown(str) {
-  return str
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
-    .replace(/_([^_]+)_/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\s*\[#[^\]]*\]/g, '')
-    .trim();
-}
-
-function cleanUrl(url) {
-  return url.replace(/[.)]+$/, '').trim();
-}
-
-function isBareUrl(str) {
-  return /^https?:\/\/\S+/.test(str.trim());
-}
-
-function identifyPillar(headingText) {
-  const lower = headingText.toLowerCase();
-  for (const [pillar, markers] of Object.entries(PILLAR_MARKERS)) {
-    if (markers.some(m => lower.includes(m))) return pillar;
-  }
-  return null;
-}
-
-function isStopHeading(headingText) {
-  const lower = headingText.toLowerCase();
-  return STOP_HEADINGS.some(s => lower.includes(s));
-}
-
-function parseReadme(markdown, today = EntryMeta.todayInSA()) {
-  const lines = markdown.split('\n');
-
-  /* pillars holds ordered subsections per pillar.
-     Each pillar is an object: { sectionName: [items] }
-     We also keep an ordered list of section names so render order matches README order. */
-  const pillars = { study: {}, work: {}, unsure: {}, everyone: {} };
-  const pillarOrder = { study: [], work: [], unsure: [], everyone: [] };
-
-  let currentPillar = null;
-  let parentSection = null; // the ### heading (resets bold sub-label back to)
-  let currentSection = null; // active bucket key
-
-  const ensureSection = (pillar, key) => {
-    if (!pillars[pillar][key]) {
-      pillars[pillar][key] = [];
-      pillarOrder[pillar].push(key);
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (!trimmed || trimmed === '---') continue;
-
-    /* ## heading — identifies a pillar or stops parsing */
-    if (/^##\s/.test(trimmed)) {
-      const heading = stripMarkdown(trimmed.replace(/^##\s*/, ''));
-      if (isStopHeading(heading)) {
-        currentPillar = null; parentSection = null; currentSection = null;
-        continue;
-      }
-      const pillar = identifyPillar(heading);
-      currentPillar = pillar || null;
-      parentSection = null;
-      currentSection = null;
-      continue;
-    }
-
-    /* ### heading — subsection within the current pillar */
-    if (/^###\s/.test(trimmed) && currentPillar) {
-      const heading = stripMarkdown(trimmed.replace(/^###\s*/, ''));
-      parentSection = heading;
-      currentSection = heading;
-      ensureSection(currentPillar, currentSection);
-      continue;
-    }
-
-    /* **Bold label** on its own line — sub-group within the current ### section.
-       Resets to parentSection so labels don't nest into each other. */
-    if (/^\*\*[^*]+\*\*$/.test(trimmed) && currentPillar && parentSection) {
-      const label = trimmed.replace(/\*\*/g, '').trim();
-      currentSection = `${parentSection} — ${label}`;
-      ensureSection(currentPillar, currentSection);
-      continue;
-    }
-
-    if (!currentPillar || !currentSection) continue;
-    const bucket = pillars[currentPillar][currentSection];
-
-    /* List item with a link */
-    if (/^[-*]\s/.test(trimmed) && trimmed.includes('[')) {
-      /* Optional trailing {closes: …; tags: …} block — see entry-meta.js */
-      const split = EntryMeta.splitEntryMeta(trimmed.replace(/^[-*]\s+/, '').trim());
-      const content = split.text;
-      const meta = split.meta;
-      if (EntryMeta.isHidden(split, today)) {
-        if (split.errors.length) console.warn('Mzantsi Vibes: hiding entry with bad metadata:', content, split.errors);
-        continue;
-      }
-      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let match;
-      const links = [];
-      while ((match = linkRegex.exec(content)) !== null) {
-        links.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
-      }
-
-      if (links.length > 0) {
-        /* Name: replace link syntax with link text, then take everything before the — */
-        const withText = content.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-        const namePart = withText.split(/\s[—–]\s/)[0].trim();
-        const name = stripMarkdown(namePart) || links[0].name;
-
-        /* Desc: everything after the — dash */
-        const descMatch = content.match(/\s[—–]\s(.+)$/);
-        const desc = descMatch ? stripMarkdown(descMatch[1]).trim() : '';
-
-        bucket.push({ name, url: links[0].url, desc, meta });
-      } else if (/coming soon/i.test(content)) {
-        const name = stripMarkdown(
-          content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
-        );
-        bucket.push({ name: name || 'Coming soon', url: null, desc: 'Coming soon' });
-      }
-      continue;
-    }
-
-    /* List item without a link — coming soon entries */
-    if (/^[-*]\s/.test(trimmed)) {
-      const content = trimmed.replace(/^[-*]\s+/, '').trim();
-      if (/coming soon/i.test(content)) {
-        const name = stripMarkdown(
-          content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
-        );
-        bucket.push({ name: name || 'Coming soon', url: null, desc: 'Coming soon' });
-      }
-    }
-  }
-
-  return { pillars, pillarOrder };
-}
-
-/* Fold `extra` into `base`. A section with the same name joins that section
-   (after the evergreen entries); a new name is added at the end of its pillar. */
-function mergeParsed(base, extra) {
-  for (const pillar of Object.keys(extra.pillars)) {
-    for (const name of extra.pillarOrder[pillar]) {
-      if (!base.pillars[pillar][name]) {
-        base.pillars[pillar][name] = [];
-        base.pillarOrder[pillar].push(name);
-      }
-      base.pillars[pillar][name].push(...extra.pillars[pillar][name]);
-    }
-  }
-}
-
 /* =============================================
    RENDERER — structured data → HTML
    ============================================= */
@@ -520,7 +342,7 @@ async function init() {
       cache: 'no-cache',
     });
     if (!res.ok) throw new Error('Failed to fetch README');
-    const parsed = parseReadme(await res.text());
+    const parsed = ContentParse.parseReadme(await res.text());
 
     /* The opportunities file is optional: if it is missing or down, the
        evergreen content still renders. */
@@ -529,7 +351,7 @@ async function init() {
         headers: { 'Accept': 'text/plain, */*' },
         cache: 'no-cache',
       });
-      if (opp.ok) mergeParsed(parsed, parseReadme(await opp.text()));
+      if (opp.ok) ContentParse.mergeParsed(parsed, ContentParse.parseReadme(await opp.text()));
     } catch (err) {
       console.warn('Mzantsi Vibes: could not load OPPORTUNITIES.md:', err);
     }
