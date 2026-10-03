@@ -16,6 +16,8 @@
  * built and checked directly (Tavily's index missed the current month's page).
  */
 
+import { isValidDate, todayInSA } from '../PUBLISH/entry-meta.js';
+
 export const OPPS_LABEL = 'opportunity-digest';
 export const OPPS_LABEL_META = {
   color: '1d76db',
@@ -372,6 +374,130 @@ export function facultyFromUrl(url) {
   return null;
 }
 
+/* ------------------------------------------------------------------ *
+ * Closing dates
+ * ------------------------------------------------------------------ */
+
+const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+// "30 November 2026", "30th of Nov 2026", "November 30, 2026", "2026-11-30", "30/11/2026" (South Africa writes day first)
+const DATE_PART = [
+  `(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_RE}\\.?,?\\s+(20\\d\\d)`,
+  `${MONTH_RE}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(20\\d\\d)`,
+  `(20\\d\\d)-(\\d{2})-(\\d{2})`,
+  `(\\d{1,2})[/.](\\d{1,2})[/.](20\\d\\d)`,
+].join('|');
+// No "." or line break between a closing word and its date: "applications close.
+// Interviews are on 4 Dec 2026" must not match.
+const GAP = '[^\\d.!?\\n]{0,40}?';
+
+// Every pattern's first capture group is the closing word; the date groups follow.
+// (A) The field label: "Closing Date  18 September 2026" or zabursaries'
+//     "WHEN IS THE CLOSING DATE FOR THE ESKOM BURSARY? 22 September 2026."
+const LABELLED_RE = new RegExp(`\\b(closing\\s+date)(?:\\s+for\\s+[^?\\n]{1,100}\\?|${GAP})\\s*(?:${DATE_PART})`, 'gi');
+// (B) A closing word in a sentence: "close on", "deadline is", "apply by", "no later than".
+const PROSE_RE = new RegExp(`\\b(clos(?:e|es|ing|ed)\\s+(?:on|by|at)|deadline(?:\\s+(?:is|for))?|apply\\s+(?:by|before)|no\\s+later\\s+than)\\b${GAP}\\s*(?:${DATE_PART})`, 'gi');
+// (C) "closes 30 Nov 2026" straight into the date. Listing rows are written "Closes: 30 Sep 2026"
+//     or "Closes 09 Oct 2026" next to *other* listings, so only the lowercase form, as it is
+//     written in a sentence, is trusted.
+const BARE_RE = new RegExp(`\\b(clos(?:es|e|ing|ed))[\\s:]{1,3}(?:${DATE_PART})`, 'gi');
+
+const pad = (n) => String(n).padStart(2, '0');
+const monthNumber = (m) => MONTHS.findIndex((full) => full.startsWith(m.toLowerCase().slice(0, 3))) + 1;
+
+/** Turn one regex hit's date groups into YYYY-MM-DD, or null if it is not a real date. */
+function isoFromGroups(g) {
+  const [dMon, mon1, y1, mon2, d2, y2, y3, m3, d3, dd4, mm4, y4] = g;
+  let y, m, d;
+  if (y1) { d = Number(dMon); m = monthNumber(mon1); y = Number(y1); }
+  else if (y2) { d = Number(d2); m = monthNumber(mon2); y = Number(y2); }
+  else if (y3) { y = Number(y3); m = Number(m3); d = Number(d3); }
+  else { d = Number(dd4); m = Number(mm4); y = Number(y4); }
+  const iso = `${y}-${pad(m)}-${pad(d)}`;
+  return isValidDate(iso) ? iso : null;
+}
+
+function datesFrom(text, re, accept = () => true) {
+  const found = new Set();
+  for (const m of text.matchAll(re)) {
+    const iso = accept(m[1]) && isoFromGroups(m.slice(2));
+    if (iso) found.add(iso);
+  }
+  return found;
+}
+
+/**
+ * Find the closing date in a page's text or a search snippet. Conservative on
+ * purpose, because a wrong deadline is worse than a missing one:
+ *   - the field label ("Closing Date") is trusted first; a sentence ("close on",
+ *     "deadline is", "apply by", lowercase "closes 30 Nov 2026") is the fallback;
+ *   - a year is required, and an impossible date is rejected;
+ *   - more than one distinct date at the same level is a listing of other
+ *     openings (these sites append one), so it reports none rather than a guess;
+ *   - capitalised "Closes: 30 Sep 2026" is a listing row, never taken.
+ * Returns { date, past } or null. `past` means it has already closed.
+ */
+export function extractDeadline(text, now = new Date()) {
+  const t = String(text ?? '');
+  const levels = [
+    datesFrom(t, LABELLED_RE),
+    new Set([...datesFrom(t, PROSE_RE), ...datesFrom(t, BARE_RE, (kw) => kw === kw.toLowerCase())]),
+  ];
+  const level = levels.find((l) => l.size > 0);
+  if (!level || level.size !== 1) return null;
+  const [date] = level;
+  return { date, past: date < todayInSA(now) };
+}
+
+/** Page HTML → plain text, enough to read a date out of. */
+export function htmlToText(html) {
+  return String(html ?? '')
+    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#8217;|&rsquo;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Each lookup is one subrequest, and a Worker invocation gets 50 on the free plan.
+// A run already uses about 15 (10 searches, 3 closing pages, the issue), so 20 fits.
+export const MAX_PAGE_LOOKUPS = 20;
+
+/**
+ * Search snippets rarely carry the deadline (real zabursaries snippets had none),
+ * but the bursary pages themselves state it. For leads still without a date, read
+ * the page, from the two trusted sites only, and take the date from there. A page
+ * that says it has already closed is dropped. Failures just leave the lead undated.
+ */
+export async function enrichDeadlines(findings, { fetchPage = fetch, now = new Date(), onResult, max = MAX_PAGE_LOOKUPS } = {}) {
+  const wanted = findings.filter((f) => !f.closes && f.pass !== 'closing' && sourceOf(f.url) !== 'broader search').slice(0, max);
+
+  await Promise.all(wanted.map(async (f) => {
+    try {
+      const res = await fetchPage(f.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
+        signal: AbortSignal.timeout(10000),
+        redirect: 'follow',
+      });
+      if (!res.ok) return onResult?.({ enrich: true, url: f.url, note: `page returned ${res.status}` });
+      const deadline = extractDeadline(htmlToText(await res.text()), now);
+      if (!deadline) return onResult?.({ enrich: true, url: f.url, note: 'no single closing date on the page' });
+      if (deadline.past) {
+        f.closed = deadline.date;
+        return onResult?.({ enrich: true, url: f.url, note: `closing date ${deadline.date} has already passed — dropped` });
+      }
+      f.closes = deadline.date;
+      onResult?.({ enrich: true, url: f.url, note: `closes ${deadline.date}` });
+    } catch (err) {
+      onResult?.({ enrich: true, url: f.url, note: `could not read the page: ${err?.message || err}` });
+    }
+  }));
+
+  return findings.filter((f) => !f.closed);
+}
+
 const DATE_RE = /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+20\d\d\b/gi;
 
 /**
@@ -409,6 +535,9 @@ function judge(result, search, now) {
   const title = oneLine(result.title, 120) || hostOf(url);
   if (isStale(title, now)) return { reason: 'title only mentions past years' };
 
+  const deadline = extractDeadline(`${result.title}. ${result.content}`, now);
+  if (deadline?.past) return { reason: `closing date ${deadline.date} has already passed` };
+
   const source = sourceOf(url);
   return {
     finding: {
@@ -416,6 +545,7 @@ function judge(result, search, now) {
       url,
       desc: usableDesc(oneLine(result.content, MAX_DESC, result.title)),
       source,
+      ...(deadline && { closes: deadline.date }),
       pass: search.pass,
       category: search.category,
       tag: search.category !== 'Bursaries' ? null : source === 'zabursaries' ? facultyFromUrl(url) : search.tag || null,
@@ -466,7 +596,57 @@ export async function collect({ key, searches, fetchImpl, now = new Date(), onRe
  * The issue
  * ------------------------------------------------------------------ */
 
-const bullet = (f) => `- [${f.title}](${f.url})${f.desc ? ` — ${f.desc}` : ''} · _${f.source}_`;
+const bullet = (f) =>
+  `- [${f.title}](${f.url})${f.desc ? ` — ${f.desc}` : ''} · _${f.source}_${f.closes ? ` · **closes ${f.closes}**` : ''}`;
+
+/* ------------------------------------------------------------------ *
+ * Paste-ready entries for OPPORTUNITIES.md
+ * ------------------------------------------------------------------ */
+
+// Where each category belongs in OPPORTUNITIES.md (same pillar and section names as the README).
+const DESTINATION = {
+  Bursaries: { pillar: "🎓 I'm Going to Study", section: 'Paying for It', tag: 'bursary' },
+  Learnerships: { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'learnership' },
+  'Graduate programmes': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'graduate-programme' },
+  'Job openings': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'job' },
+  'Training & vac work': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'vac-work' },
+};
+
+const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** One line in the OPPORTUNITIES.md format (see that file), or null if it has no deadline. */
+export function entryLine(f) {
+  const dest = DESTINATION[f.category];
+  if (!dest || !f.closes) return null;
+  // Web text must not be able to add or break the {…} block, or split the name at an em dash.
+  const clean = (t) => String(t).replace(/[{}]/g, '').replace(/\s[—–]\s/g, ' - ').trim();
+  const tags = [dest.tag, f.tag && slug(f.tag), 'deadline'].filter(Boolean);
+  const desc = f.desc ? ` — ${clean(f.desc)}` : '';
+  return `-   [${clean(f.title)}](${f.url})${desc} {closes: ${f.closes}; tags: ${[...new Set(tags)].join(', ')}; source: ${hostOf(f.url)}}`;
+}
+
+/** The "Ready to paste" block: only leads with a deadline found, grouped by where they go. */
+export function pasteBlock(findings) {
+  const groups = new Map();
+  for (const f of findings) {
+    const line = entryLine(f);
+    if (!line) continue;
+    const { pillar, section } = DESTINATION[f.category];
+    const key = `${pillar}\u0000${section}`;
+    groups.set(key, [...(groups.get(key) || []), line]);
+  }
+  if (!groups.size) return [];
+
+  const total = [...groups.values()].reduce((n, l) => n + l.length, 0);
+  const out = ['---', '', '<details>', `<summary>📋 Ready to paste into OPPORTUNITIES.md (${total} with a closing date)</summary>`, '',
+    'Check each date against the page first, then add the line under its heading. Leads without a closing date are not here: they could never expire.', ''];
+  for (const [key, lines] of groups) {
+    const [pillar, section] = key.split('\u0000');
+    out.push(`Under \`## ${pillar}\` → \`### ${section}\`:`, '', '```markdown', ...lines, '```', '');
+  }
+  out.push('</details>', '');
+  return out;
+}
 
 function section(heading, level, items) {
   const h = '#'.repeat(level);
@@ -518,6 +698,8 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
     body.push('---', '', '## 🌍 Broader search (less trusted)', '', ...CATEGORY_ORDER.flatMap((c) => categoryBlock(broad, c, 3)));
   }
 
+  body.push(...pasteBlock(findings.filter((f) => f.pass !== 'closing')));
+
   if (failures.length) {
     body.push('---', '', `⚠️ ${failures.length} of ${searched} searches failed, so this list is incomplete:`, '');
     body.push(...failures.map((f) => `- ${inert(f)}`), '');
@@ -541,7 +723,7 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
     collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult }),
   ]);
   const { failures, searched } = collected;
-  const findings = [...closing, ...collected.findings];
+  const findings = [...closing, ...(await enrichDeadlines(collected.findings, { fetchPage, now, onResult }))];
 
   // Every search failing means a bad key or an outage. Don't open an empty issue.
   if (failures.length === searched) {
