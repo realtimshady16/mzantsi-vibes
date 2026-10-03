@@ -55,9 +55,10 @@ ok('learnerships, graduate programmes, jobs and training are all covered',
     .every((c) => by('scoped').some((s) => s.category === c) && by('broad').some((s) => s.category === c)));
 ok('faculty bursary searches go to zabursaries only',
   by('scoped').filter((s) => s.category === 'Bursaries').every((s) => s.include.length === 1 && s.include[0] === 'zabursaries.co.za'));
-ok('every other scoped search is limited to the two trusted sites',
-  by('scoped').filter((s) => s.category !== 'Bursaries').every((s) => s.include.length === 2 && s.include.includes('graduates24.com')));
-ok('broader searches exclude the two trusted sites, so they only add new sources',
+ok('every other scoped search is limited to zabursaries too, and none includes graduates24 (its terms forbid it)',
+  by('scoped').filter((s) => s.category !== 'Bursaries').every((s) => s.include.length === 1 && s.include[0] === 'zabursaries.co.za') &&
+  plan.every((s) => !(s.include || []).includes('graduates24.com')));
+ok('broader searches exclude zabursaries (covered) and graduates24 (not a source), so they only add new sources',
   by('broad').every((s) => !s.include && s.exclude.includes('zabursaries.co.za') && s.exclude.includes('graduates24.com')));
 ok('broader searches also exclude social media and job-board search pages',
   by('broad').every((s) => s.exclude.includes('instagram.com') && s.exclude.includes('indeed.com') && s.exclude.includes('linkedin.com')));
@@ -88,10 +89,10 @@ sec('tuning overrides (the on-demand script uses these; the cron does not)');
   // --explain and --min-score: every decision is reported, with a reason.
   const events = [];
   const t2 = fakeTavily(() => [
-    { title: 'Good', url: 'https://www.graduates24.com/good-2027', content: 'A real lead for people.', score: 0.9 },
-    { title: 'Weak', url: 'https://www.graduates24.com/weak-2027', content: 'Meh content here ok.', score: 0.2 },
-    { title: 'Home', url: 'https://www.graduates24.com/', content: 'x', score: 0.9 },
-    { title: 'Good again', url: 'https://www.graduates24.com/good-2027/', content: 'dup', score: 0.8 },
+    { title: 'Good', url: 'https://www.zabursaries.co.za/good-2027', content: 'A real lead for people.', score: 0.9 },
+    { title: 'Weak', url: 'https://www.zabursaries.co.za/weak-2027', content: 'Meh content here ok.', score: 0.2 },
+    { title: 'Home', url: 'https://www.zabursaries.co.za/', content: 'x', score: 0.9 },
+    { title: 'Good again', url: 'https://www.zabursaries.co.za/good-2027/', content: 'dup', score: 0.8 },
   ]);
   const one = planSearches({ only: ['job'], minScore: 0.5 }).slice(0, 1);
   ok('--min-score is carried on the search', one[0].minScore === 0.5);
@@ -157,15 +158,15 @@ sec('filtering and de-duplication within a run');
 
 sec('noise, stale leads and faculty filing (all seen in a real run)');
 {
-  ok('site home pages are noise', isNoise('https://www.zabursaries.co.za') && isNoise('https://www.graduates24.com/'));
+  ok('site home pages are noise', isNoise('https://www.zabursaries.co.za') && isNoise('https://www.zabursaries.co.za/'));
   ok('on-site search results are noise', isNoise('https://www.zabursaries.co.za/?s=pharmacy') && isNoise('https://www.zabursaries.co.za?s=logistics'));
-  ok('pagination is noise', isNoise('https://www.graduates24.com/entry_level_jobs?page=9'));
+  ok('pagination is noise', isNoise('https://www.zabursaries.co.za/entry_level_jobs?page=9'));
   ok('contact and interview-tips pages are noise',
-    isNoise('https://www.zabursaries.co.za/contact') && isNoise('https://www.graduates24.com/interview_questions'));
+    isNoise('https://www.zabursaries.co.za/contact') && isNoise('https://www.zabursaries.co.za/interview_questions'));
   ok('real leads are not noise',
     !isNoise('https://www.zabursaries.co.za/engineering-bursaries-south-africa/sasol-bursary') &&
-    !isNoise('https://www.graduates24.com/absa-graduate-programme-2027') &&
-    !isNoise('https://www.graduates24.com/learnerships'));
+    !isNoise('https://www.zabursaries.co.za/absa-graduate-programme-2027') &&
+    !isNoise('https://www.zabursaries.co.za/learnerships'));
   ok('a title with only past years is stale', isStale('Bursaries 2024', NOW) && isStale('Intake 2025', NOW));
   ok('a range reaching this year is kept', !isStale('BBD Bursary South Africa 2025 - 2026', NOW) && !isStale('Graduate Programme 2027', NOW));
   ok('no year at all is kept', !isStale('Learnerships in South Africa', NOW));
@@ -198,7 +199,7 @@ sec('the issue');
 {
   const t = fakeTavily((body) => {
     if (body.include_domains && /engineering/.test(body.query)) return [result('Eng bursary', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/eng-bursary', 'For engineers.')];
-    if (body.include_domains && /learnership/.test(body.query)) return [result('A learnership', 'https://www.graduates24.com/l/', 'Paid learnership.')];
+    if (body.include_domains && /learnership/.test(body.query)) return [result('A learnership', 'https://www.zabursaries.co.za/l/', 'Paid learnership.')];
     if (body.exclude_domains && /job opening/.test(body.query)) return [result('A broad job', 'https://jobs.example.co.za/1', 'Entry level.')];
     return [];
   });
@@ -212,7 +213,7 @@ sec('the issue');
   ok('says nothing here is in the README', body.includes('nothing here is in the README'));
   ok('each bullet has title, link, description and source',
     body.includes('- [Eng bursary](https://www.zabursaries.co.za/engineering-bursaries-south-africa/eng-bursary) — For engineers. · _zabursaries_') &&
-    body.includes('- [A learnership](https://www.graduates24.com/l/) — Paid learnership. · _graduates24_') &&
+    body.includes('- [A learnership](https://www.zabursaries.co.za/l/) — Paid learnership. · _zabursaries_') &&
     body.includes('- [A broad job](https://jobs.example.co.za/1) — Entry level. · _broader search_'));
   ok('closing soon comes first', body.indexOf('Closing soon') < body.indexOf('## Bursaries') && body.includes('Bursaries closing in October 2026'));
   ok('bursaries are grouped by faculty', /## Bursaries\n\n### Engineering/.test(body));
@@ -243,16 +244,10 @@ sec('untrusted web text is made inert');
   ok('long descriptions end on a word, not mid-word', (() => { const s = oneLine('word '.repeat(100)); return s.length <= 181 && s.endsWith('…') && !s.endsWith('wor…'); })());
   ok('menu markup is stripped from descriptions',
     oneLine('## BURSARIES BY CATEGORY ### ACCOUNTING + Bester Bursary + Cape Wools \\\\ RELATED') === 'BURSARIES BY CATEGORY ACCOUNTING Bester Bursary Cape Wools RELATED');
-  ok('graduates24 page chrome is stripped',
-    oneLine('Title: Hatch: Graduate Programme Join our **WhatsApp Channel** for daily updates on the latest Internships, Learnerships, Graduate Programmes and Bursaries Apply for the role Create My CV Other Opportunities Eskom: Graduate', 180, 'Hatch: Graduate Programme').startsWith('Apply for the role'),
-    oneLine('Title: Hatch: Graduate Programme Join our **WhatsApp Channel** for daily updates on the latest Internships, Learnerships, Graduate Programmes and Bursaries Apply for the role Create My CV Other Opportunities Eskom: Graduate', 180, 'Hatch: Graduate Programme'));
   ok('the result title is not repeated at the start of its own description',
     !oneLine('Hatch: Graduate Programme 2026 Join us in Johannesburg for a 2-year rotation.', 180, 'Hatch: Graduate Programme 2026').startsWith('Hatch'));
-  ok('page chrome is stripped even when the snippet has line breaks',
-    oneLine('Apply for the role.\nCreate Your CV\nBuild a professional CV in minutes\nOther Opportunities Eskom: Graduate').startsWith('Apply for the role') &&
-    !oneLine('Apply for the role.\nCreate Your CV\nBuild a professional CV in minutes').includes('CV'));
   ok('a sidebar roll of other listings (2+ dates) is dropped, a single deadline is kept',
-    usableDesc('Pretoria Closes 09 Oct 2026 Inlumi: Graduate Internships 2027 30 Sep 2026 NTT DATA') === '' &&
+    usableDesc('Pretoria Closes 09 Oct 2026 Acme: Graduate Internships 2027 30 Sep 2026 Example Co') === '' &&
     usableDesc('Closing date: 31 October 2026 for undergraduate students') !== '' &&
     usableDesc('Apply') === '');
   ok('broader results need a South Africa signal',
@@ -274,7 +269,7 @@ sec('untrusted web text is made inert');
 /* -------------------------------------------------------------- */
 sec('source labels and dates');
 ok('zabursaries (with and without www)', sourceOf('https://www.zabursaries.co.za/x') === 'zabursaries' && sourceOf('https://zabursaries.co.za/x') === 'zabursaries');
-ok('graduates24', sourceOf('https://www.graduates24.com/x') === 'graduates24');
+
 ok('anything else is "broader search"', sourceOf('https://evilzabursaries.co.za.example.org/') === 'broader search');
 ok('the title date is the SAST date, not UTC', sastDate(new Date('2026-10-04T23:30:00Z')) === '2026-10-05');
 
@@ -341,7 +336,7 @@ sec('closing dates: extraction');
   ok('the closing day itself is not past', dl('closes 5 Oct 2026').past === false);
   ok('"today" is judged in South Africa (22:30 UTC is already tomorrow)',
     extractDeadline('closes 5 Oct 2026', new Date('2026-10-05T22:30:00Z')).past === true);
-  // Wording taken from real graduates24 / zabursaries results (see the PR).
+  // Wording taken from real search results (see the PR).
   ok('capitalised "Closes: 30 Sep 2026" is a listing row, never taken', date('2026 Learnerships\n Pretoria  Closes: 30 Sep 2026\n Other Co: Programme\n Durban  Closes: 30 Sep 2026') === null);
   ok('a listing page of rows with several dates → none', date('Closes 09 Oct 2026 Inlumi 30 Sep 2026 NTT Closes 09 Oct 2026 Simah 30 Sep 2026 Eskom Closes 08 Oct 2026') === null);
   ok("a job page's own \"Closing Date\" label beats the sidebar's rows",
@@ -362,7 +357,7 @@ sec('closing dates: in findings and the issue');
       result('Old Bursary', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/old-bursary', 'Closing date: 30 June 2026.'),
       result('Undated Bursary', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/undated', 'No date given.'),
     ];
-    if (/learnership/.test(body.query)) return [result('A learnership', 'https://www.graduates24.com/l/', 'Paid. Applications close 15 Dec 2026.')];
+    if (/learnership/.test(body.query)) return [result('A learnership', 'https://www.zabursaries.co.za/l/', 'Paid. Applications close 15 Dec 2026.')];
     return [];
   });
   const seen = [];
@@ -405,7 +400,7 @@ sec('closing dates: paste-ready lines are valid OPPORTUNITIES.md entries');
   ok('an em dash in a title does not split the name', parseReadme(`## 🎓 I'm Going to Study\n\n### S\n\n${hostile}\n`, '2026-10-05').pillars.study.S[0].name === 'Evil closes: 2099-01-01 Bursary - Free');
   ok('a lead with no deadline has no line', entryLine({ ...f, closes: undefined }) === null);
   ok('a category with no home has no line', entryLine({ ...f, category: 'Closing soon' }) === null);
-  ok('learnerships go to Finding Work with their own tag', /\{closes: 2026-12-15; tags: learnership, deadline; source: graduates24\.com\}/.test(entryLine({ title: 'L', url: 'https://www.graduates24.com/l/', desc: '', category: 'Learnerships', tag: null, closes: '2026-12-15' })));
+  ok('learnerships go to Finding Work with their own tag', /\{closes: 2026-12-15; tags: learnership, deadline; source: zabursaries\.co\.za\}/.test(entryLine({ title: 'L', url: 'https://www.zabursaries.co.za/l/', desc: '', category: 'Learnerships', tag: null, closes: '2026-12-15' })));
   ok('pasteBlock is empty for no leads', pasteBlock([]).length === 0);
 }
 
@@ -465,6 +460,30 @@ sec("zabursaries' monthly pages: individual bursaries with dates");
   const missing = await closingPages({ now: NOW, fetchPage: async () => ({ status: 404 }), sleep: async () => {} });
   ok('a missing month does not stop the next one being checked', missing.length === 0);
   ok('the default really waits (a short override proves the clock is used)', await (async () => { const t0 = Date.now(); await closingPages({ now: NOW, fetchPage: async () => ({ status: 404 }), delayMs: 20 }); return Date.now() - t0 >= 35; })());
+}
+
+/* -------------------------------------------------------------- */
+sec('graduates24.com is not a source');
+{
+  // Its terms forbid automated data collection and republishing (CONTRIBUTE_SETUP.md, "What the sources allow").
+  const plan = planSearches({ broad: true });
+  ok('no search is limited to it', plan.every((s) => !(s.include || []).some((d) => d.includes('graduates24'))));
+  ok('the broader pass excludes it explicitly', plan.filter((s) => s.pass === 'broad').every((s) => s.exclude.includes('graduates24.com')));
+  ok('it is no longer a named source', sourceOf('https://www.graduates24.com/x') === 'broader search');
+
+  const events = [];
+  const t = fakeTavily(() => [
+    result('A G24 lead', 'https://www.graduates24.com/some-learnership', 'Applications close on 15 Dec 2026.'),
+    result('A subdomain lead', 'https://jobs.graduates24.com/x', 'Another.'),
+    result('A zab lead', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/real-bursary', 'A real bursary description here.'),
+  ]);
+  const out = await collect({ key: 'k', searches: planSearches({ only: ['job'] }).slice(0, 1), fetchImpl: t.fetchImpl, now: NOW, onResult: (e) => events.push(e) });
+  ok('a result from it is dropped, however the search came to return it', out.findings.map((f) => f.title).join() === 'A zab lead');
+  ok('...and --explain says why', events.filter((e) => e.kept === false && /graduates24\.com is not a source/.test(e.reason)).length === 2);
+
+  const body = renderDigest({ findings: out.findings, failures: [], searched: 1, now: NOW }).body;
+  ok('the issue names zabursaries as its only source, and never mentions graduates24', /Source: zabursaries\.co\.za\./.test(body) && !/graduates24/i.test(body));
+  ok('the broader-pass wording does not name it either', !/graduates24/i.test(renderDigest({ findings: [], failures: [], searched: 1, now: NOW, withBroad: true }).body));
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);

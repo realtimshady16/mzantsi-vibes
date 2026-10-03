@@ -27,8 +27,11 @@ export const OPPS_LABEL_META = {
 const TAVILY_URL = 'https://api.tavily.com/search';
 
 const ZA = 'zabursaries.co.za';
+// graduates24.com's terms forbid automated data collection and republishing (CONTRIBUTE_SETUP.md,
+// "What the sources allow"), so it is not a source: never searched, never fetched, and any result from it
+// is dropped. It stays here only so the broader pass excludes it and judge() can recognise it.
 const G24 = 'graduates24.com';
-const TRUSTED = [ZA, G24];
+const TRUSTED = [ZA];
 
 // Postings go stale fast, so jobs, learnerships, programmes, training and the
 // whole broader pass only look at the last month (checked with a dry run: without
@@ -38,10 +41,10 @@ const RECENT = 'month';
 
 const MAX_RESULTS = { scoped: 5, broad: 5 };
 
-// The broader pass drops the two trusted sites, social media (where the Instagram
+// The broader pass drops zabursaries (covered above), graduates24 (not a source), social media (where the Instagram
 // "reel" links came from) and job-board aggregators.
 const BROAD_EXCLUDE = [
-  ...TRUSTED,
+  ...TRUSTED, G24,
   'instagram.com', 'facebook.com', 'tiktok.com', 'youtube.com', 'x.com', 'twitter.com',
   // Job-board search pages ("2026 Graduate Programmes jobs in Gauteng") are
   // listings, not leads, and LinkedIn is out of scope for this version.
@@ -93,8 +96,7 @@ const MONTHS = [
 export function planSearches(overrides = {}) {
   const searches = [];
 
-  // Bursary faculties: zabursaries is the bursary specialist. graduates24's
-  // answers to these queries were interview tips and job ads.
+  // Bursary faculties: zabursaries is the bursary specialist.
   for (const [tag, terms] of FACULTIES) {
     searches.push({
       pass: 'scoped',
@@ -306,7 +308,6 @@ export function hostOf(url) {
 export function sourceOf(url) {
   const host = hostOf(url);
   if (host === ZA || host.endsWith(`.${ZA}`)) return 'zabursaries';
-  if (host === G24 || host.endsWith(`.${G24}`)) return 'graduates24';
   return 'broader search';
 }
 
@@ -350,11 +351,6 @@ function cleanSnippet(text, title = '') {
   t = t
     .replace(/\bTitle:\s*/gi, '')
     .replace(/\*+/g, '')
-    // "...Join our WhatsApp Channel for daily updates on the latest Internships,
-    // Learnerships, Graduate Programmes and Bursaries" — the whole sentence.
-    .replace(/Join our\s+WhatsApp Channel[\s\S]*?(?:and\s+Bursaries|and\s*…|and\s*\.\.\.|$)/gi, '')
-    // Everything after these is the site's sidebar: other people's listings.
-    .replace(/(Create (My|Your) CV|Build a professional CV|Other Opportunities)[\s\S]*$/i, '')
     .replace(/\b(Apply Now|Share on \w+|Stay Updated)\b/gi, '');
 
   return inert(t)
@@ -543,6 +539,8 @@ function judge(result, search, now) {
   if (search.minScore && !(result.score >= search.minScore)) {
     return { reason: `relevance score ${result.score?.toFixed(2) ?? '?'} is below ${search.minScore}` };
   }
+  // Defence in depth: nothing from graduates24.com, however a search came to return it.
+  if (hostOf(url) === G24 || hostOf(url).endsWith(`.${G24}`)) return { reason: 'graduates24.com is not a source (its terms forbid automated use and republishing)' };
   if (isNoise(url)) return { reason: 'noise page (home, search, pagination, contact…)' };
   if (search.pass === 'broad' && !looksSouthAfrican(result)) return { reason: 'no South Africa signal' };
 
@@ -707,8 +705,8 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
       `${findings.length} links from ${searched} searches on ${sastDate(now)}.`,
     '',
     withBroad
-      ? `Trusted sources first (zabursaries.co.za, graduates24.com); the broader search at the bottom is less trusted, so check it before relying on it.`
-      : `Sources: zabursaries.co.za and graduates24.com.`,
+      ? `Trusted source first (zabursaries.co.za); the broader search at the bottom is less trusted, so check it before relying on it.`
+      : `Source: zabursaries.co.za.`,
     '',
     ...section('⏰ Closing soon', 2, closing),
     ...CATEGORY_ORDER.flatMap((c) => categoryBlock(scoped, c, 2)),
