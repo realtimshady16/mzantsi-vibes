@@ -111,6 +111,18 @@ const CONTENT = {
     url: '/contribute',
   },
 
+  /* ---- SEARCH ---- */
+  search: {
+    label: 'Search the guide',
+    placeholder: 'Try "bursary", "CV" or "NSFAS"',
+    clear: 'Clear search',
+    filtersLabel: 'Filter results',
+    tagsLabel: 'Tags',
+    results: (n) => `${n} result${n === 1 ? '' : 's'}`,
+    capped: (n) => `Showing the first ${n}. Add a word to narrow it down.`,
+    empty: 'Nothing matched. Try fewer words, or clear the filters.',
+  },
+
   /* ---- LOADING / ERROR STATES ---- */
   states: {
     loading: 'Loading resources...',
@@ -139,19 +151,6 @@ const OPPORTUNITIES_URL = RAW_BASE + 'OPPORTUNITIES.md';
    GitHub, so a content or parser change can be seen before it is merged. */
 const LOCAL_DEV = ['localhost', '127.0.0.1'].includes(location.hostname);
 const sourceUrl = (githubUrl, file) => (LOCAL_DEV ? `/__content/${file}` : githubUrl);
-
-/* PILLAR_MARKERS — maps each site pillar to keywords that identify
-   its ## heading in the README. Case-insensitive partial match.
-   If you rename a pillar heading in the README, update the keyword here. */
-const PILLAR_MARKERS = {
-  study:    ["going to study"],
-  work:     ["going to work"],
-  unsure:   ["don't know", "dont know"],
-  everyone: ["for everyone"],
-};
-
-/* STOP_HEADINGS — ## headings that are NOT pillars and should be skipped */
-const STOP_HEADINGS = ["where are you", "contributing", "community", "contact"];
 
 /* =============================================
    POPULATE — writes CONTENT into the HTML
@@ -243,171 +242,6 @@ function attr(id, attribute, value) {
   if (el) el.setAttribute(attribute, value);
 }
 /* =============================================
-   PARSER — README markdown → structured data
-   Auto-discovers pillars and subsections from
-   ## and ### headings. No hardcoded section list.
-   New sections in the README appear automatically.
-   ============================================= */
-
-function stripMarkdown(str) {
-  return str
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
-    .replace(/_([^_]+)_/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\s*\[#[^\]]*\]/g, '')
-    .trim();
-}
-
-function cleanUrl(url) {
-  return url.replace(/[.)]+$/, '').trim();
-}
-
-function isBareUrl(str) {
-  return /^https?:\/\/\S+/.test(str.trim());
-}
-
-function identifyPillar(headingText) {
-  const lower = headingText.toLowerCase();
-  for (const [pillar, markers] of Object.entries(PILLAR_MARKERS)) {
-    if (markers.some(m => lower.includes(m))) return pillar;
-  }
-  return null;
-}
-
-function isStopHeading(headingText) {
-  const lower = headingText.toLowerCase();
-  return STOP_HEADINGS.some(s => lower.includes(s));
-}
-
-function parseReadme(markdown, today = EntryMeta.todayInSA()) {
-  const lines = markdown.split('\n');
-
-  /* pillars holds ordered subsections per pillar.
-     Each pillar is an object: { sectionName: [items] }
-     We also keep an ordered list of section names so render order matches README order. */
-  const pillars = { study: {}, work: {}, unsure: {}, everyone: {} };
-  const pillarOrder = { study: [], work: [], unsure: [], everyone: [] };
-
-  let currentPillar = null;
-  let parentSection = null; // the ### heading (resets bold sub-label back to)
-  let currentSection = null; // active bucket key
-
-  const ensureSection = (pillar, key) => {
-    if (!pillars[pillar][key]) {
-      pillars[pillar][key] = [];
-      pillarOrder[pillar].push(key);
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (!trimmed || trimmed === '---') continue;
-
-    /* ## heading — identifies a pillar or stops parsing */
-    if (/^##\s/.test(trimmed)) {
-      const heading = stripMarkdown(trimmed.replace(/^##\s*/, ''));
-      if (isStopHeading(heading)) {
-        currentPillar = null; parentSection = null; currentSection = null;
-        continue;
-      }
-      const pillar = identifyPillar(heading);
-      currentPillar = pillar || null;
-      parentSection = null;
-      currentSection = null;
-      continue;
-    }
-
-    /* ### heading — subsection within the current pillar */
-    if (/^###\s/.test(trimmed) && currentPillar) {
-      const heading = stripMarkdown(trimmed.replace(/^###\s*/, ''));
-      parentSection = heading;
-      currentSection = heading;
-      ensureSection(currentPillar, currentSection);
-      continue;
-    }
-
-    /* **Bold label** on its own line — sub-group within the current ### section.
-       Resets to parentSection so labels don't nest into each other. */
-    if (/^\*\*[^*]+\*\*$/.test(trimmed) && currentPillar && parentSection) {
-      const label = trimmed.replace(/\*\*/g, '').trim();
-      currentSection = `${parentSection} — ${label}`;
-      ensureSection(currentPillar, currentSection);
-      continue;
-    }
-
-    if (!currentPillar || !currentSection) continue;
-    const bucket = pillars[currentPillar][currentSection];
-
-    /* List item with a link */
-    if (/^[-*]\s/.test(trimmed) && trimmed.includes('[')) {
-      /* Optional trailing {closes: …; tags: …} block — see entry-meta.js */
-      const split = EntryMeta.splitEntryMeta(trimmed.replace(/^[-*]\s+/, '').trim());
-      const content = split.text;
-      const meta = split.meta;
-      if (EntryMeta.isHidden(split, today)) {
-        if (split.errors.length) console.warn('Mzantsi Vibes: hiding entry with bad metadata:', content, split.errors);
-        continue;
-      }
-      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let match;
-      const links = [];
-      while ((match = linkRegex.exec(content)) !== null) {
-        links.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
-      }
-
-      if (links.length > 0) {
-        /* Name: replace link syntax with link text, then take everything before the — */
-        const withText = content.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-        const namePart = withText.split(/\s[—–]\s/)[0].trim();
-        const name = stripMarkdown(namePart) || links[0].name;
-
-        /* Desc: everything after the — dash */
-        const descMatch = content.match(/\s[—–]\s(.+)$/);
-        const desc = descMatch ? stripMarkdown(descMatch[1]).trim() : '';
-
-        bucket.push({ name, url: links[0].url, desc, meta });
-      } else if (/coming soon/i.test(content)) {
-        const name = stripMarkdown(
-          content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
-        );
-        bucket.push({ name: name || 'Coming soon', url: null, desc: 'Coming soon' });
-      }
-      continue;
-    }
-
-    /* List item without a link — coming soon entries */
-    if (/^[-*]\s/.test(trimmed)) {
-      const content = trimmed.replace(/^[-*]\s+/, '').trim();
-      if (/coming soon/i.test(content)) {
-        const name = stripMarkdown(
-          content.replace(/\*?coming soon\*?/i, '').replace(/\s*[—–-].*/, '').trim()
-        );
-        bucket.push({ name: name || 'Coming soon', url: null, desc: 'Coming soon' });
-      }
-    }
-  }
-
-  return { pillars, pillarOrder };
-}
-
-/* Fold `extra` into `base`. A section with the same name joins that section
-   (after the evergreen entries); a new name is added at the end of its pillar. */
-function mergeParsed(base, extra) {
-  for (const pillar of Object.keys(extra.pillars)) {
-    for (const name of extra.pillarOrder[pillar]) {
-      if (!base.pillars[pillar][name]) {
-        base.pillars[pillar][name] = [];
-        base.pillarOrder[pillar].push(name);
-      }
-      base.pillars[pillar][name].push(...extra.pillars[pillar][name]);
-    }
-  }
-}
-
-/* =============================================
    RENDERER — structured data → HTML
    ============================================= */
 
@@ -437,6 +271,7 @@ const SECTION_TONES = ['lilac', 'peach', 'butter', 'sage', 'blush'];
 
 function renderRow(r) {
   const desc = r.desc ? `<div class="res-desc">${escHtml(r.desc)}</div>` : '';
+  const crumb = r.crumb ? `<div class="res-crumb">${escHtml(r.crumb)}</div>` : '';
 
   /* No link yet: a "coming soon" placeholder, shown dimmed and not clickable. */
   if (!r.url) {
@@ -453,6 +288,7 @@ function renderRow(r) {
   return `
     <a class="res-row" href="${escHtml(r.url)}" target="_blank" rel="noopener">
       <div>
+        ${crumb}
         <div class="res-name">${escHtml(r.name)}</div>
         ${desc}
         ${deadlineBadge(r.meta)}
@@ -492,6 +328,7 @@ function renderSection(targetId, pillarKey, parsedData) {
    ============================================= */
 
 function switchSection(sectionId, btn) {
+  clearSearch();
   document.querySelectorAll('.content-section').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.path-card').forEach(el => el.classList.remove('active'));
   const target = document.getElementById('section-' + sectionId);
@@ -520,7 +357,7 @@ async function init() {
       cache: 'no-cache',
     });
     if (!res.ok) throw new Error('Failed to fetch README');
-    const parsed = parseReadme(await res.text());
+    const parsed = ContentParse.parseReadme(await res.text());
 
     /* The opportunities file is optional: if it is missing or down, the
        evergreen content still renders. */
@@ -529,7 +366,7 @@ async function init() {
         headers: { 'Accept': 'text/plain, */*' },
         cache: 'no-cache',
       });
-      if (opp.ok) mergeParsed(parsed, parseReadme(await opp.text()));
+      if (opp.ok) ContentParse.mergeParsed(parsed, ContentParse.parseReadme(await opp.text()));
     } catch (err) {
       console.warn('Mzantsi Vibes: could not load OPPORTUNITIES.md:', err);
     }
@@ -555,4 +392,110 @@ async function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+/* =============================================
+   SEARCH — over /api/index.json (see src/content-index.js)
+   The box stays hidden if the index cannot be loaded.
+   ============================================= */
+
+const searchState = { entries: [], pillar: null, tags: new Set(), timer: null };
+const PILLAR_KEYS = ['study', 'work', 'unsure', 'everyone'];
+
+function pillarLabel(key) {
+  return CONTENT.paths[key].heading;
+}
+
+function chip(label, attrs, pressed) {
+  return `<button type="button" class="chip" ${attrs} aria-pressed="${pressed}">${escHtml(label)}</button>`;
+}
+
+function renderChips(tags) {
+  const c = CONTENT.search;
+  const pillars = PILLAR_KEYS.map(k => chip(pillarLabel(k), `data-pillar="${k}"`, searchState.pillar === k)).join('');
+  const tagChips = tags.length
+    ? `<span class="chip-group-label">${escHtml(c.tagsLabel)}</span>` +
+      tags.map(t => chip(t.tag, `data-tag="${escHtml(t.tag)}"`, searchState.tags.has(t.tag))).join('')
+    : '';
+  document.getElementById('search-chips').innerHTML = pillars + tagChips;
+}
+
+function runSearch() {
+  const query = document.getElementById('search-input').value;
+  const { pillar, tags } = searchState;
+  const active = query.trim() || pillar || tags.size;
+  const main = document.querySelector('.main-content');
+  const out = document.getElementById('search-results');
+  const status = document.getElementById('search-status');
+  document.getElementById('search-clear').classList.toggle('hidden', !active);
+
+  if (!active) {
+    out.innerHTML = '';
+    status.textContent = '';
+    main.classList.remove('hidden');
+    return;
+  }
+
+  const hits = SearchCore.search(searchState.entries, { query, pillar, tags: [...tags] });
+  const c = CONTENT.search;
+  main.classList.add('hidden');
+  status.textContent = hits.length ? c.results(hits.length) + (hits.length >= SearchCore.MAX_RESULTS ? '. ' + c.capped(SearchCore.MAX_RESULTS) : '') : '';
+  out.innerHTML = hits.length
+    ? `<section class="res-card tone-butter"><div class="res-rows">${hits.map(e => renderRow({
+        name: e.name, url: e.url, desc: e.desc,
+        meta: e.closes ? { closes: e.closes } : null,
+        crumb: `${pillarLabel(e.pillar)} › ${e.section}`,
+      })).join('')}</div></section>`
+    : `<p class="res-empty">${escHtml(c.empty)}</p>`;
+}
+
+function clearSearch() {
+  const input = document.getElementById('search-input');
+  if (!input) return;
+  input.value = '';
+  searchState.pillar = null;
+  searchState.tags.clear();
+  if (searchState.entries.length) {
+    document.querySelectorAll('#search-chips .chip').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    runSearch();
+  }
+}
+
+async function initSearch() {
+  const c = CONTENT.search;
+  try {
+    const res = await fetch('/api/index.json', { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`index ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data.entries)) throw new Error('bad index');
+    searchState.entries = data.entries;
+
+    set('search-label', c.label);
+    attr('search-input', 'placeholder', c.placeholder);
+    attr('search-clear', 'aria-label', c.clear);
+    set('search-clear', c.clear);
+    attr('search-chips', 'aria-label', c.filtersLabel);
+    renderChips(data.tags || []);
+
+    document.getElementById('search-input').addEventListener('input', () => {
+      clearTimeout(searchState.timer);
+      searchState.timer = setTimeout(runSearch, 120);
+    });
+    document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Escape') clearSearch(); });
+    document.getElementById('search-form').addEventListener('submit', e => { e.preventDefault(); runSearch(); });
+    document.getElementById('search-clear').addEventListener('click', clearSearch);
+    document.getElementById('search-chips').addEventListener('click', e => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      if (b.dataset.pillar) searchState.pillar = searchState.pillar === b.dataset.pillar ? null : b.dataset.pillar;
+      else if (searchState.tags.has(b.dataset.tag)) searchState.tags.delete(b.dataset.tag);
+      else searchState.tags.add(b.dataset.tag);
+      renderChips(data.tags || []);
+      runSearch();
+    });
+
+    document.getElementById('search').classList.remove('hidden');
+  } catch (err) {
+    console.warn('Mzantsi Vibes: search unavailable:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => { init().then(initSearch); });

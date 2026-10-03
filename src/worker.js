@@ -17,6 +17,7 @@ import { handleAction } from './action.js';
 import { handleAdminRun } from './admin.js';
 import { runDigest, runBatchMerge } from './cron.js';
 import { runOpportunityDigest } from './opportunities.js';
+import { handleIndex } from './content-index.js';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -130,6 +131,9 @@ export default {
         return json({ ok: false, error: 'Not configured.' }, 500);
       }
     }
+
+    // Search index: public data only, needs no secrets (see content-index.js).
+    if (url.pathname === '/api/index.json') return handleIndex(request, env, ctx);
 
     // Health check that never touches secrets.
     if (url.pathname === '/api/health') {

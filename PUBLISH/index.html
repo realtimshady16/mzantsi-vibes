@@ -61,6 +61,20 @@
     </div>
   </section>
 
+  <!-- SEARCH (hidden until /api/index.json loads) -->
+  <section class="search wrap hidden" id="search">
+    <form id="search-form" role="search" autocomplete="off">
+      <label class="path-label" for="search-input" id="search-label"></label>
+      <div class="search-row">
+        <input type="search" id="search-input" enterkeyhint="search" />
+        <button type="button" class="search-clear hidden" id="search-clear"></button>
+      </div>
+      <div class="chips" id="search-chips" role="group"></div>
+    </form>
+    <p class="search-status" id="search-status" role="status" aria-live="polite"></p>
+    <div id="search-results"></div>
+  </section>
+
   <!-- PATH SELECTOR -->
   <section class="paths wrap">
     <p class="path-label" id="path-label"></p>
@@ -160,6 +174,8 @@
   </footer>
 
   <script type="module" src="entry-meta.js"></script>
+  <script type="module" src="content-parse.js"></script>
+  <script type="module" src="search-core.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

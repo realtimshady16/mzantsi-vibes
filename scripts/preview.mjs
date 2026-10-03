@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sectionOptions } from '../src/readme.js';
+import { buildIndex } from '../src/content-index.js';
 
 const ROOT = fileURLToPath(new URL('../PUBLISH/', import.meta.url));
 const argv = process.argv.slice(2);
@@ -167,6 +168,12 @@ http.createServer((req, res) => {
   if (pathname.startsWith('/__content/')) {
     const md = content(pathname.slice('/__content/'.length));
     return md === null ? send(res, 404, 'Not found', 'text/plain') : send(res, 200, md, 'text/plain; charset=utf-8');
+  }
+
+  // The search index, built from the working copy with the same code the Worker uses.
+  if (pathname === '/api/index.json') {
+    if (!withApi) return send(res, 404, { ok: false, error: 'API disabled (--no-api).' });
+    return send(res, 200, { ok: true, ...buildIndex({ readme: content('README.md') ?? '', opportunities: content('OPPORTUNITIES.md') ?? '' }) });
   }
 
   if (pathname === '/__diag') return send(res, 200, DIAG_HTML, 'text/html; charset=utf-8');

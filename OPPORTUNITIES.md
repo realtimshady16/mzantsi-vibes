@@ -3,6 +3,7 @@
 Time-sensitive entries: bursary deadlines, graduate programme windows, vac work.
 Evergreen guides live in [`README.md`](README.md). The site reads both files and
 hides an entry once its `closes` date has passed, so nothing here needs pruning.
+Entries here are listed ahead of the README's in a section of the same name.
 
 ## Format
 
