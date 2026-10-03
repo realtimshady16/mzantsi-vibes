@@ -147,6 +147,21 @@
 .res-name { font-size: 17px; font-weight: 700; line-height: 1.3; }
 .res-desc { margin-top: 4px; font-size: 14px; line-height: 1.45; color: var(--text-2); }
 
+/* Deadline pill on a time-sensitive entry. The pastels stay light in night mode,
+   so the text is fixed dark rather than following --text. */
+.res-deadline {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--butter);
+  color: #0e2626;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.res-deadline.soon { background: var(--peach); }
+
 .res-arrow {
   flex: none;
   display: flex;

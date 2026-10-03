@@ -5,6 +5,7 @@
  *   node scripts/preview.mjs               http://127.0.0.1:8000
  *   node scripts/preview.mjs --port 9000
  *   node scripts/preview.mjs --no-api      static files only
+ *   node scripts/preview.mjs --sample      add fake time-sensitive entries (see /__content below)
  *
  * It serves PUBLISH/ the way the Worker does, with two differences that matter
  * when you are iterating on the look:
@@ -32,6 +33,7 @@ const ROOT = fileURLToPath(new URL('../PUBLISH/', import.meta.url));
 const argv = process.argv.slice(2);
 const port = argv.includes('--port') ? Number(argv[argv.indexOf('--port') + 1]) : 8000;
 const withApi = !argv.includes('--no-api');
+const sample = argv.includes('--sample');
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -115,6 +117,24 @@ iframe{position:absolute;left:-9999px;width:1100px;height:700px}</style>
 })();
 </script></body></html>`;
 
+/* The site reads README.md and OPPORTUNITIES.md from GitHub in production. Here it
+   reads the working copy (script.js switches to /__content/ on 127.0.0.1), so a
+   content or parser change shows before it is merged. --sample swaps in
+   test/fixtures/OPPORTUNITIES.sample.md, with its dates moved to be relative to today. */
+const REPO = path.resolve(ROOT, '..');
+const addDays = (n) => new Date(Date.now() + 2 * 3600e3 + n * 86400e3).toISOString().slice(0, 10);
+function content(file) {
+  if (file === 'OPPORTUNITIES.md' && sample) {
+    return fs.readFileSync(path.join(REPO, 'test/fixtures/OPPORTUNITIES.sample.md'), 'utf8')
+      .replaceAll('SOON', addDays(5)).replaceAll('LATER', addDays(60));
+  }
+  if (file === 'README.md' || file === 'OPPORTUNITIES.md') {
+    const p = path.join(REPO, file);
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+  }
+  return null;
+}
+
 const send = (res, status, body, type = 'application/json') => {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Preview-Mock': '1' });
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
@@ -143,6 +163,11 @@ function api(req, res, pathname) {
 http.createServer((req, res) => {
   let pathname;
   try { pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { return send(res, 400, 'Bad request', 'text/plain'); }
+
+  if (pathname.startsWith('/__content/')) {
+    const md = content(pathname.slice('/__content/'.length));
+    return md === null ? send(res, 404, 'Not found', 'text/plain') : send(res, 200, md, 'text/plain; charset=utf-8');
+  }
 
   if (pathname === '/__diag') return send(res, 200, DIAG_HTML, 'text/html; charset=utf-8');
 

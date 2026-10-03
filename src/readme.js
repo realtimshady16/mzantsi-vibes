@@ -6,6 +6,8 @@
  * no stray front-matter delimiters.
  */
 
+import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
+
 const HEADING_RE = /^(#{1,6})\s+(.*?)\s*$/;
 const COMING_SOON_RE = /^[-*]\s+.*coming soon/i;
 const THEMATIC_BREAK_RE = /^(---|\*\*\*|___)\s*$/;
@@ -208,6 +210,22 @@ export function normalizeMarkdown(text, { bulletize = false } = {}) {
 }
 
 /**
+ * A `{closes: …; tags: …}` block is read by the site, so a malformed one must
+ * not reach the README: a `closes` the site cannot parse hides the entry.
+ */
+export function assertEntryMeta(markdown) {
+  for (const line of String(markdown).split('\n')) {
+    const { errors } = splitEntryMeta(line.replace(BULLET_RE, ''));
+    if (errors.length) {
+      throw new PatchError(
+        `The {…} block at the end of "${line.trim().slice(0, 60)}" is not valid: ${errors[0]} ` +
+          'Example: {closes: 2026-11-30; tags: bursary, deadline}'
+      );
+    }
+  }
+}
+
+/**
  * Contributor handle is optional and used only for credit. Keep it inert, and
  * keep personal information out: the project explicitly asks contributors not
  * to post contact details, so catch the obvious cases here rather than relying
@@ -302,6 +320,7 @@ export function applyEdit(md, { pillar, section, original, replacement }) {
   const after = normalizeMarkdown(sanitizeContent(replacement, { field: 'correction', max: 4000 }), {
     bulletize: BULLET_RE.test(before) || NUMBERED_RE.test(before),
   });
+  assertEntryMeta(after);
 
   // Compare ignoring spacing, so "- x" vs "-   x" is not counted as a change.
   const flat = (s) => s.replace(/\s+/g, ' ');
@@ -347,6 +366,7 @@ export function applyNew(md, { pillar, section, content, newSectionName }) {
   const body = normalizeMarkdown(sanitizeContent(content, { field: 'resource', max: 4000 }), {
     bulletize: true,
   });
+  assertEntryMeta(body);
   const { pillars } = parseStructure(md);
   const p = findPillar(pillars, pillar);
 
