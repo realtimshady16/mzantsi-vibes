@@ -28,6 +28,10 @@ A `closes` the site cannot read hides the entry, so check the date.
 
 ## 🎓 I'm Going to Study
 
+### Paying for It
+
+-   [ISFAP Bursary South Africa 2027](https://www.zabursaries.co.za/general-bursaries-south-africa/isfap-bursary) — The ISFAP bursary covers studies in various fields which are deemed "scarce skills" (Engineering, Finance, IT, Science, Medical and more). Apply now for 2027. {closes: 2026-10-31; tags: bursary, deadline; source: zabursaries.co.za}
+
 ## 💼 I'm Going to Work
 
 ## 🤷 I Don't Know Yet
