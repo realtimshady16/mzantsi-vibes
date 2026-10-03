@@ -7,7 +7,8 @@
 import {
   usableDesc, looksSouthAfrican, planSearches, closingPages, collect, renderDigest, runOpportunityDigest, sourceOf, oneLine, inert, sastDate,
   isNoise, isStale, facultyFromUrl, includesClosing, OPPS_LABEL,
-  extractDeadline, entryLine, pasteBlock, htmlToText, metaDescription, enrichDeadlines, pageUrl, MAX_PAGE_LOOKUPS,
+  extractDeadline, entryLine, pasteBlock, htmlToText, metaDescription, enrichDeadlines, pageUrl, MAX_PAGE_LOOKUPS, DEADLINE_LOOKUPS, DESCRIPTION_LOOKUPS,
+  parseClosingLists, describeFromPages, genericDesc,
 } from '../src/opportunities.js';
 import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -447,7 +448,7 @@ sec('closing dates: reading the page when the snippet has none');
     { title: 'Bursaries closing in October 2026', url: 'https://www.zabursaries.co.za/bursaries-closing-in-october-2026/', pass: 'closing', category: 'Closing soon', source: 'zabursaries' },
   ];
   const notes = [];
-  const out = await enrichDeadlines(input, { fetchPage, now: NOW, onResult: (e) => notes.push(e) });
+  const out = await enrichDeadlines(input, { fetchPage, now: NOW, onResult: (e) => notes.push(e), max: 20 });
   const by = (n) => out.find((x) => x.title === n);
 
   ok('a page that states one future closing date gives the lead a closes', by('open').closes === '2026-11-30');
@@ -471,10 +472,11 @@ sec('closing dates: reading the page when the snippet has none');
   ok('broader-search results are never fetched (only the two trusted sites)', !asked.some((u) => u.includes('example.co.za')) && by('1'));
   ok('the closing-soon pages are not fetched', !asked.some((u) => u.includes('bursaries-closing-in')));
 
-  const many = Array.from({ length: MAX_PAGE_LOOKUPS + 15 }, (_, i) => f(`https://www.zabursaries.co.za/bursaries/n${i}`));
+  const many = Array.from({ length: DEADLINE_LOOKUPS + 15 }, (_, i) => f(`https://www.zabursaries.co.za/bursaries/n${i}`));
   const askedMany = [];
   await enrichDeadlines(many, { fetchPage: async (u) => { askedMany.push(u); return { ok: true, status: 200, text: async () => '' }; }, now: NOW });
-  ok(`at most ${MAX_PAGE_LOOKUPS} pages are read per run (the Worker's subrequest limit)`, askedMany.length === MAX_PAGE_LOOKUPS && MAX_PAGE_LOOKUPS === 10);
+  ok(`by default at most ${DEADLINE_LOOKUPS} pages are read for dates (the Worker's subrequest limit)`, askedMany.length === DEADLINE_LOOKUPS && DEADLINE_LOOKUPS === 4);
+  ok('the two lookup budgets together fit the shared pool', DEADLINE_LOOKUPS + DESCRIPTION_LOOKUPS <= MAX_PAGE_LOOKUPS && MAX_PAGE_LOOKUPS === 12);
   ok('pageUrl: slash form for zabursaries, untouched elsewhere, hubs and junk refused',
     pageUrl('https://www.zabursaries.co.za/a/b') === 'https://www.zabursaries.co.za/a/b/' && pageUrl('https://www.zabursaries.co.za/a/b/?x=1#h') === 'https://www.zabursaries.co.za/a/b/' &&
     pageUrl('https://www.zabursaries.co.za/a') === null && pageUrl('https://www.zabursaries.co.za/') === null && pageUrl('https://www.graduates24.com/some-job') === 'https://www.graduates24.com/some-job' && pageUrl('not a url') === null);
@@ -488,6 +490,63 @@ sec('closing dates: reading the page when the snippet has none');
   ok('the issue lists the lead whose page gave a date, with it', run.body.includes('[Open Bursary]') && run.body.includes('**closes 2026-11-30**'));
   ok('...in the paste block', run.body.includes('{closes: 2026-11-30; tags: bursary, deadline; source: zabursaries.co.za}'));
   ok('the lead whose page says it closed is not in the issue', !run.body.includes('Old Bursary'));
+}
+
+/* -------------------------------------------------------------- */
+sec("zabursaries' monthly pages: individual bursaries with dates");
+{
+  // Rows copied from the real "Bursaries closing in October 2026" page.
+  const row = (href, name, closing, attrs = 'target="_blank" rel="noopener"') => `<li><strong><a ${attrs.includes('title') ? attrs + ' ' : ''}href="${href}" ${attrs.includes('title') ? '' : attrs}>${name}</a></strong> (closing: ${closing})</li>`;
+  const Z = 'https://www.zabursaries.co.za';
+  const html = '<h2>SOUTH AFRICAN BURSARIES CLOSING IN OCTOBER 2026</h2><ul class="wp-block-list">' + [
+    row(`${Z}/government-bursaries-south-africa/department-of-environment-forestry-and-fisheries-bursary/`, 'Department of Forestry, Fisheries and the Environment (DFFE) Bursary', '6 October 2026'),
+    row(`${Z}/engineering-bursaries-south-africa/samancor-chrome-bursary/`, 'Samancor Chrome Bursary', '8 October 2026'),
+    row(`${Z}/engineering-bursaries-south-africa/aws-skills-development-bursary/`, 'AWS Skills Development Bursary', '16 October 2026 &#8211;  extended deadline '),
+    row(`${Z}/general-bursaries-south-africa/tiso-foundation-bursary/`, 'Tiso &amp; Co Bursary', '31 October 2026', 'title="" target="_blank"'),
+    row(`${Z}/medical-bursaries-south-africa/old-bursary/`, 'Old Bursary', '2 July 2026'),
+    row(`${Z}/engineering-bursaries-south-africa/anytime-bursary/`, 'Anytime Bursary', 'none &#8211; applications are accepted anytime'),
+    row(`https://evil.example.com/engineering-bursaries-south-africa/phish/`, 'Phish', '9 October 2026'),
+    row(`${Z}/engineering-bursaries-south-africa/samancor-chrome-bursary/`, 'Samancor again', '9 October 2026'),
+    row(`${Z}/law-bursaries-south-africa/bad-date/`, 'Bad Date', '31 Feb 2026'),
+    row(`${Z}/law-bursaries-south-africa/evil-title/`, 'Evil [click](http://x.example) @everyone', '20 October 2026'),
+  ].join('') + '</ul><p>Other (closing: 5 October 2026) text that is not a list row</p>';
+
+  const list = parseClosingLists([{ html }], NOW);
+  const byTitle = (t) => list.find((e) => e.title.startsWith(t));
+  ok('every dated, open, zabursaries row becomes a lead', list.length === 5 && ['Department of Forestry', 'Samancor Chrome', 'AWS Skills', 'Tiso & Co', 'Evil'].every((t) => byTitle(t)), list.map((e) => e.title).join(' | '));
+  ok('with its own closing date', byTitle('Samancor').closes === '2026-10-08' && byTitle('Department').closes === '2026-10-06');
+  ok('an "extended deadline" row keeps its date', byTitle('AWS').closes === '2026-10-16');
+  ok('an attribute order with title first still reads the link', byTitle('Tiso').url === `${Z}/general-bursaries-south-africa/tiso-foundation-bursary/`);
+  ok('entities in the title are decoded', byTitle('Tiso').title === 'Tiso & Co Bursary');
+  ok('"closing: none, anytime" rows are skipped (they could never expire)', !byTitle('Anytime'));
+  ok('closed rows, impossible dates and non-zabursaries links are skipped', !byTitle('Old') && !byTitle('Bad Date') && !byTitle('Phish'));
+  ok('the same bursary twice is one lead (first date wins)', list.filter((e) => /Samancor/.test(e.title)).length === 1);
+  ok('text that is not a list row is ignored', !list.some((e) => e.closes === '2026-10-05'));
+  ok('web text in a title is made inert', !/[\[\]]|@[a-z]/i.test(byTitle('Evil').title), byTitle('Evil').title);
+  ok('faculty comes from the URL; hubs like government have none', byTitle('Samancor').tag === 'Engineering' && byTitle('Department').tag === null);
+  ok('they are labelled as list entries, as bursaries, from zabursaries', list.every((e) => e.pass === 'closing-list' && e.category === 'Bursaries' && e.source === 'zabursaries' && e.desc === ''));
+  ok('a closing date of today still counts', parseClosingLists([{ html: row(`${Z}/a-bursaries/b/`, 'Today', '5 October 2026') }], NOW).length === 1);
+  ok('pages with no html or no list give nothing', parseClosingLists([{}, { html: '' }, { html: '<ul><li>nothing</li></ul>' }], NOW).length === 0);
+
+  // closingPages keeps the body it already fetched, so reading the list costs no extra request.
+  const pages = await closingPages({ now: NOW, fetchPage: async (u) => (u.includes('december') ? { status: 404 } : { status: 200, ok: true, text: async () => html }) });
+  ok('closingPages attaches the page body without it showing in the finding', pages.length === 2 && pages.every((p) => typeof p.html === 'string' && p.html.length > 100) && !JSON.stringify(pages).includes('closing:'));
+  ok('...and parseClosingLists reads straight from them', parseClosingLists(pages, NOW).length === 5);
+  const blocked = await closingPages({ now: NOW, fetchPage: async () => ({ status: 200 }) });
+  ok('a response with no body (as the older fakes) still yields the page lead', blocked.length === 3 && blocked.every((p) => p.html === undefined));
+
+  const same = list[0];
+  ok('genericDesc names the faculty, or just "Bursary"', genericDesc({ tag: 'Engineering' }).startsWith('Engineering bursary.') && genericDesc({ tag: null }).startsWith('Bursary.'));
+  const page = (meta) => ({ ok: true, status: 200, text: async () => `<head>${meta}</head>` });
+  const fetched = [];
+  const some = [list[1], list[2], list[3], { ...list[4], desc: 'Already has one that is long enough.' }].map((e) => ({ ...e }));
+  await describeFromPages(some, { max: 2, fetchPage: async (u, init) => { fetched.push([u, init.redirect]); return page(`<meta name="description" content="The page's own summary of ${u.split('/').filter(Boolean).pop()} for students.">`); } });
+  ok('the first few get their page summary, at most max requests', fetched.length === 2 && some[0].desc.includes('samancor-chrome-bursary') && some[1].desc.includes('aws-skills'));
+  ok('...asked for once, in canonical form, never through a redirect', fetched.every(([u, r]) => u.endsWith('/') && r === 'manual'));
+  ok('the rest get the plain line, and one that has a description is left alone', some[2].desc.endsWith('See the page for who can apply and how.') && some[3].desc === 'Already has one that is long enough.');
+  const failing = [{ ...list[1] }];
+  await describeFromPages(failing, { fetchPage: async () => { throw new Error('timeout'); } });
+  ok('a page that cannot be read falls back to the plain line', failing[0].desc.startsWith('Engineering bursary.'));
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);

@@ -185,17 +185,21 @@ export async function closingPages({ now = new Date(), fetchPage = fetch } = {})
           headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
           signal: AbortSignal.timeout(10000),
         });
-        return res.status === 404 || res.status === 410 ? null : page;
+        if (res.status === 404 || res.status === 410) return null;
+        // Keep the body: the list on the page is read by parseClosingLists, at no extra request.
+        if (res.ok && typeof res.text === 'function') Object.defineProperty(page, 'html', { value: await res.text(), enumerable: false });
+        return page;
       } catch {
         return page;
       }
     })
   );
 
-  return checked.filter(Boolean).map(({ label, url }) => {
+  return checked.filter(Boolean).map((page) => {
+    const { label, url } = page;
     const [month, year] = label.split(' ');
     const name = month[0].toUpperCase() + month.slice(1);
-    return {
+    const finding = {
       title: `Bursaries closing in ${name} ${year}`,
       url,
       desc: `zabursaries' running list of bursaries closing in ${name} ${year}.`,
@@ -204,7 +208,70 @@ export async function closingPages({ now = new Date(), fetchPage = fetch } = {})
       category: 'Closing soon',
       tag: null,
     };
+    if (page.html) Object.defineProperty(finding, 'html', { value: page.html, enumerable: false });
+    return finding;
   });
+}
+
+/**
+ * The monthly page is a list of individual bursaries, each with its own date:
+ *   <li><strong><a href="…/engineering-bursaries-south-africa/samancor-chrome-bursary/">Samancor Chrome Bursary</a></strong> (closing: 2 October 2026)</li>
+ * That is worth far more than the page's link, so each row becomes a lead with a
+ * real closing date. Rows with no date ("closing: none – applications are accepted
+ * anytime") are skipped, and so is anything already closed. A row whose link is not
+ * on zabursaries is ignored.
+ */
+export function parseClosingLists(pages, now = new Date()) {
+  const out = [];
+  const seen = new Set();
+  const row = /<li>\s*<strong>\s*<a\b([^>]*)>([\s\S]*?)<\/a>\s*<\/strong>\s*\(\s*closing:\s*([^)]*?)\)\s*<\/li>/gi;
+
+  for (const page of pages) {
+    for (const m of String(page.html || '').matchAll(row)) {
+      const href = /\bhref\s*=\s*"([^"]+)"/i.exec(m[1])?.[1];
+      const url = href && safeUrl(decodeEntities(href));
+      if (!url || sourceOf(url) !== 'zabursaries' || seen.has(urlKey(url))) continue;
+
+      const deadline = extractDeadline(`Closing date: ${decodeEntities(m[3])}`, now);
+      if (!deadline || deadline.past) continue;
+
+      const title = inert(decodeEntities(m[2].replace(/<[^>]+>/g, ' ')));
+      if (!title) continue;
+      seen.add(urlKey(url));
+      out.push({ title, url, desc: '', source: 'zabursaries', pass: 'closing-list', category: 'Bursaries', tag: facultyFromUrl(url), closes: deadline.date });
+    }
+  }
+  return out;
+}
+
+/** A plain description for a bursary whose page was not read, so no entry goes out bare. */
+export function genericDesc(f) {
+  return `${f.tag ? `${f.tag} bursary` : 'Bursary'}. See the page for who can apply and how.`;
+}
+
+// Page lookups share one budget (see MAX_PAGE_LOOKUPS): a few go to search leads with no
+// date, the rest to the descriptions of the bursaries chosen for the PR.
+export const DEADLINE_LOOKUPS = 4;
+export const DESCRIPTION_LOOKUPS = 8;
+
+/**
+ * Give leads without a description the page's own meta description, soonest first,
+ * at most `max` pages. Anything not read, or whose page has none, gets genericDesc.
+ */
+export async function describeFromPages(entries, { fetchPage = fetch, max = DESCRIPTION_LOOKUPS } = {}) {
+  const todo = entries.filter((f) => !f.desc && pageUrl(f.url)).slice(0, max);
+  await Promise.all(todo.map(async (f) => {
+    try {
+      const res = await fetchPage(pageUrl(f.url), {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; mzantsi-vibes-digest)' },
+        signal: AbortSignal.timeout(10000),
+        redirect: 'manual',
+      });
+      if (res.ok) f.desc = metaDescription(await res.text());
+    } catch { /* falls back to the generic line */ }
+  }));
+  for (const f of entries) if (!f.desc) f.desc = genericDesc(f);
+  return entries;
 }
 
 /* ------------------------------------------------------------------ *
@@ -491,7 +558,7 @@ export function metaDescription(html) {
 // 3 closing-soon pages, ~3 to authenticate, ~9 for the PR and ~3 for the issue.
 // 10 lookups (one request each, see pageUrl) leaves a margin of about 10. The first
 // deployed run used 20 lookups that each redirected, and failed on this limit.
-export const MAX_PAGE_LOOKUPS = 10;
+export const MAX_PAGE_LOOKUPS = 12;
 
 /**
  * The URL to read a lead's page from. zabursaries answers a path without its
@@ -518,7 +585,7 @@ export function pageUrl(url) {
  * the page, from the two trusted sites only, and take the date from there. A page
  * that says it has already closed is dropped. Failures just leave the lead undated.
  */
-export async function enrichDeadlines(findings, { fetchPage = fetch, now = new Date(), onResult, max = MAX_PAGE_LOOKUPS } = {}) {
+export async function enrichDeadlines(findings, { fetchPage = fetch, now = new Date(), onResult, max = DEADLINE_LOOKUPS } = {}) {
   const wanted = findings
     .filter((f) => !f.closes && f.pass !== 'closing' && sourceOf(f.url) !== 'broader search' && pageUrl(f.url))
     .slice(0, max);
@@ -789,13 +856,15 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
   ]);
   const { failures, searched } = collected;
   const findings = [...closing, ...(await enrichDeadlines(collected.findings, { fetchPage, now, onResult }))];
+  // The individual bursaries on the monthly pages go to the PR, not the issue (it would list dozens).
+  const listed = parseClosingLists(closing, now);
 
   // Every search failing means a bad key or an outage. Don't open an empty issue.
   if (failures.length === searched) {
     throw new Error(`All ${searched} searches failed. First error: ${failures[0]}`);
   }
 
-  const extra = (await onFindings?.({ findings, now, dryRun })) || { lines: [], result: {} };
+  const extra = (await onFindings?.({ findings, listed, now, dryRun })) || { lines: [], result: {} };
   const rendered = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad') });
   const title = rendered.title;
   // After the opening paragraph, so it is the first thing a reader sees.

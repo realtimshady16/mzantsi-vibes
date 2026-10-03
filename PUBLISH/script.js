@@ -111,6 +111,11 @@ const CONTENT = {
     url: '/contribute',
   },
 
+  /* ---- DEADLINE DISCLAIMER (shown only where a deadline is) ---- */
+  notes: {
+    deadlines: "Dates come from each organisation's own page and can change or be extended. Always check the official page before you apply, and don't treat this site as your only source.",
+  },
+
   /* ---- SEARCH ---- */
   search: {
     label: 'Search the guide',
@@ -378,6 +383,7 @@ async function init() {
 
     loadingEl.classList.add('hidden');
     document.getElementById('section-study').classList.remove('hidden');
+    showDeadlineNote('deadline-note', document.querySelector('.main-content'));
 
   } catch (err) {
     console.error('Mzantsi Vibes: could not load README:', err);
@@ -399,6 +405,14 @@ async function init() {
 
 const searchState = { entries: [], pillar: null, tags: new Set(), timer: null };
 const PILLAR_KEYS = ['study', 'work', 'unsure', 'everyone'];
+
+/* The disclaimer only appears next to a deadline, so a page with none stays clean. */
+function showDeadlineNote(id, scope) {
+  const note = document.getElementById(id);
+  if (!note) return;
+  note.textContent = CONTENT.notes.deadlines;
+  note.classList.toggle('hidden', !(scope && scope.querySelector('.res-deadline')));
+}
 
 function pillarLabel(key) {
   return CONTENT.paths[key].heading;
@@ -431,6 +445,7 @@ function runSearch() {
     out.innerHTML = '';
     status.textContent = '';
     main.classList.remove('hidden');
+    showDeadlineNote('search-deadline-note', null);
     return;
   }
 
@@ -445,6 +460,7 @@ function runSearch() {
         crumb: `${pillarLabel(e.pillar)} › ${e.section}`,
       })).join('')}</div></section>`
     : `<p class="res-empty">${escHtml(c.empty)}</p>`;
+  showDeadlineNote('search-deadline-note', out);
 }
 
 function clearSearch() {

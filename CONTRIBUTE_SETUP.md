@@ -151,9 +151,9 @@ node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dr
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
-node test/test-opportunity-pr.mjs # 45 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
-node test/test-opportunities.mjs # 170 checks — opportunity digest, Tavily and GitHub faked
-node test/browser/run.mjs      # 148 checks — the six pages in headless Chromium (needs Chromium; skips without it)
+node test/test-opportunity-pr.mjs # 55 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
+node test/test-opportunities.mjs # 193 checks — opportunity digest, Tavily and GitHub faked
+node test/browser/run.mjs      # 154 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
 `test-integration.mjs` reads the real README from GitHub. The repo is public so
@@ -209,7 +209,13 @@ goes near the README, and there is no deduplication between weeks.
 - **Closing soon:** zabursaries keeps these on one page per month
   (`/bursaries-closing-in-november-2026/`). Tavily's index missed the current
   month's page, so the job builds this month's and the next two URLs and keeps
-  the ones that exist (a 404 rules a page out). No search, no credits.
+  the ones that exist (a 404 rules a page out). No search, no credits. The
+  issue links each page, and **the page itself is also read** (the same request):
+  each row is `<li><a href=…>Bursary name</a> (closing: 8 October 2026)</li>`, an
+  individual bursary with its own date, which is far more useful than the link.
+  Rows with no date ("closing: none – applications are accepted anytime"), closed
+  rows and rows not on zabursaries are skipped. These go to the PR below (not into
+  the issue, which would list dozens).
 - **Trusted pass:** bursaries by the six README faculties (zabursaries only,
   filed by the faculty in each URL), then learnerships, graduate programmes,
   jobs and training/vac work on both sites (`include_domains`). Everything but
@@ -229,7 +235,7 @@ goes near the README, and there is no deduplication between weeks.
 - **Closing dates:** Tavily's snippets rarely contain the deadline (real
   zabursaries snippets had none), so a date comes from two places, in order: the
   result's title and snippet, then, for a lead still without one, **the page
-  itself** (zabursaries and graduates24 only, at most 10 pages per run, each asked for
+  itself** (zabursaries and graduates24 only, at most 4 pages per run, each asked for
   once in its canonical form and never through a redirect, and never a zabursaries
   hub page, so the Worker stays inside its 50-request limit (a redirect counts as
   a second request; the first deployed run failed on this); a page that cannot be read
@@ -246,6 +252,10 @@ goes near the README, and there is no deduplication between weeks.
   per dated lead in the `{closes; tags; source}` format, under the heading it goes
   in. Undated leads are not in it, because an entry with no date never expires. The
   block is a fallback for when the PR below is skipped or fails.
+- **Page lookups share one budget of 12:** 4 for search leads with no date (above),
+  and up to 8 to give the bursaries chosen for the PR their page's own description.
+  The rest get a plain line ("Engineering bursary. See the page for who can apply
+  and how.") so no entry goes out bare.
 - **The PR of dated leads:** the same run then opens **one pull request** adding
   the dated leads to `OPPORTUNITIES.md` (Bursaries under *Paying for It*, the rest
   under *Finding Work*; the file's headings are created if missing). It is opened
@@ -254,7 +264,10 @@ goes near the README, and there is no deduplication between weeks.
   links and is only merged by the 18:00 job once approved. It is never pushed to
   `main`. Limits: only the two trusted sites; one such PR open at a time (the
   next week says so and skips); at most 15 entries, soonest first; anything whose
-  link is already in `README.md` or `OPPORTUNITIES.md` is skipped. The entries
+  link is already in `README.md` or `OPPORTUNITIES.md` is skipped; only entries
+  closing tomorrow or later (a PR is approved and merged after it is opened, so one
+  closing today would be dead on arrival). The monthly lists are the main supply:
+  the soonest 15 go in the first PR, and the next 15 a week later. The entries
   are read back through the site's own parser before the PR is opened, and if one
   would not come out with its link and date, no PR is opened. If the PR cannot be
   opened for any reason, the issue is still posted and says why. Check each date

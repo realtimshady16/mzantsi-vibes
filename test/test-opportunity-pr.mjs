@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { insertEntries, linkTargets } from '../src/opportunities-file.js';
 import { planOpportunityPr, openOpportunityPr, runWeeklyOpportunities, MAX_ENTRIES, OPPS_PATH } from '../src/opportunity-pr.js';
+import { DESCRIPTION_LOOKUPS } from '../src/opportunities.js';
 import { isContributionPull, LABELS } from '../src/github.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
 import { entryLine } from '../src/opportunities.js';
@@ -90,10 +91,11 @@ sec('planOpportunityPr: what goes in and what is left out');
     finding('Late', { closes: '2026-12-20' }), finding('Soon', { closes: '2026-10-20' }), finding('Mid'),
     finding('Undated', { closes: undefined }),
     finding('Past', { closes: '2026-10-04' }),
+    finding('Today', { closes: '2026-10-05' }),
     finding('Broad', { pass: 'broad', source: 'broader search', url: 'https://jobs.example.co.za/1' }),
     finding('Closing page', { pass: 'closing', category: 'Closing soon', closes: undefined }),
   ] });
-  ok('only dated, open, trusted leads go in, soonest closing first', plan.entries.map((f) => f.title).join() === 'Soon,Mid,Late', plan.entries.map((f) => f.title).join());
+  ok('only dated, trusted leads closing tomorrow or later go in (not today, not past), soonest first', plan.entries.map((f) => f.title).join() === 'Soon,Mid,Late', plan.entries.map((f) => f.title).join());
   ok('the markdown has them under the right pillar and section', (() => { const p = parseReadme(plan.markdown, '2026-10-05'); return p.pillars.study['Paying for It'].map((e) => e.name).join() === 'Soon,Mid,Late'; })());
   ok('it carries the file sha for the commit', plan.sha === 'opps-sha');
   ok('planning writes nothing', gh.names().every((n) => ['getReadme', 'listOpenPulls'].includes(n)));
@@ -123,6 +125,36 @@ sec('planOpportunityPr: what goes in and what is left out');
   const rawFetch = async (u) => { rawCalls.push(u); return { ok: true, status: 200, text: async () => (u.endsWith(OPPS_PATH) ? skeleton : '# README\n') }; };
   const preview = await planOpportunityPr({ config, gh: null, now: NOW, findings: [finding('Fresh')], fetchImpl: rawFetch });
   ok('with no GitHub login (a preview) it reads the public raw files', preview.entries.length === 1 && rawCalls.length === 2 && rawCalls.every((u) => u.startsWith('https://raw.githubusercontent.com/o/r/main/')));
+}
+
+sec('planOpportunityPr: entries from the monthly lists');
+{
+  const listedEntry = (name, closes, extra = {}) => ({ title: name, url: `https://www.zabursaries.co.za/engineering-bursaries-south-africa/${name.toLowerCase().replace(/\W+/g, '-')}/`, desc: '', source: 'zabursaries', pass: 'closing-list', category: 'Bursaries', tag: 'Engineering', closes, ...extra });
+  const meta = (u) => `<meta name="description" content="Summary of ${u.split('/').filter(Boolean).pop()} for students.">`;
+  const asked = [];
+  const fetchPage = async (u, init) => { asked.push([u, init.redirect]); return { ok: true, status: 200, text: async () => meta(u) }; };
+
+  const listed = [listedEntry('L Late', '2026-12-01'), listedEntry('L Soon', '2026-10-08'), listedEntry('L Mid', '2026-11-05')];
+  const plan = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [finding('Searched', { closes: '2026-10-20' })], listed, fetchPage });
+  ok('list entries and search leads are merged, soonest first', plan.entries.map((f) => f.title).join() === 'L Soon,Searched,L Mid,L Late', plan.entries.map((f) => f.title).join());
+  ok('list entries get their page summary; a search lead keeps its own description', plan.entries.find((f) => f.title === 'L Soon').desc === 'Summary of l-soon for students.' && plan.entries.find((f) => f.title === 'Searched').desc === 'About Searched.');
+  ok('only entries without a description are fetched, once each, never through a redirect', asked.length === 3 && asked.every(([u, r]) => u.endsWith('/') && r === 'manual'));
+  ok('the PR knows how many came from the lists', plan.fromLists === 3);
+
+  const same = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [{ ...finding('Same'), url: 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/same-bursary' }], listed: [listedEntry('Same Bursary', '2026-10-09')], fetchPage });
+  ok('a search lead and a list entry for the same page are one entry, the search lead', same.entries.length === 1 && same.entries[0].title === 'Same' && same.fromLists === 0);
+
+  const inOpps = insertEntries(skeleton, [{ pillar: STUDY, section: 'Paying for It', line: L('L Mid').replace('https://x.org/l-mid', 'https://www.zabursaries.co.za/engineering-bursaries-south-africa/l-mid/') }]);
+  const dedup = await planOpportunityPr({ config, gh: fakeGh({ opps: inOpps }), now: NOW, findings: [], listed, fetchPage });
+  ok('a list entry already in OPPORTUNITIES.md is not proposed again', dedup.entries.map((f) => f.title).join() === 'L Soon,L Late' && dedup.skippedDuplicates === 1);
+
+  const many = Array.from({ length: 30 }, (_, i) => listedEntry(`Many ${i}`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`));
+  const askedMany = [];
+  const big = await planOpportunityPr({ config, gh: fakeGh(), now: NOW, findings: [], listed: many, fetchPage: async (u, init) => { askedMany.push(u); return { ok: true, status: 200, text: async () => meta(u) }; } });
+  ok(`30 list entries: ${MAX_ENTRIES} go in, soonest first, and ${DESCRIPTION_LOOKUPS} pages are read for summaries`, big.entries.length === MAX_ENTRIES && big.hiddenByCap === 15 && askedMany.length === DESCRIPTION_LOOKUPS && DESCRIPTION_LOOKUPS === 8);
+  ok('the rest have a plain, honest description', big.entries.slice(DESCRIPTION_LOOKUPS).every((f) => f.desc === 'Engineering bursary. See the page for who can apply and how.'));
+  ok('every line still reads back through the site parser with its date (it would have thrown)', parseReadme(big.markdown, '2026-10-05').pillars.study['Paying for It'].length === MAX_ENTRIES);
+  ok('the PR body says how many came from the lists', (await (async () => { const g = fakeGh(); await openOpportunityPr({ config, gh: g, plan, now: NOW }); return g.of('createPullRequest')[0][3].body; })()).includes("3 of these come from zabursaries' monthly"));
 }
 
 /* -------------------------------------------------------------- */
@@ -200,7 +232,8 @@ sec('runWeeklyOpportunities: the whole job');
 sec('the Worker\'s 50-request limit');
 {
   // The first deployed run failed with "Too many subrequests": 20 page lookups that each
-  // redirected, on top of the searches and the PR. Count every outbound request in a worst case.
+  // redirected, on top of the searches and the PR. Count every outbound request in a worst case:
+  // 50 dated search leads AND three monthly pages of 40 bursaries each, PR and issue both opened.
   let n = 0;
   const gh = fakeGh();
   const counted = {};
@@ -211,11 +244,17 @@ sec('the Worker\'s 50-request limit');
     const results = Array.from({ length: 5 }, (_, i) => ({ title: `B ${q.slice(0, 6)} ${i}`, url: `https://www.zabursaries.co.za/f${q.length}/${encodeURIComponent(q.slice(0, 6))}-${i}`, content: 'A bursary.', score: 0.9 }));
     return { ok: true, status: 200, json: async () => ({ results }) };
   };
-  const pageFetch = async (u) => { n++; return { ok: true, status: 200, text: async () => '<p>Closing date: 30 November 2026</p>' }; };
-  const AUTH = 2; // JWT -> installation id -> token
+  const monthRows = (m) => '<ul>' + Array.from({ length: 40 }, (_, i) => `<li><strong><a href="https://www.zabursaries.co.za/engineering-bursaries-south-africa/m${m}-b${i}/">M${m} B${i}</a></strong> (closing: ${1 + (i % 27)} ${['October', 'November', 'December'][m]} 2026)</li>`).join('') + '</ul>';
+  let month = 0;
+  const pageFetch = async (u) => {
+    n++;
+    if (u.includes('bursaries-closing-in')) { const html = monthRows(month++ % 3); return { ok: true, status: 200, text: async () => html }; }
+    return { ok: true, status: 200, text: async () => '<meta name="description" content="A page summary long enough to keep."><p>Closing date: 30 November 2026</p>' };
+  };
+  const AUTH = 4; // JWT -> installation id -> token, doubled for the two reads that start together
   const out = await runWeeklyOpportunities({ config, gh: { ...gh, ...counted }, fetchImpl: tavilyFetch, fetchPage: pageFetch, now: NOW });
   const total = n + AUTH;
-  ok('a worst-case run (50 dated leads, PR and issue both opened) stays under the limit with a margin', out.pr?.number === 77 && out.issueUrl && total <= 45, `used ${total} of 50`);
+  ok('a worst-case run (50 dated leads plus 120 list rows; PR and issue both opened) stays under the limit with a margin', out.pr?.number === 77 && out.issueUrl && out.pr.entries === MAX_ENTRIES && total <= 45, `used ${total} of 50`);
   console.log(`        (worst case used ${total} of 50)`);
 }
 

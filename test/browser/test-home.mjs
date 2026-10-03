@@ -48,6 +48,12 @@ ok('a date within two weeks gets the "soon" pill', /^Closes \d+ \w{3} \d{4}$/.te
 ok('a distant date gets the plain pill', /^Closes \d+ \w{3} \d{4}$/.test(pill('Later')[1]) && pill('Later')[2] === false, JSON.stringify(pill('Later')));
 ok('the closing day says "Closes today" and is still visible', pill('Today')[1] === 'Closes today' && pill('Today')[2] === true, JSON.stringify(pill('Today')));
 
+sec('The deadline disclaimer');
+const note = `(()=>{const n=document.getElementById('deadline-note');return {hidden:n.classList.contains('hidden'),text:n.textContent,shown:getComputedStyle(n).display!=='none'}})()`;
+const n1 = await ev(note);
+ok('shown when a deadline pill is on screen', n1.hidden === false && n1.shown, JSON.stringify(n1));
+ok('it tells people to check the official page and not rely on this site alone', /check the official page/i.test(n1.text) && /only source/i.test(n1.text), n1.text);
+
 sec('Pill readable in both themes');
 const contrast = `(()=>{const p=document.querySelector('#study-content .res-deadline');const c=getComputedStyle(p);const lum=s=>{const m=s.match(/\\d+/g).map(Number).slice(0,3).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});return .2126*m[0]+.7152*m[1]+.0722*m[2]};const a=lum(c.color),b=lum(c.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)})()`;
 ok('light: text on the pill is at least 4.5:1', (await ev(contrast)) >= 4.5);
@@ -57,6 +63,7 @@ ok('dark: text on the pill is at least 4.5:1', (await ev(contrast)) >= 4.5);
 sec('Opportunities file missing');
 await load({ opps: null });
 ok('the README still renders', JSON.stringify(await names()) === JSON.stringify(['NSFAS']), JSON.stringify(await names()));
+ok('with no deadline on the page, there is no disclaimer', (await ev(note)).shown === false);
 ok('no script errors', errors.length === 0, JSON.stringify(errors));
 
 await done();
