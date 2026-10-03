@@ -28,7 +28,7 @@ The site fetches `README.md` from `main` on GitHub at runtime
   keyword in `PUBLISH/content-parse.js`. Renaming one breaks the site **and** the form.
 - `src/readme.js` (`normalizeMarkdown`, `applyNew`, `applyEdit`) is what keeps
   submissions in that shape. Change it with its tests (`test/test-normalize.mjs`).
-- Time-sensitive entries go in `OPPORTUNITIES.md` (the form does not write there; the weekly digest drafts paste-ready lines for a human to add). An entry
+- Time-sensitive entries go in `OPPORTUNITIES.md` (the form does not write there; the weekly digest opens a PR of dated leads, reviewed like any contribution). An entry
   may end with `{closes: 2026-11-30; tags: bursary}`; the site hides it after that date, and a `closes` it
   cannot read hides the entry. Format: `OPPORTUNITIES.md`, parser: `PUBLISH/entry-meta.js`.
 - Never put test data in the README. Test entries get closed or rejected, never merged.
@@ -51,20 +51,22 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | `src/github-auth.js`, `github.js` | GitHub App auth (JWT → installation token) and the REST client |
 | `src/cron.js`, `action.js`, `email.js`, `tokens.js` | Daily digest, Approve/Reject links, 18:00 merge |
 | `src/admin.js` | `POST /api/admin/run`: runs a job by hand (token-protected) |
-| `src/opportunities.js` | Weekly Tavily opportunity digest → one GitHub issue |
+| `src/opportunities.js` | Weekly Tavily opportunity digest → one GitHub issue; reads closing dates |
+| `src/opportunity-pr.js`, `opportunities-file.js` | The same run also opens a PR adding dated leads to `OPPORTUNITIES.md` (as the GitHub App, `contribute/opps-…` branch, so it joins the review digest) |
 | `scripts/mz`, `trigger.mjs`, `run-opportunities.mjs` | Run and tune things by hand |
 | `scripts/preview.mjs` | Local preview of the site with a mock API; reads the working-copy README/OPPORTUNITIES (`--sample` adds fake entries) |
-| `test/` | Nine dependency-free suites, plus `test/browser/` (needs Chromium) |
+| `test/` | Ten dependency-free suites, plus `test/browser/` (needs Chromium) |
 
 ## Commands
 
 No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 
 ```bash
-for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index; do node test/$t.mjs | tail -3; done
+for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
 ```
 
-All nine must pass before a PR (59, 48, 43, 69, 160, 23, 39, 36 and 39 checks as of writing).
+All ten must pass before a PR (59, 48, 43, 69, 166, 23, 39, 36, 39 and 44 checks as of writing).
+`test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (148 checks)
 ```
@@ -106,7 +108,8 @@ to `main` (Cloudflare Workers Builds). The `cf` CLI is for account operations on
 form → POST /api/submit → patch README → branch contribute/… → PR (needs-review)
 08:00 SAST  digest email, one signed Approve + Reject link per PR → label (never merges)
 18:00 SAST  merge `approved`, close `rejected` (comment), delete the branch
-Mon 07:00   opportunity digest → one GitHub issue of leads (nothing touches the README)
+Mon 07:00   opportunity digest → one GitHub issue of leads, plus one PR adding the dated ones to
+            OPPORTUNITIES.md (needs-review, so it is approved in the 08:00 email like any other)
 ```
 
 Crons are in `wrangler.jsonc` and dispatched by schedule string in `src/worker.js`.

@@ -243,7 +243,7 @@ export async function searchTavily({ key, search, fetchImpl = fetch }) {
  * Turning results into findings
  * ------------------------------------------------------------------ */
 
-function hostOf(url) {
+export function hostOf(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
@@ -259,7 +259,7 @@ export function sourceOf(url) {
 }
 
 /** Same page, different tracking junk, should count once. */
-function urlKey(url) {
+export function urlKey(url) {
   try {
     const u = new URL(url);
     u.hash = '';
@@ -317,11 +317,14 @@ function cleanSnippet(text, title = '') {
     .trim();
 }
 
-export function oneLine(text, max = MAX_DESC, title = '') {
-  const s = cleanSnippet(text, title);
+function truncate(s, max) {
   if (s.length <= max) return s;
   const cut = s.slice(0, max);
   return cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 30)).replace(/[,;:.\s-]+$/, '') + '…';
+}
+
+export function oneLine(text, max = MAX_DESC, title = '') {
+  return truncate(cleanSnippet(text, title), max);
 }
 
 function safeUrl(url) {
@@ -448,17 +451,39 @@ export function extractDeadline(text, now = new Date()) {
   return { date, past: date < todayInSA(now) };
 }
 
+function decodeEntities(text) {
+  return String(text)
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;|&rsquo;|&#0?39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/g, '&');
+}
+
 /** Page HTML → plain text, enough to read a date out of. */
 export function htmlToText(html) {
-  return String(html ?? '')
-    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;|&#160;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#8217;|&rsquo;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+  return decodeEntities(
+    String(html ?? '')
+      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+  )
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * The page's own summary (its meta or og description). Search snippets are
+ * whichever chunk of the page matched best, often a mid-sentence fragment; the
+ * page's description is written to stand alone.
+ */
+export function metaDescription(html) {
+  for (const tag of String(html ?? '').match(/<meta\b[^>]*>/gi) || []) {
+    if (!/\b(?:name|property)\s*=\s*["'](?:description|og:description)["']/i.test(tag)) continue;
+    const m = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+    const text = m ? truncate(inert(decodeEntities(m[1] ?? m[2])), MAX_DESC) : '';
+    if (text.length >= 20) return text;
+  }
+  return '';
 }
 
 // Each lookup is one subrequest, and a Worker invocation gets 50 on the free plan.
@@ -482,7 +507,11 @@ export async function enrichDeadlines(findings, { fetchPage = fetch, now = new D
         redirect: 'follow',
       });
       if (!res.ok) return onResult?.({ enrich: true, url: f.url, note: `page returned ${res.status}` });
-      const deadline = extractDeadline(htmlToText(await res.text()), now);
+      const html = await res.text();
+      // The page's own summary reads better than whichever chunk the search matched.
+      const summary = metaDescription(html);
+      if (summary) f.desc = summary;
+      const deadline = extractDeadline(htmlToText(html), now);
       if (!deadline) return onResult?.({ enrich: true, url: f.url, note: 'no single closing date on the page' });
       if (deadline.past) {
         f.closed = deadline.date;
@@ -614,6 +643,12 @@ const DESTINATION = {
 
 const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
+/** Which pillar and section of OPPORTUNITIES.md a lead belongs under, or null. */
+export function destinationOf(f) {
+  const d = DESTINATION[f.category];
+  return d ? { pillar: d.pillar, section: d.section } : null;
+}
+
 /** One line in the OPPORTUNITIES.md format (see that file), or null if it has no deadline. */
 export function entryLine(f) {
   const dest = DESTINATION[f.category];
@@ -712,7 +747,12 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
  * Entry point (cron and the local script share this)
  * ------------------------------------------------------------------ */
 
-export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, onResult }) {
+/**
+ * `onFindings` is an optional hook (see opportunity-pr.js) called once the leads
+ * are final. It returns { lines, result }: `lines` go into the issue after its
+ * opening paragraph, and `result` is merged into what this returns.
+ */
+export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, onResult, onFindings }) {
   if (!config.tavilyKey) {
     throw new Error('TAVILY_API_KEY is not set. Add it with: wrangler secret put TAVILY_API_KEY');
   }
@@ -730,8 +770,12 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
     throw new Error(`All ${searched} searches failed. First error: ${failures[0]}`);
   }
 
-  const { title, body } = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad') });
-  const summary = { title, findings: findings.length, searches: searched, credits: searched, failures: failures.length };
+  const extra = (await onFindings?.({ findings, now, dryRun })) || { lines: [], result: {} };
+  const rendered = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad') });
+  const title = rendered.title;
+  // After the opening paragraph, so it is the first thing a reader sees.
+  const body = extra.lines.length ? rendered.body.replace('\n\n', `\n\n${extra.lines.join('\n')}\n\n`) : rendered.body;
+  const summary = { title, findings: findings.length, searches: searched, credits: searched, failures: failures.length, ...extra.result };
 
   if (dryRun) return { ...summary, body, issueUrl: null };
 

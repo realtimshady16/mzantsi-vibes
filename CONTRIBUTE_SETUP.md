@@ -151,7 +151,8 @@ node test/test-admin.mjs      # 43 checks — run tokens, the admin endpoint, dr
 node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
-node test/test-opportunities.mjs # 160 checks — opportunity digest, Tavily and GitHub faked
+node test/test-opportunity-pr.mjs # 44 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
+node test/test-opportunities.mjs # 166 checks — opportunity digest, Tavily and GitHub faked
 node test/browser/run.mjs      # 148 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```
 
@@ -241,9 +242,22 @@ goes near the README, and there is no deduplication between weeks.
   read and what it found). Dated leads show `closes YYYY-MM-DD`, and the issue
   ends with a collapsed **Ready to paste into OPPORTUNITIES.md** block: one line
   per dated lead in the `{closes; tags; source}` format, under the heading it goes
-  in. Undated leads are not in it, because an entry with no date never expires. A
-  human still checks each date against the page and pastes the line; nothing
-  writes to the repo.
+  in. Undated leads are not in it, because an entry with no date never expires. The
+  block is a fallback for when the PR below is skipped or fails.
+- **The PR of dated leads:** the same run then opens **one pull request** adding
+  the dated leads to `OPPORTUNITIES.md` (Bursaries under *Paying for It*, the rest
+  under *Finding Work*; the file's headings are created if missing). It is opened
+  by the **GitHub App**, from a `contribute/opps-<date>-<id>` branch, labelled
+  `needs-review`, so it appears in the 08:00 digest email with Approve and Reject
+  links and is only merged by the 18:00 job once approved. It is never pushed to
+  `main`. Limits: only the two trusted sites; one such PR open at a time (the
+  next week says so and skips); at most 15 entries, soonest first; anything whose
+  link is already in `README.md` or `OPPORTUNITIES.md` is skipped. The entries
+  are read back through the site's own parser before the PR is opened, and if one
+  would not come out with its link and date, no PR is opened. If the PR cannot be
+  opened for any reason, the issue is still posted and says why. Check each date
+  against the page when reviewing; for example a page can say a date passed but
+  applications "remain open", and the entry would hide on that date.
 - **Cost:** 10 basic searches = **10 Tavily credits per run** (15 with the
   broader pass). No advanced search.
 - **Issue label:** `opportunity-digest`, created on first use.
@@ -259,7 +273,8 @@ run or not, so the useful flags are the ones that let you run less.
 
 ```bash
 node scripts/run-opportunities.mjs --list              # show the plan and cost, spends nothing
-node scripts/run-opportunities.mjs                     # full dry run of the weekly digest, 10 credits
+node scripts/run-opportunities.mjs                     # full dry run of the weekly digest, 10 credits; also previews the PR
+node scripts/run-opportunities.mjs --post              # for real: the issue AND the PR, as the GitHub App (add --no-pr for the issue only)
 node scripts/run-opportunities.mjs --with-broad        # ...plus the broader pass, 15 credits
 node scripts/run-opportunities.mjs --only job --explain   # 2 credits: just the job searches, with reasons
 node scripts/run-opportunities.mjs --post              # full run, then open the real issue

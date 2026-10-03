@@ -25,6 +25,10 @@
  *   --min-score X         drop results Tavily scored below X (0 to 1); --explain shows the scores
  *   --explain             print each search's results with KEEP / DROP and the reason
  *   --save FILE           also write the issue text to FILE
+ *   --no-pr               with --post: open the issue only, not the PR of dated leads
+ *
+ * The PR (dated leads added to OPPORTUNITIES.md) is opened by the GitHub App, like a form
+ * submission, so it joins the review digest. Without --post it is only previewed below the issue.
  *
  * Reads TAVILY_API_KEY from .dev.vars or the environment. --post also needs
  * GitHub access: GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY (the same app the Worker
@@ -33,7 +37,8 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { runOpportunityDigest, planSearches, includesClosing, searchLabel } from '../src/opportunities.js';
+import { planSearches, includesClosing, searchLabel } from '../src/opportunities.js';
+import { runWeeklyOpportunities } from '../src/opportunity-pr.js';
 import { github } from '../src/github.js';
 import { appTokenProvider } from '../src/github-auth.js';
 import { loadEnv } from './env.mjs';
@@ -54,7 +59,7 @@ function fail(msg) {
   process.exit(1);
 }
 
-const KNOWN = ['--post', '--list', '--explain', '--with-broad', '--help', '-h', '--only', '--query', '--time-range', '--max-results', '--min-score', '--save'];
+const KNOWN = ['--post', '--list', '--explain', '--with-broad', '--help', '-h', '--only', '--query', '--time-range', '--max-results', '--min-score', '--save', '--no-pr'];
 const unknown = argv.filter((a) => a.startsWith('-') && !KNOWN.includes(a));
 if (unknown.length) fail(`Unknown option: ${unknown.join(' ')}  (try --help)`);
 
@@ -146,7 +151,8 @@ const githubAuth = hasApp
   ? appTokenProvider({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_APP_PRIVATE_KEY, owner: config.owner, repo: config.repo })
   : env.GITHUB_TOKEN;
 
-const result = await runOpportunityDigest({
+const result = await runWeeklyOpportunities({
+  openPr: !flag('--no-pr'),
   config,
   gh: post ? github(githubAuth) : null,
   dryRun: !post,
@@ -176,6 +182,9 @@ if (explain) {
 
 if (post) {
   console.log(`Opened ${result.issueUrl} — ${result.findings} links, ~${result.credits} credits, ${result.failures} failed searches.`);
+  if (result.pr) console.log(`Opened PR #${result.pr.number} (${result.pr.entries} dated leads): ${result.pr.url}`);
+  else if (result.prSkipped) console.log(`No PR: ${result.prSkipped}`);
+  else if (result.prError) console.log(`PR not opened: ${result.prError}`);
 } else {
   const text = `# ${result.title}\n\n${result.body}`;
   console.log(text);
@@ -183,6 +192,11 @@ if (post) {
     writeFileSync(savePath, text);
     console.error(`Saved to ${savePath}`);
   }
+  if (result.prPreview) {
+    console.error(`\n=== PR preview: ${result.prPreview.count} line(s) the real run would add to OPPORTUNITIES.md (nothing was opened) ===\n`);
+    for (const a of result.prPreview.entries) console.error(`  ${a.pillar} › ${a.section}\n    ${a.line}\n`);
+  } else if (result.prSkipped) console.error(`\nNo PR would be opened: ${result.prSkipped}`);
+  else if (result.prError) console.error(`\nPR step failed: ${result.prError}`);
   console.error(
     `\n[dry run] ${result.findings} links, ${result.searches} searches (~${result.credits} Tavily credits), ` +
       `${result.failures} failed. Nothing was posted.${tuned ? '' : ' Use --post to open the issue.'}`
