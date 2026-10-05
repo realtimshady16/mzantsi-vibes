@@ -78,7 +78,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
  * `cache` and `fetchFn` are injectable for the tests.
  */
 export async function handleIndex(request, env, ctx, { cache = globalThis.caches?.default, fetchFn = fetch } = {}) {
-  if (request.method !== 'GET') return new Response(JSON.stringify({ ok: false, error: 'Use GET.' }), { status: 405, headers: JSON_HEADERS });
+  if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(JSON.stringify({ ok: false, error: 'Use GET or HEAD.' }), { status: 405, headers: JSON_HEADERS });
 
   const key = new Request(new URL(request.url).origin + '/api/index.json');
   const hit = cache && (await cache.match(key));
@@ -87,7 +87,7 @@ export async function handleIndex(request, env, ctx, { cache = globalThis.caches
   try {
     const sources = await fetchSources({ owner: env.REPO_OWNER || 'realtimshady16', repo: env.REPO_NAME || 'mzantsi-vibes' }, fetchFn);
     const res = new Response(JSON.stringify({ ok: true, ...buildIndex(sources) }), {
-      headers: { ...JSON_HEADERS, 'Cache-Control': `public, max-age=${INDEX_TTL_SECONDS}` },
+      headers: { ...JSON_HEADERS, 'Cache-Control': `public, max-age=${INDEX_TTL_SECONDS}, s-maxage=${INDEX_TTL_SECONDS}` },
     });
     if (cache) ctx.waitUntil(cache.put(key, res.clone()));
     return res;

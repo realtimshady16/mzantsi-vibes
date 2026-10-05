@@ -3,7 +3,7 @@
  * Deliverable 5 — 6pm batch merge of everything approved, close of the rest.
  */
 
-import { sendDigest } from './email.js';
+import { sendDigest, sendMergeFailures } from './email.js';
 import { LABELS, LABEL_META, isContributionPull } from './github.js';
 
 async function ensureLabels(config, gh) {
@@ -66,7 +66,7 @@ export async function runDigest({ config, gh, fetchImpl, dryRun = false }) {
  * Labels are stripped afterwards so a merged or closed PR is never picked up
  * again on the next run, which also makes this job safely repeatable.
  */
-export async function runBatchMerge({ config, gh, dryRun = false }) {
+export async function runBatchMerge({ config, gh, fetchImpl, dryRun = false }) {
   const { owner, repo } = config;
 
   // A dry run says what would be merged and closed, and touches nothing.
@@ -85,7 +85,7 @@ export async function runBatchMerge({ config, gh, dryRun = false }) {
   const approved = await listContributionPulls(config, gh, { labels: [LABELS.approved] });
   for (const pull of approved) {
     try {
-      const res = await gh.mergePull(owner, repo, pull.number);
+      const res = await gh.mergePull(owner, repo, pull.number, pull.head?.sha);
       if (res?.merged) {
         summary.merged.push(pull.number);
         await gh.removeLabel(owner, repo, pull.number, LABELS.approved).catch(() => {});
@@ -117,6 +117,11 @@ export async function runBatchMerge({ config, gh, dryRun = false }) {
       summary.failed.push({ pr: pull.number, reason: err.message });
     }
   }
+
+  // A failed email must not hide the merge result, so it only gets logged.
+  await sendMergeFailures({ config, failed: summary.failed, fetchImpl }).catch((e) =>
+    console.error('merge-failure email failed:', e?.message || e)
+  );
 
   return summary;
 }

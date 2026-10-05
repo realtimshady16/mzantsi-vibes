@@ -36,8 +36,16 @@ export function stripMarkdown(str) {
     .trim();
 }
 
+/* A markdown link. The URL may hold one level of balanced parentheses, so
+   https://en.wikipedia.org/wiki/Foo_(bar) survives. */
+export const LINK_RE = /\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)/g;
+
+/* Only web links are ever rendered: a javascript: or data: URL in an href would
+   run on this site's origin. */
+export const isWebUrl = (url) => /^https?:\/\/\S+$/i.test(url);
+
 function cleanUrl(url) {
-  return url.replace(/[.)]+$/, '').trim();
+  return url.replace(/\.+$/, '').trim();
 }
 
 function isBareUrl(str) {
@@ -126,16 +134,15 @@ export function parseReadme(markdown, today = todayInSA()) {
         if (split.errors.length) console.warn('Mzantsi Vibes: hiding entry with bad metadata:', content, split.errors);
         continue;
       }
-      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let match;
       const links = [];
-      while ((match = linkRegex.exec(content)) !== null) {
-        links.push({ name: match[1].trim(), url: cleanUrl(match[2]) });
+      for (const match of content.matchAll(LINK_RE)) {
+        const url = cleanUrl(match[2]);
+        if (isWebUrl(url)) links.push({ name: match[1].trim(), url });
       }
 
       if (links.length > 0) {
         /* Name: replace link syntax with link text, then take everything before the — */
-        const withText = content.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+        const withText = content.replace(LINK_RE, '$1');
         const namePart = withText.split(/\s[—–]\s/)[0].trim();
         const name = stripMarkdown(namePart) || links[0].name;
 

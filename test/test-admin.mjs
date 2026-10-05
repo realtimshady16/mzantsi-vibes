@@ -194,6 +194,7 @@ sec('the new-section choice (a bug the manual submit tool turned up)');
     createBranch: async () => {},
     commitReadme: async (o, r, b, a) => { committed.push(a.content); },
     createPullRequest: async () => ({ number: 7, html_url: 'https://github.com/x/y/pull/7' }),
+    listOpenPulls: async () => [],
     ensureLabel: async () => ({}), addLabels: async () => ({}),
   };
   const submit = (section) => handleSubmit({

@@ -11,7 +11,9 @@ const REQUIRED_SECRETS = ['GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'HMAC_SECRE
 
 const CRON_DIGEST = '0 6 * * *'; // 08:00 SAST (UTC+2, no DST in SA)
 const CRON_MERGE = '0 16 * * *'; // 18:00 SAST
-const CRON_OPPS = '0 5 * * 1'; // Monday 07:00 SAST, before the morning digest
+// Cloudflare numbers weekdays 1-7 from SUNDAY (not cron's 0-6 from Sunday with 1 = Monday), so a bare
+// "1" fired this job on Sundays. Use the name.
+const CRON_OPPS = '0 5 * * MON'; // Monday 07:00 SAST, before the morning digest
 
 export { CRON_DIGEST, CRON_MERGE, CRON_OPPS };
 
@@ -54,6 +56,10 @@ export function readConfig(env) {
     baseUrl: (env.BASE_URL || 'https://mzantsi-vibes.pages.dev').replace(/\/+$/, ''),
 
     branchPrefix: env.BRANCH_PREFIX || 'contribute',
+
+    // Submissions are refused once this many contribution PRs are open. Kept
+    // well under the 100 a single page of the PR list returns.
+    maxOpenContributions: Number(env.MAX_OPEN_CONTRIBUTIONS || 40),
 
     // Digest links are only useful for a few days; expire them generously
     // enough to survive a weekend, short enough that a leaked inbox link dies.

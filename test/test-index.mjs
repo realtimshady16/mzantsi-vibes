@@ -100,7 +100,7 @@ const cache = memCache(); const calls = [];
 const r1 = await handleIndex(req(), {}, ctx, { cache, fetchFn: fakeFetch({}, calls) });
 const j1 = await r1.json();
 ok('200 with the index', r1.status === 200 && j1.ok === true && j1.entries.length >= 5);
-ok('cacheable for five minutes', r1.headers.get('Cache-Control') === `public, max-age=${INDEX_TTL_SECONDS}` && INDEX_TTL_SECONDS === 300);
+ok('cacheable for five minutes', r1.headers.get('Cache-Control') === `public, max-age=${INDEX_TTL_SECONDS}, s-maxage=${INDEX_TTL_SECONDS}` && INDEX_TTL_SECONDS === 300);
 const before = calls.length;
 const r2 = await handleIndex(req(), {}, ctx, { cache, fetchFn: fakeFetch({}, calls) });
 ok('a second request is served from cache without touching GitHub', calls.length === before && (await r2.json()).ok === true);

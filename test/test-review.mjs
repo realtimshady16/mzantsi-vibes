@@ -26,7 +26,7 @@ const pull = (n, over = {}) => ({
   html_url: `https://github.com/realtimshady16/mzantsi-vibes/pull/${n}`,
   // What the GitHub App's PRs look like: a Bot user, and a branch in this repo.
   user: { login: 'mzantsi-vibes-contribute[bot]', type: 'Bot' },
-  head: { ref: `contribute/add-book-summaries-${n}`, repo: { full_name: 'realtimshady16/mzantsi-vibes' } },
+  head: { sha: 'abc123', ref: `contribute/add-book-summaries-${n}`, repo: { full_name: 'realtimshady16/mzantsi-vibes' } },
   created_at: '2026-09-27T06:00:00Z',
   labels: [{ name: 'needs-review' }], ...over,
 });
@@ -60,7 +60,7 @@ function mockGh(pulls) {
       for (const l of labels) state.get(n)?.add(l);
     },
     removeLabel: async (o, r, n, name) => { rec.removed.push({ n, name }); state.get(n)?.delete(name); },
-    mergePull: async (o, r, n) => { rec.merged.push(n); return { merged: true }; },
+    mergePull: async (o, r, n, sha) => { rec.merged.push(n); (rec.mergeShas ||= []).push(sha); return { merged: true }; },
     closePull: async (o, r, n) => { rec.closed.push(n); return {}; },
     deleteBranch: async (o, r, branch) => { rec.branchesDeleted.push(branch); return {}; },
     commentPull: async (o, r, n, body) => { rec.commented.push({ n, body }); return {}; },
@@ -146,12 +146,21 @@ console.log('\n== digest: only the contribute form\'s own PRs ==');
 
 /* ---------------- action endpoint ---------------- */
 console.log('\n== action endpoint ==');
-const act = async (prs, token, cfg = config) => {
+const act = async (prs, token, cfg = config, method = 'POST') => {
   const gh = mockGh(prs);
   const url = new URL('https://mz.example/action?token=' + encodeURIComponent(token));
-  const res = await handleAction({ request: {}, config: cfg, gh, url });
+  const res = await handleAction({ request: { method }, config: cfg, gh, url });
   return { gh, res, html: await res.text() };
 };
+
+{
+  // A GET (a mail scanner prefetching the link) must change nothing.
+  const tok = await signToken(SECRET, { pr: 1, action: 'approve', ttlHours: 72 });
+  const { gh, res, html } = await act([pull(1)], tok, config, 'GET');
+  ok('GET shows a confirm page', res.status === 200 && /<form method="post"/.test(html) && /Yes, approve it/.test(html));
+  ok('GET changes no labels', gh.rec.added.length === 0 && gh.rec.removed.length === 0);
+  ok('confirm page is not cacheable and not framable', res.headers.get('Cache-Control') === 'no-store' && res.headers.get('X-Frame-Options') === 'DENY');
+}
 
 {
   const good = await signToken(SECRET, { pr: 1, action: 'approve', ttlHours: 72 });
@@ -268,7 +277,7 @@ console.log('\n== batch merge: tidies up branches ==');
 
   const keep = mockGh([pull(1, { labels: [{ name: 'approved' }] })]);
   keep.mergePull = async () => ({ merged: false, message: 'conflict' });
-  await runBatchMerge({ config, gh: keep });
+  await runBatchMerge({ config, gh: keep, fetchImpl: mockFetch([]) });
   ok('a PR that failed to merge keeps its branch', keep.rec.branchesDeleted.length === 0);
 }
 
@@ -276,10 +285,20 @@ console.log('\n== batch merge: a failing merge is reported, not fatal ==');
 {
   const gh = mockGh([pull(1, { labels: [{ name: 'approved' }] })]);
   gh.mergePull = async () => ({ merged: false, message: 'Base branch was modified' });
-  const s = await runBatchMerge({ config, gh });
+  const sent = [];
+  const s = await runBatchMerge({ config, gh, fetchImpl: mockFetch(sent) });
+  ok('the reviewer is emailed about the failure', sent.length === 1 && /could not merge/.test(sent[0].body.subject) && /Base branch was modified/.test(sent[0].body.html), JSON.stringify(sent.map((x) => x.body.subject)));
   ok('failure captured', s.failed.length === 1 && s.failed[0].pr === 1, JSON.stringify(s));
   ok('reason surfaced', /Base branch was modified/.test(s.failed[0].reason));
   ok('nothing reported as merged', s.merged.length === 0);
+}
+
+{
+  const gh = mockGh([pull(1, { labels: [{ name: 'approved' }] })]);
+  const sent = [];
+  await runBatchMerge({ config, gh, fetchImpl: mockFetch(sent) });
+  ok('no email when everything merged', sent.length === 0);
+  ok('the merge is pinned to the reviewed commit', gh.rec.mergeShas?.[0] === 'abc123', String(gh.rec.mergeShas));
 }
 
 console.log('\n== batch merge is idempotent ==');

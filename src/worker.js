@@ -19,7 +19,7 @@ import { runDigest, runBatchMerge } from './cron.js';
 import { runWeeklyOpportunities } from './opportunity-pr.js';
 import { handleIndex } from './content-index.js';
 
-const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
+const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff' };
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -34,9 +34,23 @@ function clientKey(request) {
  * Deliverable 1 support — the form needs to know the real section list
  * so its dropdown can never drift from the README.
  * ------------------------------------------------------------------ */
-async function handleSections({ config, gh }) {
+const SECTIONS_TTL_SECONDS = 300;
+
+/**
+ * Edge-cached for five minutes: the form loads this on every visit, and each
+ * uncached call is a GitHub API request made with the App's token.
+ */
+export async function handleSections({ config, gh, ctx, cache = globalThis.caches?.default }) {
+  const key = new Request(`${config.baseUrl}/api/sections`);
+  const hit = cache && (await cache.match(key));
+  if (hit) return hit;
+
   const readme = await gh.getReadme(config.owner, config.repo);
-  return json({ ok: true, groups: sectionOptions(readme.content) });
+  const res = new Response(JSON.stringify({ ok: true, groups: sectionOptions(readme.content) }), {
+    headers: { ...JSON_HEADERS, 'Cache-Control': `public, max-age=${SECTIONS_TTL_SECONDS}` },
+  });
+  if (cache && ctx) ctx.waitUntil(cache.put(key, res.clone()));
+  return res;
 }
 
 /* ------------------------------------------------------------------ *
@@ -91,7 +105,7 @@ export default {
     if (url.pathname === '/api/sections' && request.method === 'GET') {
       try {
         const config = readConfig(env);
-        return await handleSections({ config, gh: github(config.githubAuth) });
+        return await handleSections({ config, gh: github(config.githubAuth), ctx });
       } catch (err) {
         console.error('sections failed:', err?.stack || err);
         return json({ ok: false, error: 'Could not load the section list.' }, 502);

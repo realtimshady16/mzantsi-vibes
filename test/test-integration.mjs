@@ -43,6 +43,7 @@ const gh = {
     calls.push({ op: 'createPullRequest', title: pr.title, head: pr.head, body: pr.body });
     return { number: 999, html_url: 'https://github.com/realtimshady16/mzantsi-vibes/pull/999' };
   },
+  listOpenPulls: async () => [],
   ensureLabel: async (o, r, name) => { calls.push({ op: 'ensureLabel', name }); return { name }; },
   addLabels: async (o, r, n, labels) => { calls.push({ op: 'addLabels', n, labels }); },
 };

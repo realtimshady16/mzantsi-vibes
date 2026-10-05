@@ -7,6 +7,7 @@
  */
 
 import { splitEntryMeta } from '../PUBLISH/entry-meta.js';
+import { isWebUrl } from '../PUBLISH/content-parse.js';
 
 const HEADING_RE = /^(#{1,6})\s+(.*?)\s*$/;
 const COMING_SOON_RE = /^[-*]\s+.*coming soon/i;
@@ -136,6 +137,7 @@ export class PatchError extends Error {
  * heading inside submitted content is always a mistake or an injection.
  */
 export function sanitizeContent(raw, { field = 'content', max = 4000 } = {}) {
+  if (raw != null && typeof raw !== 'string') throw new PatchError(`That ${field} was not text. Please refresh the page and try again.`);
   const text = String(raw ?? '').replace(/\r\n/g, '\n').trim();
 
   if (!text) throw new PatchError('Please add the content you want to submit.');
@@ -157,6 +159,20 @@ export function sanitizeContent(raw, { field = 'content', max = 4000 } = {}) {
 
   if (text.includes('<!--')) {
     throw new PatchError('Your text contains an HTML comment, which is not allowed.');
+  }
+
+  // The site is written in markdown, never HTML. A tag here is a mistake or an attack.
+  if (/<\/?[a-z!]/i.test(text)) {
+    throw new PatchError('Your text contains HTML. Please use plain text or markdown links instead.');
+  }
+
+  // A link target becomes an href on the live site, so only web links may go in
+  // (a javascript: URL would run on our origin). The site's parser enforces the
+  // same rule when it renders; this keeps the bad text out of the README at all.
+  for (const m of text.matchAll(/\]\(\s*([^)\s]*)/g)) {
+    if (!isWebUrl(m[1])) {
+      throw new PatchError('Links must start with http:// or https://. Please fix the link and resubmit.');
+    }
   }
 
   return text
@@ -232,6 +248,7 @@ export function assertEntryMeta(markdown) {
  * on the reviewer to notice.
  */
 export function sanitizeHandle(raw) {
+  if (raw != null && typeof raw !== 'string') throw new PatchError('Please use only letters, numbers, spaces and . - _ @ / ( ) in your name.');
   const text = String(raw ?? '').trim();
   if (!text) return '';
   if (text.length > 60) throw new PatchError('Please keep your name under 60 characters.');
@@ -374,10 +391,14 @@ export function applyNew(md, { pillar, section, content, newSectionName }) {
 
   /* --- creating a new ### section --- */
   if (section === 'new') {
-    if (!newSectionName || !newSectionName.trim()) {
+    if (!newSectionName || typeof newSectionName !== 'string' || !newSectionName.trim()) {
       throw new PatchError('Please give the new section a name.');
     }
+    if (typeof newSectionName !== 'string') throw new PatchError('Please give the new section a name.');
     const name = newSectionName.trim();
+    // A newline would let the name carry its own heading lines into the README.
+    if (/[\r\n]/.test(name)) throw new PatchError('The section name must be a single line.');
+    if (!normalizeHeading(name)) throw new PatchError('Please use some letters or numbers in the section name.');
     if (name.length > 80) throw new PatchError('Please keep the section name under 80 characters.');
     if (HEADING_RE.test(name)) throw new PatchError('The section name cannot start with #.');
 

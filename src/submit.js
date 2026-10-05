@@ -8,7 +8,7 @@
  */
 
 import { applyEdit, applyNew, sanitizeHandle, assertStructureIntact, PatchError } from './readme.js';
-import { LABELS, LABEL_META } from './github.js';
+import { LABELS, LABEL_META, isContributionPull } from './github.js';
 
 const README_PATH = 'README.md';
 
@@ -25,6 +25,17 @@ function randomSuffix() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * A code fence longer than any run of backticks inside the text, so submitted
+ * text can never close the fence and write live markdown (fake "approved"
+ * notes, images, @mentions that notify real people) into the PR.
+ */
+function fenced(text, lang = 'markdown') {
+  const longest = Math.max(0, ...(String(text).match(/`+/g) || []).map((r) => r.length));
+  const ticks = '`'.repeat(Math.max(3, longest + 1));
+  return [ticks + lang, text, ticks];
+}
+
 /** PR body carries enough context that a reviewer never has to open the diff. */
 function buildPrBody({ flow, pillar, sectionName, handle, format, content, original, createdSection, filledPlaceholder }) {
   const lines = [];
@@ -36,7 +47,8 @@ function buildPrBody({ flow, pillar, sectionName, handle, format, content, origi
   lines.push(`| **Flow** | ${flow === 'edit' ? 'Correction to existing content' : 'New resource / written piece'} |`);
   lines.push(`| **Section** | ${sectionName} |`);
   if (flow !== 'edit') lines.push(`| **Part of** | ${pillar} |`);
-  lines.push(`| **Submitted by** | ${handle ? escMd(handle) : '_anonymous (no handle given)_'} |`);
+  // In a code span, so "@someone" credits the contributor without notifying a real GitHub user.
+  lines.push(`| **Submitted by** | ${handle ? '`' + escMd(handle) + '`' : '_anonymous (no handle given)_'} |`);
   lines.push(
     `| **Written in** | ${format === 'richtext' ? 'Rich text editor (converted to markdown)' : 'Markdown'} |`
   );
@@ -48,9 +60,7 @@ function buildPrBody({ flow, pillar, sectionName, handle, format, content, origi
     lines.push('');
     lines.push('<details><summary>Text that was replaced</summary>');
     lines.push('');
-    lines.push('```markdown');
-    lines.push(original);
-    lines.push('```');
+    lines.push(...fenced(original));
     lines.push('');
     lines.push('</details>');
   }
@@ -58,9 +68,7 @@ function buildPrBody({ flow, pillar, sectionName, handle, format, content, origi
   lines.push('');
   lines.push('<details><summary>Raw submitted content</summary>');
   lines.push('');
-  lines.push('```markdown');
-  lines.push(content);
-  lines.push('```');
+  lines.push(...fenced(content));
   lines.push('');
   lines.push('</details>');
   lines.push('');
@@ -87,6 +95,15 @@ export async function handleSubmit({ request, config, gh }) {
     body = await request.json();
   } catch {
     throw new PatchError('Could not read the submission. Please refresh the page and try again.', 400);
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new PatchError('Could not read the submission. Please refresh the page and try again.', 400);
+  }
+  for (const key of ['pillar', 'section', 'newSectionName', 'original', 'content']) {
+    if (body[key] != null && typeof body[key] !== 'string') {
+      throw new PatchError('Could not read the submission. Please refresh the page and try again.', 400);
+    }
   }
 
   const flow = body.flow === 'edit' ? 'edit' : 'new';
@@ -132,6 +149,18 @@ export async function handleSubmit({ request, config, gh }) {
   }
 
   assertStructureIntact(readme.content, result.markdown);
+
+  /* ---- 2b. refuse when the review queue is already long ----
+     Every accepted submission costs a branch, a commit and a PR. A flood would
+     bury the digest and trip GitHub's limits on content creation. */
+  const open = await gh.listOpenPulls(config.owner, config.repo);
+  const waiting = open.filter((p) => isContributionPull(p, config)).length;
+  if (waiting >= config.maxOpenContributions) {
+    throw new PatchError(
+      'We have a lot of changes waiting for review right now. Please try again in a day or two.',
+      503
+    );
+  }
 
   /* ---- 3. push a branch to this repo, branched from main ---- */
   const baseSha = await gh.getDefaultBranchSha(config.owner, config.repo);
