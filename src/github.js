@@ -11,6 +11,7 @@
  */
 
 const API = 'https://api.github.com';
+const MAX_PULL_PAGES = 5;
 
 export class GitHubError extends Error {
   constructor(message, status, details) {
@@ -135,8 +136,15 @@ function makeClient(auth) {
    * a branch (`user:branch`), not a login, so author filtering happens here.
    */
   async function listOpenPulls(owner, repo, { labels } = {}) {
-    const params = new URLSearchParams({ state: 'open', per_page: '100' });
-    let pulls = await api(`/repos/${owner}/${repo}/pulls?${params}`);
+    // Page through the list (a page holds 100), so approved PRs past the first
+    // page are still merged. Capped, to stay inside the Worker's request budget.
+    let pulls = [];
+    for (let page = 1; page <= MAX_PULL_PAGES; page++) {
+      const params = new URLSearchParams({ state: 'open', per_page: '100', page: String(page) });
+      const batch = await api(`/repos/${owner}/${repo}/pulls?${params}`);
+      pulls = pulls.concat(batch);
+      if (batch.length < 100) break;
+    }
 
     if (labels && labels.length) {
       const wanted = new Set(labels.map((l) => l.toLowerCase()));
@@ -148,10 +156,11 @@ function makeClient(auth) {
     return pulls;
   }
 
-  async function mergePull(owner, repo, number) {
+  /** `sha` pins the merge to the commit that was reviewed: GitHub refuses if the branch moved. */
+  async function mergePull(owner, repo, number, sha) {
     return api(`/repos/${owner}/${repo}/pulls/${number}/merge`, {
       method: 'PUT',
-      body: { merge_method: 'squash' },
+      body: { merge_method: 'squash', ...(sha ? { sha } : {}) },
     });
   }
 
@@ -185,8 +194,10 @@ function makeClient(auth) {
   }
 
   /** Labels are needed for the review queue, so create them on first use. */
+  let labelList = null; // one listing per client: callers ensure three labels in a row
   async function ensureLabel(owner, repo, name, color, description) {
-    const existing = (await listLabels(owner, repo)).find(
+    labelList ||= listLabels(owner, repo).catch((err) => { labelList = null; throw err; });
+    const existing = (await labelList).find(
       (l) => l.name.toLowerCase() === name.toLowerCase()
     );
     if (existing) return existing;

@@ -51,23 +51,23 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | `src/worker.js` | Entry: routing and the three crons |
 | `src/submit.js`, `readme.js` | Form submission → patched README → branch → PR |
 | `src/github-auth.js`, `github.js` | GitHub App auth (JWT → installation token) and the REST client |
-| `src/cron.js`, `action.js`, `email.js`, `tokens.js` | Daily digest, Approve/Reject links, 18:00 merge |
+| `src/cron.js`, `action.js`, `email.js`, `tokens.js` | Daily digest, Approve/Reject links (GET shows a confirm page, POST acts), 18:00 merge (emails failures) |
 | `src/admin.js` | `POST /api/admin/run`: runs a job by hand (token-protected) |
 | `src/opportunities.js` | Weekly Tavily opportunity digest → one GitHub issue; reads closing dates |
 | `src/opportunity-pr.js`, `opportunities-file.js` | The same run also opens a PR adding dated leads to `OPPORTUNITIES.md` (as the GitHub App, `contribute/opps-…` branch, so it joins the review digest) |
 | `scripts/mz`, `trigger.mjs`, `run-opportunities.mjs` | Run and tune things by hand |
 | `scripts/preview.mjs` | Local preview of the site with a mock API; reads the working-copy README/OPPORTUNITIES (`--sample` adds fake entries) |
-| `test/` | Ten dependency-free suites, plus `test/browser/` (needs Chromium) |
+| `test/` | Eleven dependency-free suites, plus `test/browser/` (needs Chromium) |
 
 ## Commands
 
 No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 
 ```bash
-for t in test test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
+for t in test test-hardening test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
 ```
 
-All ten must pass before a PR (59, 48, 43, 69, 173, 23, 39, 36, 39 and 62 checks as of writing).
+All eleven must pass before a PR (59, 50, 48, 43, 75, 173, 23, 39, 36, 39 and 62 checks as of writing).
 `test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (154 checks)
@@ -173,6 +173,11 @@ All four pages share `PUBLISH/theme.css` (tokens, header, footer, zigzag band) a
    `mz opps tune --only … --explain`.
 
 ## Cloudflare and GitHub gotchas
+
+- **Cron weekdays: Cloudflare counts 1 as Sunday**, not Monday. A bare `1` fired the weekly job on a Sunday. Use `MON`.
+- **`run_worker_first` is `["/api/*", "/action"]`.** Anything else is served from the assets without running the
+  Worker (free, and not counted against the 100k requests a day). A new Worker route must be added to that list or
+  the assets layer will answer it first. Static-page headers live in `PUBLISH/_headers`, not in the Worker.
 
 - **`[10215] Secret edit failed … latest version isn't deployed`**: the newest uploaded
   version isn't the live one. Non-production builds are switched off now, so this should

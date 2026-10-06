@@ -7,7 +7,7 @@
  */
 
 import { verifyToken } from './tokens.js';
-import { actionResultPage } from './email.js';
+import { actionResultPage, actionConfirmPage } from './email.js';
 import { LABELS, LABEL_META, isContributionPull } from './github.js';
 
 const APPROVED = LABELS.approved;
@@ -16,7 +16,13 @@ const REJECTED = LABELS.rejected;
 function html(status, body) {
   return new Response(body, {
     status,
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+      'X-Frame-Options': 'DENY',
+    },
   });
 }
 
@@ -73,6 +79,13 @@ export async function handleAction({ request, config, gh, url }) {
       message: 'Nothing to do — it was already dealt with.',
       link: pull.html_url || backLink,
     }));
+  }
+
+  // A GET changes nothing. Mail scanners and link previews fetch every link in an
+  // email, so an Approve or Reject that acted on GET could fire without a human.
+  // The page shows what is about to happen and asks for a click (a POST).
+  if (request.method !== 'POST') {
+    return html(200, actionConfirmPage({ action, number: prNumber, title: pull.title, prUrl: pull.html_url }));
   }
 
   for (const [name, meta] of Object.entries(LABEL_META)) {

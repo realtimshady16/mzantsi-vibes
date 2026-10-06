@@ -148,3 +148,38 @@ export function actionResultPage({ ok, heading, message, link }) {
      </div>`
   );
 }
+
+/**
+ * Tell the reviewer when the evening job could not merge something. Without this
+ * a conflicting PR stays `approved` and is retried every evening, unnoticed.
+ */
+export async function sendMergeFailures({ config, failed, fetchImpl = fetch }) {
+  if (!config.reviewerEmail || failed.length === 0) return { sent: false };
+  const rows = failed
+    .map((f) => `<li style="margin-bottom:6px;"><a href="https://github.com/${esc(config.owner)}/${esc(config.repo)}/pull/${esc(f.pr)}" style="color:#1D6B4A;">#${esc(f.pr)}</a>: ${esc(f.reason)}</li>`)
+    .join('');
+  const html = shell(
+    `<p style="margin:0 0 12px;font-size:15px;">Hi ${esc(config.reviewerName)},</p>
+     <p style="margin:0 0 12px;font-size:15px;">The 18:00 job could not merge ${failed.length === 1 ? 'this approved change' : 'these approved changes'}. ${failed.length === 1 ? 'It stays' : 'They stay'} approved and will be retried tomorrow, but a merge conflict will not fix itself: reject it, or resolve it on GitHub.</p>
+     <ul style="margin:0;padding-left:20px;font-size:14px;">${rows}</ul>`
+  );
+  await sendResend(
+    { apiKey: config.resendKey, from: config.emailFrom, to: config.reviewerEmail, subject: `Mzantsi Vibes — ${failed.length} approved change${failed.length === 1 ? '' : 's'} could not merge`, html },
+    fetchImpl
+  );
+  return { sent: true };
+}
+
+/** Shown for a GET on an Approve/Reject link: nothing happens until the button (a POST) is pressed. */
+export function actionConfirmPage({ action, number, title, prUrl }) {
+  const approve = action === 'approve';
+  const colour = approve ? '#1D6B4A' : '#b60205';
+  return shell(
+    `<form method="post" style="text-align:center;padding:12px 0;">
+       <h2 style="margin:0 0 6px;font-size:20px;">${approve ? 'Approve' : 'Reject'} PR #${esc(number)}?</h2>
+       <p style="margin:0 0 6px;font-size:15px;color:#5C4A38;">${esc(title)}</p>
+       <p style="margin:0 0 20px;font-size:14px;"><a href="${esc(prUrl)}" style="color:#1D6B4A;">Read the change on GitHub first</a></p>
+       <button type="submit" style="background:${colour};color:#FFFFFF;border:0;padding:10px 22px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">${approve ? 'Yes, approve it' : 'Yes, reject it'}</button>
+     </form>`
+  );
+}

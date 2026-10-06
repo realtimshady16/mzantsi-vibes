@@ -39,6 +39,10 @@
     return checked ? checked.value : 'new';
   }
 
+  function escapeHtml(v) {
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function setStatus(message, kind) {
     statusBox.className = 'status-box ' + kind;
     statusBox.innerHTML = message;
@@ -338,11 +342,13 @@
           return;
         }
 
+        // Escape what the server sent, and only link to an https URL, so this can never become markup.
+        var safeUrl = /^https:\/\//i.test(d.prUrl) ? escapeHtml(d.prUrl) : '#';
         setStatus(
-          '🎉 <span class="pr-number">Pull request #' + d.prNumber + ' opened!</span><br />' +
+          '🎉 <span class="pr-number">Pull request #' + escapeHtml(d.prNumber) + ' opened!</span><br />' +
             'A maintainer reviews it daily, and approved changes go live that evening. ' +
             'You can watch it here:<br />' +
-            '<a href="' + d.prUrl + '" target="_blank" rel="noopener">' + d.prUrl + '</a>',
+            '<a href="' + safeUrl + '" target="_blank" rel="noopener">' + safeUrl + '</a>',
           'success'
         );
       })
