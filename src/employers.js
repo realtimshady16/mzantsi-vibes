@@ -16,6 +16,7 @@
  * company name and website are used.
  */
 
+import { isValidDate, todayInSA } from '../PUBLISH/entry-meta.js';
 import { extractDeadline, hostOf, isNoise, isStale, oneLine, safeUrl, EMPLOYER_LABEL as LABEL } from './opportunities.js';
 
 export const EMPLOYER_PASS = 'employers';
@@ -87,14 +88,16 @@ export function domainOf(website) {
 export function planEmployerSearches(companies) {
   return companies.map((c) => {
     const seen = new Set();
+    const domains = [c.domain, ...(c.extraDomains || [])];
     return {
       pass: EMPLOYER_PASS,
       category: 'Employers',
       tag: c.name,
       company: c.name,
       domain: c.domain,
+      domains,
       query: `${c.name} bursary graduate programme internship learnership applications closing date South Africa`,
-      include: [c.domain],
+      include: domains,
       maxResults: MAX_RESULTS,
       rawContent: true,
       judge: (result, search, now) => judgeEmployer(result, search, now, seen),
@@ -118,7 +121,10 @@ export function employerCategory({ title = '', url = '' }) {
   if (/\b(learnerships?|apprentice(ship)?s?|yes programme|youth employment service)\b/i.test(hay)) return 'Learnerships';
   if (/\b(vac(ation)? work|vac work|student vacation)\b/i.test(hay)) return 'Training & vac work';
   if (/\b(interns?|internships?|work integrated learning|wil)\b/i.test(hay)) return 'Internships';
-  if (/\b(graduates?|trainee|young professionals?|talent programme|academy)\b/i.test(hay)) return 'Graduate programmes';
+  if (/\b(graduates?|trainee(?:ship)?s?|young professionals?|ca training|academy)\b/i.test(hay)) return 'Graduate programmes';
+  // Vague wording that does not say who it is for (Tiger Brands' "Young Talent" page asks for a matric): a neutral label,
+  // so a school-leaver is not told it is a graduate programme, or a graduate that it is for school-leavers.
+  if (/\b(young talent|talent programme|students?|early careers?|entry level|development programmes?|training programmes?|future leaders|youth)\b/i.test(hay)) return 'Early careers';
   return null;
 }
 
@@ -138,7 +144,38 @@ export function otherCountry(url) {
 /** The page says, in so many words, that applications are shut ("Applications for the 2027 intake have closed"). */
 const SAYS_CLOSED = /\b(applications?|intake|programme|bursary)\b[^.\n]{0,80}\b(?:have|has|are|is|now|been)\s+(?:now\s+)?closed\b/i;
 
+const MONTHS_RE = 'january|february|march|april|may|june|july|august|september|october|november|december';
+/** A closing date with no year ("applications close 31 October"): our date rule rejects it on purpose, so a person must confirm the year. */
+const YEARLESS = new RegExp(`\\b(?:clos(?:e|es|ing)|deadline|apply\\s+(?:by|before))\\b[^.\\d\\n]{0,40}\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTHS_RE})\\b(?!,?\\s+20\\d\\d)`, 'i');
+
+const MONTH_NAMES = MONTHS_RE.split('|');
+const YEARLESS_PARTS = new RegExp(`\\b(?:clos(?:e|es|ing)|deadline|apply\\s+(?:by|before))\\b[^.\\d\\n]{0,40}\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTHS_RE})\\b(?!,?\\s+20\\d\\d)`, 'gi');
+
+/**
+ * Companies often print a window with no year ("Open: 22 September  Close: 22 October"), and those
+ * are the ones open now. Take the next such date only when there is exactly one on the page and it is
+ * at most `withinDays` away: a window closing soon is almost certainly this cycle's, while "31 May"
+ * read in October more likely belongs to a past cycle. The caller flags the year as assumed so the
+ * reviewer confirms it on the page. Returns { date } to use, { tooFar } to explain a refusal, or null.
+ */
+export function yearlessDeadline(text, now = new Date(), withinDays = 120) {
+  const found = new Set();
+  for (const m of String(text ?? '').matchAll(YEARLESS_PARTS)) found.add(`${Number(m[1])}-${MONTH_NAMES.indexOf(m[2].toLowerCase()) + 1}`);
+  if (found.size !== 1) return null;
+  const [day, month] = [...found][0].split('-').map(Number);
+  const today = todayInSA(now);
+  const thisYear = Number(today.slice(0, 4));
+  for (const year of [thisYear, thisYear + 1]) {
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (!isValidDate(iso) || iso < today) continue;
+    const days = (Date.parse(iso) - Date.parse(today)) / 86400000;
+    return days <= withinDays ? { date: iso } : { tooFar: iso };
+  }
+  return null;
+}
+
 const onDomain = (host, domain) => host === domain || host.endsWith(`.${domain}`);
+const onAnyDomain = (host, search) => (search.domains || [search.domain]).some((d) => onDomain(host, d));
 
 /** The newest year in a page title that is this year or later ("Graduate Programme 2027"). */
 function cycleYear(title, now) {
@@ -150,9 +187,10 @@ function cycleYear(title, now) {
 export function judgeEmployer(result, search, now, seen = new Set()) {
   const url = safeUrl(result.url);
   if (!url) return { reason: 'not a usable http(s) link' };
-  if (!onDomain(hostOf(url), search.domain)) return { reason: `not on ${search.domain}, so not the company's own page` };
+  if (!onAnyDomain(hostOf(url), search)) return { reason: `not on ${(search.domains || [search.domain]).join(' or ')}, so not the company's own page` };
   if (search.minScore && !(result.score >= search.minScore)) return { reason: `relevance score ${result.score?.toFixed(2) ?? '?'} is below ${search.minScore}` };
   if (isNoise(url)) return { reason: 'noise page (home, search, pagination, contact…)' };
+  if (/\.pdf$/i.test(new URL(url).pathname)) return { reason: 'a PDF (reports and fact sheets, not an application page)' };
   if (otherCountry(url)) return { reason: 'another country\'s page (only South Africa\'s are for our readers)' };
 
   const pageTitle = oneLine(result.title, 120);
@@ -163,9 +201,22 @@ export function judgeEmployer(result, search, now, seen = new Set()) {
 
   // The snippet is a fragment and rarely holds the date; the page text does. Read it here and drop it:
   // only the date leaves this function.
-  const deadline = extractDeadline(`${result.title}. ${result.content}. ${result.raw_content ?? ''}`, now);
+  let deadline = extractDeadline(`${result.title}. ${result.content}. ${result.raw_content ?? ''}`, now);
+  let yearAssumed = false;
   if (!deadline) {
-    return { reason: SAYS_CLOSED.test(`${result.content} ${result.raw_content ?? ''}`) ? 'the page says applications are closed' : 'no closing date found (dated entries only)' };
+    const text = `${result.content} ${result.raw_content ?? ''}`;
+    if (SAYS_CLOSED.test(text)) return { reason: 'the page says applications are closed' };
+    const guess = yearlessDeadline(text, now);
+    if (guess?.date) {
+      deadline = { date: guess.date, past: false };
+      yearAssumed = true;
+    } else if (guess?.tooFar) {
+      return { reason: `a closing date without a year, and the next one (${guess.tooFar}) is too far off to assume` };
+    } else if (YEARLESS.test(text)) {
+      return { reason: 'closing dates given without a year, and not just one: confirm on the page' };
+    } else {
+      return { reason: 'no closing date found (dated entries only)' };
+    }
   }
   if (deadline.past) return { reason: `closing date ${deadline.date} has already passed` };
 
@@ -182,9 +233,63 @@ export function judgeEmployer(result, search, now, seen = new Set()) {
       source: search.company,
       company: search.company,
       closes: deadline.date,
+      ...(yearAssumed && { yearAssumed: true }),
       pass: EMPLOYER_PASS,
       category,
       tag: null,
     },
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Portals: a company's careers or bursary site on another domain
+ * ------------------------------------------------------------------ */
+
+// Never a company's own page, so never a portal: aggregators and job boards (AGENTS.md rule 9).
+const NOT_A_PORTAL = [
+  'graduates24.com', 'careers24.com', 'zabursaries.co.za', 'indeed.com', 'glassdoor.com', 'linkedin.com', 'jooble.org',
+  'careerjet.co.za', 'ziprecruiter.com', 'pnet.co.za', 'careerjunction.co.za', 'jobmail.co.za', 'facebook.com', 'instagram.com',
+  'tiktok.com', 'youtube.com', 'x.com', 'twitter.com', 'wikipedia.org',
+];
+export const isAggregator = (host) => NOT_A_PORTAL.some((d) => host === d || host.endsWith(`.${d}`));
+
+/**
+ * Add reviewed portal domains to companies. `portals` is { "Company name": ["domain", ...] }, matched
+ * by exact name. A human puts a domain there after opening it and seeing it is the company's own
+ * (a bursary site run by the company, say). An aggregator is refused.
+ */
+export function withPortals(companies, portals = {}) {
+  const known = new Set(companies.map((c) => c.name.toLowerCase()));
+  for (const name of Object.keys(portals)) {
+    if (!known.has(name.toLowerCase())) throw new Error(`portals: "${name}" is not in the company list.`);
+  }
+  return companies.map((c) => {
+    const key = Object.keys(portals).find((n) => n.toLowerCase() === c.name.toLowerCase());
+    if (!key) return c;
+    const extraDomains = [];
+    for (const raw of portals[key]) {
+      const d = domainOf(raw);
+      if (!d) throw new Error(`portals: "${raw}" for ${c.name} is not a web address.`);
+      if (isAggregator(d)) throw new Error(`portals: ${d} is an aggregator, not ${c.name}'s own site.`);
+      if (d !== c.domain && !extraDomains.includes(d)) extraDomains.push(d);
+    }
+    return { ...c, extraDomains };
+  });
+}
+
+/**
+ * A search for where a company keeps its careers pages, to suggest portal domains to a human. It
+ * leaves out the company's own domain and the aggregators. What it yields is only a suggestion:
+ * nothing is added until someone opens the site and confirms it is the company's.
+ */
+export function planDiscovery(companies) {
+  return companies.map((c) => ({
+    pass: 'discover',
+    category: 'Employers',
+    tag: c.name,
+    company: c.name,
+    query: `${c.name} graduate programme bursary internship apply South Africa`,
+    exclude: [c.domain, ...NOT_A_PORTAL],
+    maxResults: 8,
+  }));
 }

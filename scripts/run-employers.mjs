@@ -11,7 +11,12 @@
  *
  *   --companies FILE   CSV with "Company" and "Company website" columns. Keep it OUT of the repo: it
  *                      is a lead list, not content. Other columns are never read.
- *   --only a,b         companies whose name contains any of these
+ *   --only a,b         these companies. Exact name (any case); a term with no exact match falls back to
+ *                      names containing it
+ *   --portals FILE     JSON { "Company": ["careers-site.example"] }: extra domains a human has checked are the
+ *                      company's own. Keep it OUT of the repo. Aggregators are refused.
+ *   --discover         instead of searching for opportunities, suggest portal domains for these companies
+ *                      (1 credit each). Prints hosts only; nothing is added until you put it in --portals.
  *   --limit N          at most N companies (default 10)
  *   --explain          every result, with KEEP / DROP and the reason
  *   --save FILE        also write the issue text to FILE
@@ -20,9 +25,9 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { searchLabel } from '../src/opportunities.js';
+import { searchLabel, searchTavily, hostOf } from '../src/opportunities.js';
 import { runWeeklyOpportunities } from '../src/opportunity-pr.js';
-import { parseCompaniesCsv, planEmployerSearches } from '../src/employers.js';
+import { parseCompaniesCsv, planEmployerSearches, planDiscovery, withPortals, isAggregator } from '../src/employers.js';
 import { loadEnv } from './env.mjs';
 
 const argv = process.argv.slice(2);
@@ -39,7 +44,7 @@ const value = (n) => {
   return v;
 };
 
-const KNOWN = ['--companies', '--only', '--limit', '--explain', '--save', '--list', '--help', '-h'];
+const KNOWN = ['--companies', '--only', '--limit', '--explain', '--save', '--list', '--portals', '--discover', '--help', '-h'];
 const unknown = argv.filter((a) => a.startsWith('-') && !KNOWN.includes(a));
 if (unknown.length) fail(`Unknown option: ${unknown.join(' ')}  (try --help)`);
 
@@ -61,15 +66,56 @@ try {
 } catch (err) {
   fail(`Could not read ${file}: ${err.message}`);
 }
-if (only?.length) companies = companies.filter((c) => only.some((w) => c.name.toLowerCase().includes(w)));
+if (only?.length) {
+  const picked = new Map();
+  for (const w of only) {
+    const exact = companies.filter((c) => c.name.toLowerCase() === w);
+    const found = exact.length ? exact : companies.filter((c) => c.name.toLowerCase().includes(w));
+    if (!found.length) console.error(`No company matches "${w}".`);
+    for (const c of found) picked.set(c.name, c);
+  }
+  companies = [...picked.values()];
+}
 companies = companies.slice(0, limit);
 if (!companies.length) fail('No companies match.');
+
+const portalsFile = value('--portals');
+if (portalsFile) {
+  try {
+    companies = withPortals(companies, JSON.parse(readFileSync(portalsFile, 'utf8')));
+  } catch (err) {
+    fail(`Could not use ${portalsFile}: ${err.message}`);
+  }
+}
+
+if (flag('--discover')) {
+  const env0 = loadEnv();
+  if (!env0.TAVILY_API_KEY) fail('TAVILY_API_KEY is not set. Put it in .dev.vars (see .dev.vars.example).');
+  console.error(`Looking for portal domains for ${companies.length} companies (~${companies.length} Tavily credits)…\n`);
+  for (const s of planDiscovery(companies)) {
+    const hosts = new Map();
+    try {
+      for (const r of await searchTavily({ key: env0.TAVILY_API_KEY, search: s })) {
+        const h = hostOf(r.url);
+        if (h && !isAggregator(h)) hosts.set(h, [...(hosts.get(h) || []), new URL(r.url).pathname]);
+      }
+    } catch (err) {
+      console.log(`${s.company}: search failed (${err.message})`);
+      continue;
+    }
+    console.log(`${s.company}  (own site: ${companies.find((c) => c.name === s.company).domain})`);
+    if (!hosts.size) console.log('  (no other site found)');
+    for (const [h, paths] of hosts) console.log(`  ${h}  e.g. ${paths[0]}${paths.length > 1 ? `  (+${paths.length - 1})` : ''}`);
+  }
+  console.log('\nOpen each site yourself. If it is the company\'s own, add it to the --portals file. Nothing was added.');
+  process.exit(0);
+}
 
 const searches = planEmployerSearches(companies);
 
 if (flag('--list')) {
   console.log(`${searches.length} searches (~${searches.length} Tavily credits):\n`);
-  for (const s of searches) console.log(`  ${searchLabel(s).padEnd(34)} only ${s.domain}`);
+  for (const s of searches) console.log(`  ${searchLabel(s).padEnd(34)} only ${s.domains.join(' + ')}`);
   process.exit(0);
 }
 
@@ -99,7 +145,7 @@ const result = await runWeeklyOpportunities({
 if (flag('--explain')) {
   console.error('\n=== why each result was kept or dropped ===');
   for (const s of searches) {
-    console.error(`\n${searchLabel(s)}  (only ${s.domain})`);
+    console.error(`\n${searchLabel(s)}  (only ${s.domains.join(' + ')})`);
     const events = trace.get(s) || [];
     if (!events.length) console.error('  (no results)');
     for (const e of events) {

@@ -3,7 +3,7 @@
  * result (own domain, dated, our words), and how a lead flows into the digest and the PR.
  * Tavily and GitHub are faked: no network, no credits. Run: node test/test-employers.mjs
  */
-import { parseCompaniesCsv, domainOf, employerCategory, planEmployerSearches, otherCountry } from '../src/employers.js';
+import { parseCompaniesCsv, domainOf, employerCategory, planEmployerSearches, otherCountry, yearlessDeadline, withPortals, planDiscovery, isAggregator } from '../src/employers.js';
 import { collect, renderDigest, entryLine, genericDesc, searchLabel } from '../src/opportunities.js';
 import { planOpportunityPr } from '../src/opportunity-pr.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -56,6 +56,10 @@ sec('what kind of page is it');
   ok('internship', c('Finance internship programme') === 'Internships' && c('x', 'https://x.co.za/work-integrated-learning') === 'Internships');
   ok('learnership and YES', c('Learnerships') === 'Learnerships' && c('Youth Employment Service (YES)', 'https://x.co.za/yes-programme') === 'Learnerships');
   ok('vacation work', c('Vac work 2026') === 'Training & vac work');
+  ok('traineeships and CA training are graduate routes', c('Tax traineeship positions') === 'Graduate programmes' && c('x', 'https://x.co.za/students/ca-training-programme.html') === 'Graduate programmes');
+  ok('vague early-career wording gets a neutral label, never "graduate"', c('Tiger Brands | Young Talent', 'https://x.com/careers-youth.php') === 'Early careers' && c('x', 'https://x.co.za/careers/student-entry-level-programs') === 'Early careers' && c('x', 'https://x.co.za/working-here/young-talent') === 'Early careers');
+  ok('...and a line of our own that says so', genericDesc({ category: 'Early careers', company: 'Tiger Brands' }) === 'Early-careers programme at Tiger Brands. See the page for who can apply and how.');
+  ok('a store page or a news item is still not one', c('Mr Price Umtata', 'https://mrp.com/en_za/store/mr-price-umtata') === null && c('Motus app forms', 'https://motus.com/news/motus-app-forms') === null);
   ok('a careers home page or a report is not one', c('Careers') === null && c('Sustainability report 2025') === null);
 }
 
@@ -86,6 +90,20 @@ sec('judging a result');
   ok('...and none of that text ends up in the lead', !JSON.stringify(viaRaw).match(/Menu|Footer|Short fragment/));
   const closed = planEmployerSearches([{ name: 'Absa', domain: 'absa.co.za' }])[0];
   ok('a page that says applications are closed says so as the reason', /says applications are closed/.test(closed.judge(r({ content: 'x', raw_content: 'Applications for the 2027 intake have closed. The 2028 programme opens January 2027.' }), closed, NOW).reason));
+  const yl = planEmployerSearches([{ name: 'Absa', domain: 'absa.co.za' }])[0];
+  // NOW is 7 October 2026.
+  const soon = yl.judge(r({ content: 'x', raw_content: 'Application Dates Open: 22 September Close: 22 October Qualifying criteria' }), yl, NOW);
+  ok('a window with no year that closes soon is taken, with the year assumed and flagged', soon.finding?.closes === '2026-10-22' && soon.finding.yearAssumed === true, JSON.stringify(soon));
+  const dec = yearlessDeadline('Applications close on 5 January.', NOW);
+  ok('across the new year, the next 5 January is next year\'s', dec?.date === '2027-01-05', JSON.stringify(dec));
+  const far = planEmployerSearches([{ name: 'Absa', domain: 'absa.co.za' }])[0].judge(r({ content: 'x', raw_content: 'Applications close 31 May. Apply early.' }), yl, NOW);
+  ok('"31 May" read in October is too far off to assume, and says so', /too far off to assume/.test(far.reason) && !far.finding, JSON.stringify(far));
+  ok('two different year-less dates on one page are never guessed between', yearlessDeadline('Closes 22 October. Deadline 30 November.', NOW) === null && /without a year, and not just one/.test(yl.judge(r({ content: 'x', raw_content: 'Closes 22 October. Deadline 30 November.' }), yl, NOW).reason));
+  ok('a page that says it is closed is not guessed at', /says applications are closed/.test(yl.judge(r({ content: 'x', raw_content: 'Applications for the 2027 intake have closed. Close: 22 October' }), yl, NOW).reason));
+  ok('a date with a year is read as before, never flagged', yl.judge(r(), yl, NOW).finding?.yearAssumed === undefined);
+  const issueLine = renderDigest({ findings: [soon.finding], failures: [], searched: 1, now: NOW, employersOnly: true }).body;
+  ok('the issue says the year is assumed', /closes 2026-10-22\*\* \(year assumed, confirm on the page\)/.test(issueLine));
+  ok('a PDF is dropped', /PDF/.test(yl.judge(r({ url: 'https://www.absa.co.za/docs/graduate-programme-report.pdf' }), yl, NOW).reason));
   ok('another country\'s page on a shared domain is dropped', otherCountry('https://www.deloitte.com/ke/en/careers/x.html') && !otherCountry('https://www.deloitte.com/za/en/careers/x.html') && !otherCountry('https://www.absa.co.za/careers/graduates'));
   const kenya = planEmployerSearches([{ name: 'Deloitte', domain: 'deloitte.com' }])[0];
   ok('...with that as the reason', /another country/.test(kenya.judge(r({ url: 'https://www.deloitte.com/ke/en/careers/students/graduate-programme.html' }), kenya, NOW).reason));
@@ -133,6 +151,29 @@ sec('through the digest and the PR');
   const lookalike = { ...out.findings[0], url: 'https://evil.example/graduates', pass: 'scoped', category: 'Graduate programmes' };
   const refused = await planOpportunityPr({ config: { owner: 'o', repo: 'r' }, gh: null, findings: [lookalike], now: NOW, fetchImpl: fetchContent });
   ok('a lead that did not come from the employer pass or zabursaries is still refused', Boolean(refused.skipped) && !refused.entries);
+}
+
+/* -------------------------------------------------------------- */
+sec('portals and discovery');
+{
+  const base = parseCompaniesCsv('Company,Company website\nEskom,https://www.eskom.co.za\nSanlam,https://www.sanlam.co.za\n');
+  const withP = withPortals(base, { eskom: ['https://bursaries.eskom-example.org/apply', 'eskom.co.za'] });
+  ok('a portal is matched by exact name, any case; the company\'s own domain is not repeated', withP[0].extraDomains.join() === 'bursaries.eskom-example.org' && withP[1].extraDomains === undefined);
+  let e1 = '', e2 = '', e3 = '';
+  try { withPortals(base, { Eskom: ['https://www.graduates24.com/eskom'] }); } catch (e) { e1 = e.message; }
+  try { withPortals(base, { Nobody: ['x.org'] }); } catch (e) { e2 = e.message; }
+  try { withPortals(base, { Eskom: ['not a site'] }); } catch (e) { e3 = e.message; }
+  ok('an aggregator can never be a portal, even by subdomain', /aggregator/.test(e1) && isAggregator('jobs.careers24.com') && isAggregator('www.zabursaries.co.za') && !isAggregator('eskom.co.za'), e1);
+  ok('a name that is not in the list, or not a web address, is refused', /not in the company list/.test(e2) && /not a web address/.test(e3));
+
+  const [s] = planEmployerSearches(withP);
+  ok('the search covers the own domain and the portal', s.include.join() === 'eskom.co.za,bursaries.eskom-example.org');
+  const r = (url) => ({ title: 'Bursary 2027', url, content: 'Applications close on 30 November 2026.', score: 0.8 });
+  ok('a page on the portal is a lead', s.judge(r('https://bursaries.eskom-example.org/apply'), s, NOW).finding?.closes === '2026-11-30');
+  ok('a page on a domain nobody listed is not', /not on eskom\.co\.za or bursaries\.eskom-example\.org/.test(s.judge(r('https://other.example/bursary'), s, NOW).reason));
+
+  const [d] = planDiscovery(withP);
+  ok('discovery leaves out the company\'s own site and every aggregator, and asks for no page text', d.exclude.includes('eskom.co.za') && d.exclude.includes('graduates24.com') && d.exclude.includes('careers24.com') && !d.rawContent && !d.include);
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);

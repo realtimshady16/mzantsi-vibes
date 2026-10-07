@@ -104,7 +104,7 @@ export async function planOpportunityPr({ config, gh, findings, listed = [], now
 function prBody(entries, { skippedDuplicates, hiddenByCap, fromLists }, now) {
   const items = entries.map((f) => {
     const { pillar, section } = destinationOf(f);
-    return `- **[${f.title.replace(/[\[\]]/g, '')}](${f.url})**: closes **${f.closes}** · ${pillar} › ${section} · _${f.source || sourceOf(f.url)}_`;
+    return `- **[${f.title.replace(/[\[\]]/g, '')}](${f.url})**: closes **${f.closes}**${f.yearAssumed ? ' ⚠️ **the page gives no year, so this one is assumed: confirm it**' : ''} · ${pillar} › ${section} · _${f.source || sourceOf(f.url)}_`;
   });
   return [
     '### Weekly opportunity digest: closing dates',

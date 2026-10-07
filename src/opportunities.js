@@ -71,7 +71,7 @@ const OTHER = [
 
 /** Display order of the category sections. */
 // Internships come only from the employer pass (employers.js), so they are not one of the searches in OTHER.
-const CATEGORY_ORDER = ['Bursaries', ...OTHER.map(([c]) => c), 'Internships'];
+const CATEGORY_ORDER = ['Bursaries', ...OTHER.map(([c]) => c), 'Internships', 'Early careers'];
 
 const MONTHS = [
   'january', 'february', 'march', 'april', 'may', 'june',
@@ -258,6 +258,7 @@ export const EMPLOYER_LABEL = {
   Bursaries: 'Bursary',
   'Graduate programmes': 'Graduate programme',
   Internships: 'Internship',
+  'Early careers': 'Early-careers programme',
   Learnerships: 'Learnership',
   'Training & vac work': 'Vacation work',
 };
@@ -622,7 +623,7 @@ export async function collect({ key, searches, fetchImpl, now = new Date(), onRe
  * ------------------------------------------------------------------ */
 
 const bullet = (f) =>
-  `- [${f.title}](${f.url})${f.desc ? ` — ${f.desc}` : ''} · _${f.source}_${f.closes ? ` · **closes ${f.closes}**` : ''}`;
+  `- [${f.title}](${f.url})${f.desc ? ` — ${f.desc}` : ''} · _${f.source}_${f.closes ? ` · **closes ${f.closes}**${f.yearAssumed ? ' (year assumed, confirm on the page)' : ''}` : ''}`;
 
 /* ------------------------------------------------------------------ *
  * Paste-ready entries for OPPORTUNITIES.md
@@ -636,6 +637,7 @@ const DESTINATION = {
   'Job openings': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'job' },
   'Training & vac work': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'vac-work' },
   Internships: { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'internship' },
+  'Early careers': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'early-careers' },
 };
 
 const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
