@@ -19,7 +19,11 @@ const sec = (t) => console.log(`\n== ${t} ==`);
 
 const NOW = new Date('2026-10-05T05:00:00Z'); // a Monday
 const STUDY = "🎓 I'm Going to Study", WORK = "💼 I'm Going to Work";
-const skeleton = readFileSync(new URL('../OPPORTUNITIES.md', import.meta.url), 'utf8');
+// The real file's structure with its entries and ### sections taken out, so these tests do not change
+// whenever an entry is merged. (Only below the first pillar: the ## Format section has an example line.)
+const realFile = readFileSync(new URL('../OPPORTUNITIES.md', import.meta.url), 'utf8');
+const firstPillar = realFile.indexOf('\n## 🎓');
+const skeleton = (realFile.slice(0, firstPillar) + realFile.slice(firstPillar).replace(/^(### .*|-   \[.*)\n/gm, '').replace(/\n{3,}/g, '\n\n'));
 const L = (n, d = '2026-11-30') => `-   [${n}](https://x.org/${n.toLowerCase().replace(/\W+/g, '-')}) — About ${n}. {closes: ${d}; tags: bursary, deadline; source: x.org}`;
 const added = (before, after) => after.split('\n').filter((l, i, a) => !before.split('\n').includes(l) || (l === '' && false));
 
@@ -180,7 +184,7 @@ sec('openOpportunityPr: it is a normal contribution PR');
   const made = gh.of('createPullRequest')[0][3];
   ok('the PR targets main from that branch', made.base === 'main' && made.head === branch);
   ok('the title says how many', made.title === 'contribute: Add 2 opportunities with closing dates (weekly digest)', made.title);
-  ok('the body lists each entry with its date and link, and says to check the dates', made.body.includes('closes **2026-10-20**') && made.body.includes('zabursaries.co.za/engineering-bursaries-south-africa/soon') && /Check each date against the bursary's own page/.test(made.body));
+  ok('the body lists each entry with its date and link, and says to check the dates', made.body.includes('closes **2026-10-20**') && made.body.includes('zabursaries.co.za/engineering-bursaries-south-africa/soon') && /Open each link and check the date and the cycle year/.test(made.body));
   ok('it is labelled needs-review, like a form submission', gh.of('addLabels')[0][4].join() === LABELS.pending);
   const asPull = { user: { type: 'Bot' }, head: { ref: branch, repo: { full_name: 'o/r' } } };
   ok('the existing review flow recognises it (isContributionPull)', isContributionPull(asPull, config));

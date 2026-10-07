@@ -70,7 +70,8 @@ const OTHER = [
 ];
 
 /** Display order of the category sections. */
-const CATEGORY_ORDER = ['Bursaries', ...OTHER.map(([c]) => c)];
+// Internships come only from the employer pass (employers.js), so they are not one of the searches in OTHER.
+const CATEGORY_ORDER = ['Bursaries', ...OTHER.map(([c]) => c), 'Internships'];
 
 const MONTHS = [
   'january', 'february', 'march', 'april', 'may', 'june',
@@ -252,12 +253,22 @@ export function parseClosingLists(pages, now = new Date()) {
   return out;
 }
 
+/** What each kind of employer lead is called in a line of our own (see employers.js). */
+export const EMPLOYER_LABEL = {
+  Bursaries: 'Bursary',
+  'Graduate programmes': 'Graduate programme',
+  Internships: 'Internship',
+  Learnerships: 'Learnership',
+  'Training & vac work': 'Vacation work',
+};
+
 /**
  * Our own words for a bursary, for the public site. We do not copy a listing's description or
  * snippet onto the site: the sites we read claim copyright in their text, and one forbids
  * republishing it. The entry gives the name, the date and a link; the page says the rest.
  */
 export function genericDesc(f) {
+  if (f.company) return `${EMPLOYER_LABEL[f.category] || 'Opportunity'} at ${f.company}. See the page for who can apply and how.`;
   return `${f.tag ? `${f.tag} bursary` : 'Bursary'}. See the page for who can apply and how.`;
 }
 
@@ -375,7 +386,7 @@ export function oneLine(text, max = MAX_DESC, title = '') {
   return truncate(cleanSnippet(text, title), max);
 }
 
-function safeUrl(url) {
+export function safeUrl(url) {
   try {
     const u = new URL(url);
     return u.protocol === 'https:' || u.protocol === 'http:' ? u.href.replace(/\(/g, '%28').replace(/\)/g, '%29') : null;
@@ -585,7 +596,7 @@ export async function collect({ key, searches, fetchImpl, now = new Date(), onRe
       return;
     }
     for (const result of outcome.value) {
-      const { finding, reason } = judge(result, search, now);
+      const { finding, reason } = (search.judge || judge)(result, search, now);
       if (!finding) {
         onResult?.({ search, result, kept: false, reason });
         continue;
@@ -622,6 +633,7 @@ const DESTINATION = {
   'Graduate programmes': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'graduate-programme' },
   'Job openings': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'job' },
   'Training & vac work': { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'vac-work' },
+  Internships: { pillar: "💼 I'm Going to Work", section: 'Finding Work', tag: 'internship' },
 };
 
 const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -694,7 +706,7 @@ export function sastDate(now = new Date()) {
   return new Date(now.getTime() + 2 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-export function renderDigest({ findings, failures, searched, now = new Date(), withBroad = findings.some((f) => f.pass === 'broad') }) {
+export function renderDigest({ findings, failures, searched, now = new Date(), withBroad = findings.some((f) => f.pass === 'broad'), employersOnly = false }) {
   const trusted = findings.filter((f) => f.pass !== 'broad');
   const broad = findings.filter((f) => f.pass === 'broad');
   const closing = trusted.filter((f) => f.category === 'Closing soon');
@@ -704,11 +716,13 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
     `Leads for a human to review — **nothing here is in the README**. ` +
       `${findings.length} links from ${searched} searches on ${sastDate(now)}.`,
     '',
-    withBroad
+    employersOnly
+      ? `Source: each company's own website. Only pages with a closing date are listed.`
+      : withBroad
       ? `Trusted source first (zabursaries.co.za); the broader search at the bottom is less trusted, so check it before relying on it.`
       : `Source: zabursaries.co.za.`,
     '',
-    ...section('⏰ Closing soon', 2, closing),
+    ...(employersOnly ? [] : section('⏰ Closing soon', 2, closing)),
     ...CATEGORY_ORDER.flatMap((c) => categoryBlock(scoped, c, 2)),
   ];
 
@@ -756,7 +770,7 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
   }
 
   const extra = (await onFindings?.({ findings, listed, now, dryRun })) || { lines: [], result: {} };
-  const rendered = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad') });
+  const rendered = renderDigest({ findings, failures, searched, now, withBroad: searches.some((s) => s.pass === 'broad'), employersOnly: searches.length > 0 && searches.every((s) => s.pass === 'employers') });
   const title = rendered.title;
   // After the opening paragraph, so it is the first thing a reader sees.
   const body = extra.lines.length ? rendered.body.replace('\n\n', `\n\n${extra.lines.join('\n')}\n\n`) : rendered.body;

@@ -69,9 +69,10 @@ export async function planOpportunityPr({ config, gh, findings, listed = [], now
   // (it was read more closely).
   const unique = new Map();
   for (const f of [...findings, ...listed]) if (!unique.has(urlKey(f.url))) unique.set(urlKey(f.url), f);
-  // Bursaries from zabursaries only (and nothing from graduates24: see CONTRIBUTE_SETUP.md, "What the sources allow").
+  // Bursaries from zabursaries, and leads the employer pass found on a company's own site (it checks the host itself).
+  // Nothing from graduates24: see CONTRIBUTE_SETUP.md, "What the sources allow".
   const dated = [...unique.values()]
-    .filter((f) => f.closes && f.closes > today && f.category === 'Bursaries' && sourceOf(f.url) === 'zabursaries' && entryLine(f))
+    .filter((f) => f.closes && f.closes > today && ((f.category === 'Bursaries' && sourceOf(f.url) === 'zabursaries') || f.pass === 'employers') && entryLine(f))
     .sort((a, b) => a.closes.localeCompare(b.closes));
   const fresh = dated.filter((f) => !already.has(urlKey(f.url)));
   const skippedDuplicates = dated.length - fresh.length;
@@ -103,12 +104,12 @@ export async function planOpportunityPr({ config, gh, findings, listed = [], now
 function prBody(entries, { skippedDuplicates, hiddenByCap, fromLists }, now) {
   const items = entries.map((f) => {
     const { pillar, section } = destinationOf(f);
-    return `- **[${f.title.replace(/[\[\]]/g, '')}](${f.url})**: closes **${f.closes}** · ${pillar} › ${section} · _${sourceOf(f.url)}_`;
+    return `- **[${f.title.replace(/[\[\]]/g, '')}](${f.url})**: closes **${f.closes}** · ${pillar} › ${section} · _${f.source || sourceOf(f.url)}_`;
   });
   return [
     '### Weekly opportunity digest: closing dates',
     '',
-    `Opened by the weekly digest on ${sastDate(now)}. Each entry below is a bursary with a closing date, taken from zabursaries' own "bursaries closing in…" lists (or, rarely, a search result). **Check each date against the bursary's own page before approving**: a wrong date hides a live opportunity, or keeps a closed one showing.`,
+    `Opened by the weekly digest on ${sastDate(now)}. Each entry below has a closing date, taken from zabursaries' own "bursaries closing in…" lists or a search result, or from a company's own website. **Open each link and check the date and the cycle year on the page before approving**: a wrong date hides a live opportunity, or keeps a closed one showing.`,
     '',
     ...items,
     '',

@@ -57,17 +57,19 @@ The site fetches `README.md` from `main` on GitHub at runtime
 | `src/opportunity-pr.js`, `opportunities-file.js` | The same run also opens a PR adding dated leads to `OPPORTUNITIES.md` (as the GitHub App, `contribute/opps-…` branch, so it joins the review digest) |
 | `scripts/mz`, `trigger.mjs`, `run-opportunities.mjs` | Run and tune things by hand |
 | `scripts/preview.mjs` | Local preview of the site with a mock API; reads the working-copy README/OPPORTUNITIES (`--sample` adds fake entries) |
-| `test/` | Eleven dependency-free suites, plus `test/browser/` (needs Chromium) |
+| `src/employers.js` | The employer pass: one Tavily search per company, limited to its own domain; dated pages only; our words. Feeds the same digest and PR. The company list is a lead list and is never committed |
+| `scripts/run-employers.mjs` | Dry-run preview of the employer pass from a CSV kept outside the repo (preview only) |
+| `test/` | Twelve dependency-free suites, plus `test/browser/` (needs Chromium) |
 
 ## Commands
 
 No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 
 ```bash
-for t in test test-hardening test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
+for t in test test-hardening test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr test-employers; do node test/$t.mjs | tail -3; done
 ```
 
-All eleven must pass before a PR (59, 50, 48, 43, 75, 173, 23, 39, 36, 39 and 62 checks as of writing).
+All twelve must pass before a PR (59, 50, 48, 43, 75, 173, 23, 39, 36, 39, 62 and 39 checks as of writing).
 `test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
 node test/browser/run.mjs      # the six page tests, in headless Chromium (154 checks)
