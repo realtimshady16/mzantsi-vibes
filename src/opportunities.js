@@ -286,6 +286,8 @@ export async function searchTavily({ key, search, fetchImpl = fetch }) {
     ...(search.exclude ? { exclude_domains: search.exclude } : {}),
     ...(search.pass === 'broad' ? { country: 'south africa' } : {}),
     ...(search.timeRange ? { time_range: search.timeRange } : {}),
+    // The employer pass reads closing dates from the page text (never kept; see employers.js). Same credit.
+    ...(search.rawContent ? { include_raw_content: 'text' } : {}),
   };
 
   const res = await fetchImpl(TAVILY_URL, {

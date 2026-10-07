@@ -153,7 +153,7 @@ node test/test-normalize.mjs  # 23 checks — markdown normalisation, no network
 node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, site, form validation
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
 node test/test-opportunity-pr.mjs # 62 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
-node test/test-employers.mjs # 39 checks — the employer pass: company list, own-domain searches, dated-only judging, into the PR, all faked
+node test/test-employers.mjs # 46 checks — the employer pass: company list, own-domain searches, dated-only judging, into the PR, all faked
 node test/test-opportunities.mjs # 173 checks — opportunity digest, Tavily and GitHub faked
 node test/browser/run.mjs      # 154 checks — the six pages in headless Chromium (needs Chromium; skips without it)
 ```

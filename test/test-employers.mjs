@@ -3,7 +3,7 @@
  * result (own domain, dated, our words), and how a lead flows into the digest and the PR.
  * Tavily and GitHub are faked: no network, no credits. Run: node test/test-employers.mjs
  */
-import { parseCompaniesCsv, domainOf, employerCategory, planEmployerSearches, judgeEmployer } from '../src/employers.js';
+import { parseCompaniesCsv, domainOf, employerCategory, planEmployerSearches, otherCountry } from '../src/employers.js';
 import { collect, renderDigest, entryLine, genericDesc, searchLabel } from '../src/opportunities.js';
 import { planOpportunityPr } from '../src/opportunity-pr.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -28,6 +28,7 @@ sec('the lead list');
   const list = parseCompaniesCsv(csv);
   ok('quoted fields and CRLF read correctly; rows without a usable website are skipped', list.map((c) => c.name).join() === 'Absa,Eskom', JSON.stringify(list));
   ok('only the name and the domain are kept: nothing about what was advertised', list.every((c) => Object.keys(c).sort().join() === 'domain,name') && !JSON.stringify(list).match(/Quantum|YES|Batch/));
+  ok('www2 is the same site, not a subdomain to stick to', domainOf('https://www2.deloitte.com/za/en') === 'deloitte.com');
   ok('the domain loses the scheme, www and path', list[0].domain === 'absa.co.za' && list[1].domain === 'eskom.co.za');
   let threw = '';
   try { parseCompaniesCsv('Name,Url\nA,b.com'); } catch (e) { threw = e.message; }
@@ -42,6 +43,7 @@ sec('the plan');
   ok('one search (one credit) per company', searches.length === 2);
   ok('each is limited to that company\'s own domain', searches[0].include.join() === 'absa.co.za' && searches[1].include.join() === 'eskom.co.za');
   ok('the label names the company, so --only can find it', searchLabel(searches[0]) === 'employers · Absa');
+  ok('page text is requested, so the date can be read from it', searches.every((x) => x.rawContent === true));
   ok('the query asks for every kind of opportunity and the closing date', /bursary.*graduate programme.*internship.*learnership.*closing date/.test(searches[0].query));
 }
 
@@ -77,6 +79,16 @@ sec('judging a result');
   ok('a title that only mentions past years is dropped', /past years/.test(s.judge(r({ title: 'Graduate Programme 2024' }), s, NOW).reason));
   ok('a page we cannot classify is dropped', /cannot tell/.test(s.judge(r({ title: 'Careers', url: 'https://www.absa.co.za/careers/home' }), s, NOW).reason));
   ok('a home page is dropped as noise', /noise/.test(s.judge(r({ url: 'https://www.absa.co.za/' }), s, NOW).reason));
+
+  const fromText = planEmployerSearches([{ name: 'Absa', domain: 'absa.co.za' }])[0];
+  const viaRaw = fromText.judge(r({ content: 'Short fragment with no date.', raw_content: 'Menu. Application opens 1 October 2026. Application closes 20 November 2026. Footer.' }), fromText, NOW);
+  ok('the closing date is read from the page text when the snippet has none', viaRaw.finding?.closes === '2026-11-20', JSON.stringify(viaRaw));
+  ok('...and none of that text ends up in the lead', !JSON.stringify(viaRaw).match(/Menu|Footer|Short fragment/));
+  const closed = planEmployerSearches([{ name: 'Absa', domain: 'absa.co.za' }])[0];
+  ok('a page that says applications are closed says so as the reason', /says applications are closed/.test(closed.judge(r({ content: 'x', raw_content: 'Applications for the 2027 intake have closed. The 2028 programme opens January 2027.' }), closed, NOW).reason));
+  ok('another country\'s page on a shared domain is dropped', otherCountry('https://www.deloitte.com/ke/en/careers/x.html') && !otherCountry('https://www.deloitte.com/za/en/careers/x.html') && !otherCountry('https://www.absa.co.za/careers/graduates'));
+  const kenya = planEmployerSearches([{ name: 'Deloitte', domain: 'deloitte.com' }])[0];
+  ok('...with that as the reason', /another country/.test(kenya.judge(r({ url: 'https://www.deloitte.com/ke/en/careers/students/graduate-programme.html' }), kenya, NOW).reason));
 
   const again = s.judge(r({ url: 'https://www.absa.co.za/careers/graduates-2' }), s, NOW);
   ok('a second lead of the same kind for the company is dropped', /already have a graduate programme lead/.test(again.reason));

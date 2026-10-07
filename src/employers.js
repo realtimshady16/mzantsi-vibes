@@ -9,7 +9,7 @@
  *   - Dated only. A page with no closing date in what the search returned gives no lead: an entry
  *     with no date could never expire.
  *   - Our words. The issue and the entry carry the company, the kind of opportunity, the date and
- *     the link; the page's own text is never kept.
+ *     the link. Tavily's page text is read for the date and then discarded, never kept or shown.
  *
  * The company list is a lead list, not content. It is not committed: it is read from a CSV on the
  * runner's machine (scripts/run-employers.mjs) and, for the cron, loaded from storage. Only the
@@ -69,10 +69,11 @@ export function parseCompaniesCsv(text) {
   return out;
 }
 
-/** The host to restrict a search to: no scheme, path or `www.`. null when it is not a usable web address. */
+/** The host to restrict a search to: no scheme, path, or `www.`/`www2.` (those are the same site, not a subdomain to stick to). null when it is not a usable web address. */
 export function domainOf(website) {
   const host = hostOf(/^https?:\/\//i.test(String(website ?? '').trim()) ? String(website).trim() : `https://${String(website ?? '').trim()}`);
-  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host) ? host.toLowerCase() : null;
+  const bare = host.replace(/^www\d*\./, '');
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(bare) ? bare.toLowerCase() : null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -95,6 +96,7 @@ export function planEmployerSearches(companies) {
       query: `${c.name} bursary graduate programme internship learnership applications closing date South Africa`,
       include: [c.domain],
       maxResults: MAX_RESULTS,
+      rawContent: true,
       judge: (result, search, now) => judgeEmployer(result, search, now, seen),
     };
   });
@@ -120,6 +122,22 @@ export function employerCategory({ title = '', url = '' }) {
   return null;
 }
 
+/**
+ * Multinationals keep every country's careers pages on one domain (deloitte.com/ke/en/…). Only
+ * South Africa's are for our readers, so a /xx/en/ path for another country is dropped.
+ */
+export function otherCountry(url) {
+  try {
+    const m = /^\/([a-z]{2})\/[a-z]{2}(?:-[a-z]{2})?(?:\/|$)/i.exec(new URL(url).pathname);
+    return Boolean(m) && m[1].toLowerCase() !== 'za';
+  } catch {
+    return false;
+  }
+}
+
+/** The page says, in so many words, that applications are shut ("Applications for the 2027 intake have closed"). */
+const SAYS_CLOSED = /\b(applications?|intake|programme|bursary)\b[^.\n]{0,80}\b(?:have|has|are|is|now|been)\s+(?:now\s+)?closed\b/i;
+
 const onDomain = (host, domain) => host === domain || host.endsWith(`.${domain}`);
 
 /** The newest year in a page title that is this year or later ("Graduate Programme 2027"). */
@@ -135,6 +153,7 @@ export function judgeEmployer(result, search, now, seen = new Set()) {
   if (!onDomain(hostOf(url), search.domain)) return { reason: `not on ${search.domain}, so not the company's own page` };
   if (search.minScore && !(result.score >= search.minScore)) return { reason: `relevance score ${result.score?.toFixed(2) ?? '?'} is below ${search.minScore}` };
   if (isNoise(url)) return { reason: 'noise page (home, search, pagination, contact…)' };
+  if (otherCountry(url)) return { reason: 'another country\'s page (only South Africa\'s are for our readers)' };
 
   const pageTitle = oneLine(result.title, 120);
   if (isStale(pageTitle, now)) return { reason: 'title only mentions past years' };
@@ -142,8 +161,12 @@ export function judgeEmployer(result, search, now, seen = new Set()) {
   const category = employerCategory({ title: pageTitle, url });
   if (!category) return { reason: 'cannot tell whether this is a bursary, graduate programme or internship' };
 
-  const deadline = extractDeadline(`${result.title}. ${result.content}`, now);
-  if (!deadline) return { reason: 'no closing date found (dated entries only)' };
+  // The snippet is a fragment and rarely holds the date; the page text does. Read it here and drop it:
+  // only the date leaves this function.
+  const deadline = extractDeadline(`${result.title}. ${result.content}. ${result.raw_content ?? ''}`, now);
+  if (!deadline) {
+    return { reason: SAYS_CLOSED.test(`${result.content} ${result.raw_content ?? ''}`) ? 'the page says applications are closed' : 'no closing date found (dated entries only)' };
+  }
   if (deadline.past) return { reason: `closing date ${deadline.date} has already passed` };
 
   const key = `${search.company}|${category}`;
