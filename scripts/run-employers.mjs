@@ -15,6 +15,12 @@
  *                      names containing it
  *   --portals FILE     JSON { "Company": ["careers-site.example"] }: extra domains a human has checked are the
  *                      company's own. Keep it OUT of the repo. Aggregators are refused.
+ *   --registry         BUILD A REGISTRY instead of looking for something open: for each company, up to 3
+ *                      own-domain (or --portals) URLs whose path or title suggests careers, graduate, bursary,
+ *                      internship, learnership, youth or early careers, score >= 0.5, whether or not they state a
+ *                      date. Output: company, URL, score, cycle year if one is visible in the title or URL.
+ *                      closes is left empty and no year is ever assumed. Never opens or proposes anything; with
+ *                      --out it writes employers-<date>-registry-N-companies.csv (+ a trace). Retries timeouts.
  *   --discover         instead of searching for opportunities, suggest portal domains for these companies
  *                      (1 credit each). Prints hosts only; nothing is added until you put it in --portals.
  *   --limit N          at most N companies (default 10, up to 200: this runs on your machine, so the
@@ -29,9 +35,12 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { searchLabel, searchTavily, hostOf, sastDate } from '../src/opportunities.js';
+import { searchLabel, searchTavily, hostOf, sastDate, collect } from '../src/opportunities.js';
 import { runWeeklyOpportunities } from '../src/opportunity-pr.js';
-import { parseCompaniesCsv, planEmployerSearches, planDiscovery, withPortals, isAggregator } from '../src/employers.js';
+import {
+  parseCompaniesCsv, planEmployerSearches, planDiscovery, withPortals, isAggregator,
+  planRegistrySearches, pickRegistry, registryCsv, REGISTRY_MIN_SCORE, REGISTRY_FLOOR, REGISTRY_PER_COMPANY,
+} from '../src/employers.js';
 import { loadEnv } from './env.mjs';
 
 const argv = process.argv.slice(2);
@@ -48,7 +57,7 @@ const value = (n) => {
   return v;
 };
 
-const KNOWN = ['--companies', '--only', '--limit', '--explain', '--save', '--out', '--list', '--portals', '--discover', '--help', '-h'];
+const KNOWN = ['--companies', '--only', '--limit', '--explain', '--save', '--out', '--list', '--portals', '--discover', '--registry', '--help', '-h'];
 const unknown = argv.filter((a) => a.startsWith('-') && !KNOWN.includes(a));
 if (unknown.length) fail(`Unknown option: ${unknown.join(' ')}  (try --help)`);
 
@@ -114,6 +123,55 @@ if (flag('--discover')) {
     for (const [h, paths] of hosts) console.log(`  ${h}  e.g. ${paths[0]}${paths.length > 1 ? `  (+${paths.length - 1})` : ''}`);
   }
   console.log('\nOpen each site yourself. If it is the company\'s own, add it to the --portals file. Nothing was added.');
+  process.exit(0);
+}
+
+if (flag('--registry')) {
+  const envR = loadEnv();
+  if (!envR.TAVILY_API_KEY) fail('TAVILY_API_KEY is not set. Put it in .dev.vars (see .dev.vars.example).');
+  const regSearches = planRegistrySearches(companies);
+  if (flag('--list')) {
+    console.log(`${regSearches.length} registry searches (~${regSearches.length} Tavily credits)`);
+    process.exit(0);
+  }
+  console.error(`Registry: ${regSearches.length} searches (~${regSearches.length} Tavily credits; a timeout or rate limit is retried up to 3 times, pausing longer each time)…`);
+  const events = [];
+  const out = await collect({ key: envR.TAVILY_API_KEY, searches: regSearches, onResult: (e) => events.push(e), concurrency: 4, retries: 3, retryDelayMs: 5000 });
+  // Main output: score >= 0.5 only. Below that (down to the floor) goes in a separate file, for companies that have
+  // fewer than three, so the threshold can be judged from what it leaves out.
+  const rows = pickRegistry(out.findings.filter((f) => !f.lowScore), companies);
+  const spare = companies.flatMap((c) =>
+    pickRegistry(out.findings.filter((f) => f.lowScore && f.company === c.name), [c], REGISTRY_PER_COMPANY - rows.filter((r) => r.company === c.name).length));
+
+  const lines = [`${'company'.padEnd(34)} score  year  url`];
+  for (const r of rows) lines.push(`${r.company.slice(0, 33).padEnd(34)} ${r.score.toFixed(2)}  ${String(r.cycleYear ?? '').padEnd(4)}  ${r.url}`);
+  const have = new Set(rows.map((r) => r.company));
+  const none = companies.filter((c) => !have.has(c.name)).map((c) => c.name);
+  const summary = `[registry] ${rows.length} URLs for ${have.size} of ${companies.length} companies (up to ${REGISTRY_PER_COMPANY} each, score ≥ ${REGISTRY_MIN_SCORE}); ` +
+    `${out.retried.length} search retries${out.retried.length ? ` (${[...new Set(out.retried)].join('; ')})` : ''}; ${out.failures.length} failed${out.failures.length ? `: ${out.failures.join('; ')}` : ''}. ` +
+    `${spare.length} more candidates scored ${REGISTRY_FLOOR}–${REGISTRY_MIN_SCORE} (listed apart, with --out). closes left empty, no year assumed. Nothing was posted or committed.`;
+  console.log(lines.join('\n'));
+  console.error(`\nNo qualifying URL (${none.length}): ${none.join(', ') || '(none)'}\n\n${summary}`);
+
+  if (outDir) {
+    mkdirSync(outDir, { recursive: true });
+    const stem = `${outDir.replace(/\/$/, '')}/employers-${sastDate()}-registry-${companies.length}-companies`;
+    const trace = [`${summary}\n`, `No qualifying URL (${none.length}): ${none.join(', ')}\n`];
+    for (const s of regSearches) {
+      trace.push(`\n${searchLabel(s)}  (only ${s.domains.join(' + ')})`);
+      const evs = events.filter((e) => e.search === s);
+      if (!evs.length) trace.push('  (no results)');
+      for (const e of evs) {
+        if (e.error) trace.push(`  ERROR  ${e.error}`);
+        else if (e.kept) trace.push(`  KEEP   ${e.result.score?.toFixed(2)}  ${e.result.url}`);
+        else trace.push(`  DROP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}\n         ↳ ${e.reason}`);
+      }
+    }
+    writeFileSync(`${stem}.csv`, registryCsv(rows));
+    writeFileSync(`${stem}-below-${REGISTRY_MIN_SCORE}.csv`, registryCsv(spare));
+    writeFileSync(`${stem}-trace.txt`, trace.join('\n') + '\n');
+    console.error(`Stored ${stem}.csv and ${stem}-trace.txt`);
+  }
   process.exit(0);
 }
 

@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { insertEntries, linkTargets } from '../src/opportunities-file.js';
-import { planOpportunityPr, openOpportunityPr, runWeeklyOpportunities, MAX_ENTRIES, OPPS_PATH } from '../src/opportunity-pr.js';
+import { planOpportunityPr, openOpportunityPr, runWeeklyOpportunities, MAX_ENTRIES, MAX_OPEN_PRS_READ, OPPS_PATH } from '../src/opportunity-pr.js';
 import { isContributionPull, LABELS } from '../src/github.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
 import { entryLine } from '../src/opportunities.js';
@@ -66,12 +66,18 @@ const finding = (name, extra = {}) => ({
   desc: `About ${name}.`, source: 'zabursaries', pass: 'scoped', category: 'Bursaries', tag: 'Engineering', closes: '2026-11-30', ...extra,
 });
 
-function fakeGh({ opps = skeleton, readme = '# README\n\n-   [Listed](https://www.zabursaries.co.za/listed) — Already here.\n', pulls = [], failAt } = {}) {
+function fakeGh({ opps = skeleton, readme = '# README\n\n-   [Listed](https://www.zabursaries.co.za/listed) — Already here.\n', readmeByRef = {}, pulls = [], failAt } = {}) {
   const calls = [];
   const rec = (name, fn) => async (...a) => { calls.push([name, ...a]); if (failAt === name) throw new Error(`${name} exploded`); return fn(...a); };
   return {
     calls,
-    getReadme: rec('getReadme', async (o, r, path = 'README.md') => (path === OPPS_PATH ? { content: opps, sha: 'opps-sha' } : { content: readme, sha: 'readme-sha' })),
+    getReadme: rec('getReadme', async (o, r, path = 'README.md', ref) => {
+      if (ref) {
+        if (readmeByRef[ref] instanceof Error) throw readmeByRef[ref];
+        return { content: readmeByRef[ref] ?? readme, sha: 'ref-sha' };
+      }
+      return path === OPPS_PATH ? { content: opps, sha: 'opps-sha' } : { content: readme, sha: 'readme-sha' };
+    }),
     listOpenPulls: rec('listOpenPulls', async () => pulls),
     getDefaultBranchSha: rec('getDefaultBranchSha', async () => 'main-sha'),
     createBranch: rec('createBranch', async () => ({})),
@@ -268,13 +274,53 @@ sec('what the weekly job asks of the two sites');
     !gh.of('createIssue')[0][3].body.includes('graduates24') && !gh.of('commitReadme')[0]?.[4].content.includes('graduates24'));
 }
 
+sec('other open PRs: a link someone has just submitted is not proposed again');
+{
+  const formPull = (n, extra = {}) => ({ number: n, user: { type: 'Bot' }, head: { ref: `contribute/form-${n}`, repo: { full_name: 'o/r' } }, ...extra });
+  const link = (name) => `-   [${name}](https://www.zabursaries.co.za/engineering-bursaries-south-africa/${name.toLowerCase()}) — About it.`;
+  const leads = [finding('Taken', { closes: '2026-11-20' }), finding('Free', { closes: '2026-11-21' })];
+
+  const gh = fakeGh({ pulls: [formPull(31)], readmeByRef: { 'contribute/form-31': `# README\n\n${link('Taken')}\n` } });
+  const plan = await planOpportunityPr({ config, gh, now: NOW, findings: leads });
+  ok('a lead already in an open form PR is left out, the other still goes in', plan.entries.map((f) => f.title).join() === 'Free' && plan.skippedInOpenPrs === 1 && plan.skippedDuplicates === 1, JSON.stringify({ e: plan.entries?.map((f) => f.title), s: plan.skippedInOpenPrs }));
+  ok('it read that PR\'s README on its own branch, not main\'s', gh.of('getReadme').some((c) => c[4] === 'contribute/form-31'));
+  ok('a tracking-junk or www variant of the same link counts as the same', (await planOpportunityPr({ config, gh: fakeGh({ pulls: [formPull(31)], readmeByRef: { 'contribute/form-31': '-   [T](https://zabursaries.co.za/engineering-bursaries-south-africa/taken/?utm_source=x) — x\n' } }), now: NOW, findings: leads })).skippedInOpenPrs === 1);
+  ok('the PR body says how many were skipped for being in an open PR', /1 of them in an open PR/.test(await (async () => {
+    const g = fakeGh({ pulls: [formPull(31)], readmeByRef: { 'contribute/form-31': `# README\n\n${link('Taken')}\n` } });
+    const p = await planOpportunityPr({ config, gh: g, now: NOW, findings: leads });
+    await openOpportunityPr({ config, gh: g, plan: p, now: NOW });
+    return g.of('createPullRequest')[0][3].body;
+  })()));
+
+  const human = fakeGh({ pulls: [{ number: 5, user: { type: 'User' }, head: { ref: 'contribute/by-hand', repo: { full_name: 'o/r' } } }, formPull(6, { head: { ref: 'contribute/x', repo: { full_name: 'someone/fork' } } })] });
+  await planOpportunityPr({ config, gh: human, now: NOW, findings: leads });
+  ok('only PRs the form opened are read: a person\'s PR and a fork\'s are not', human.of('getReadme').every((c) => !c[4]));
+
+  const many = fakeGh({ pulls: Array.from({ length: 12 }, (_, i) => formPull(100 + i)) });
+  const planMany = await planOpportunityPr({ config, gh: many, now: NOW, findings: leads });
+  ok('at most 8 open PRs are read (the request budget), and the rest are reported as unchecked', many.of('getReadme').filter((c) => c[4]).length === MAX_OPEN_PRS_READ && planMany.openPrsUnread === 4, String(planMany.openPrsUnread));
+
+  const broken = fakeGh({ pulls: [formPull(31), formPull(32)], readmeByRef: { 'contribute/form-31': new Error('GitHub returned 404') } });
+  const planBroken = await planOpportunityPr({ config, gh: broken, now: NOW, findings: leads });
+  ok('a PR that cannot be read is counted, never guessed at, and does not stop the plan', planBroken.openPrsUnread === 1 && planBroken.entries.length === 2);
+
+  const digestOpen = fakeGh({ pulls: [formPull(40, { head: { ref: 'contribute/opps-2026-10-04-abc', repo: { full_name: 'o/r' } } })] });
+  const skipped = await planOpportunityPr({ config, gh: digestOpen, now: NOW, findings: leads });
+  ok('an open digest PR still stops a second one, and one PR listing is enough to know', /#40/.test(skipped.skipped) && digestOpen.of('listOpenPulls').length === 1 && digestOpen.of('getReadme').length === 0);
+
+  const none = fakeGh({ pulls: [] });
+  await planOpportunityPr({ config, gh: none, now: NOW, findings: leads });
+  ok('with no other open PR it costs no extra request', none.of('listOpenPulls').length === 1 && none.of('getReadme').length === 2);
+}
+
 sec('the Worker\'s 50-request limit');
 {
   // The first deployed run failed with "Too many subrequests": 20 page lookups that each redirected, on top of
   // the searches and the PR. The page lookups are gone; count every outbound request in a worst case anyway:
-  // 50 dated search leads AND three monthly pages of 40 bursaries each, PR and issue both opened.
+  // 50 dated search leads AND three monthly pages of 40 bursaries each, PR and issue both opened, and ten other
+  // open form PRs (only MAX_OPEN_PRS_READ of them are read).
   let n = 0;
-  const gh = fakeGh();
+  const gh = fakeGh({ pulls: Array.from({ length: 10 }, (_, i) => ({ number: 200 + i, user: { type: 'Bot' }, head: { ref: `contribute/form-${200 + i}`, repo: { full_name: 'o/r' } } })) });
   const counted = {};
   for (const [k, v] of Object.entries(gh)) if (typeof v === 'function' && !['names', 'of'].includes(k)) counted[k] = async (...a) => { n += k === 'ensureLabel' ? 2 : 1; return v(...a); };
   const tavilyFetch = async (url, init) => {
@@ -289,7 +335,7 @@ sec('the Worker\'s 50-request limit');
   const AUTH = 4; // JWT -> installation id -> token, doubled for the two reads that start together
   const out = await runWeeklyOpportunities({ config, gh: { ...gh, ...counted }, fetchImpl: tavilyFetch, fetchPage: pageFetch, now: NOW, closingDelayMs: 0 });
   const total = n + AUTH;
-  ok('a worst-case run (50 dated leads plus 120 list rows; PR and issue both opened) stays well under the limit', out.pr?.number === 77 && out.issueUrl && out.pr.entries === MAX_ENTRIES && total <= 40, `used ${total} of 50`);
+  ok('a worst-case run (50 dated leads plus 120 list rows, ten other open PRs; PR and issue both opened) stays well under the limit', out.pr?.number === 77 && out.issueUrl && out.pr.entries === MAX_ENTRIES && total <= 40, `used ${total} of 50`);
   console.log(`        (worst case used ${total} of 50)`);
 }
 

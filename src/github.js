@@ -73,8 +73,9 @@ function makeClient(auth) {
 
   /* ---------------- repo / file reads ---------------- */
 
-  async function getReadme(owner, repo, path = 'README.md') {
-    const data = await api(`/repos/${owner}/${repo}/contents/${path}`);
+  /** `ref` reads the file as it is on another branch (an open PR's), not on the default one. */
+  async function getReadme(owner, repo, path = 'README.md', ref) {
+    const data = await api(`/repos/${owner}/${repo}/contents/${path}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`);
     const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, '')), (c) => c.charCodeAt(0));
     return {
       content: new TextDecoder().decode(bytes),

@@ -14,7 +14,7 @@
 
 import { parseReadme } from '../PUBLISH/content-parse.js';
 import { todayInSA } from '../PUBLISH/entry-meta.js';
-import { LABELS, LABEL_META } from './github.js';
+import { LABELS, LABEL_META, isContributionPull } from './github.js';
 import { insertEntries, linkTargets } from './opportunities-file.js';
 import { entryLine, destinationOf, sourceOf, urlKey, sastDate, inert, runOpportunityDigest, genericDesc } from './opportunities.js';
 
@@ -43,12 +43,35 @@ async function readSources({ config, gh, fetchImpl = fetch }) {
   return { opps: await o.text(), oppsSha: null, readme: await r.text() };
 }
 
-/** An open PR this job opened earlier, if any. Needs the App; a preview without one cannot check. */
-async function openDigestPull(config, gh) {
-  if (!gh) return null;
-  const prefix = `${config.branchPrefix || 'contribute'}/${BRANCH_STEM}-`;
-  const pulls = await gh.listOpenPulls(config.owner, config.repo);
+const digestPrefix = (config) => `${config.branchPrefix || 'contribute'}/${BRANCH_STEM}-`;
+
+/** An open PR this job opened earlier, if any, among `pulls`. */
+function openDigestPull(config, pulls) {
+  const prefix = digestPrefix(config);
   return pulls.find((p) => p.user?.type === 'Bot' && String(p.head?.ref || '').startsWith(prefix)) || null;
+}
+
+// Each open PR read is one more request, and a Worker run may make only 50 (AGENTS.md rule 8).
+export const MAX_OPEN_PRS_READ = 8;
+
+/**
+ * Links already added by the other open contribution PRs (form submissions edit README.md), so a lead someone
+ * has just submitted is not proposed again. Reads each one's README at its own branch. A PR that cannot be read
+ * is counted, not guessed at.
+ */
+async function linksInOpenPulls({ config, gh, pulls }) {
+  const mine = { owner: config.owner, repo: config.repo, branchPrefix: config.branchPrefix || 'contribute' };
+  const others = pulls.filter((p) => isContributionPull(p, mine) && !String(p.head?.ref || '').startsWith(digestPrefix(config)));
+  const links = [];
+  let unread = Math.max(0, others.length - MAX_OPEN_PRS_READ);
+  for (const p of others.slice(0, MAX_OPEN_PRS_READ)) {
+    try {
+      links.push(...linkTargets((await gh.getReadme(config.owner, config.repo, 'README.md', p.head.ref)).content));
+    } catch {
+      unread++;
+    }
+  }
+  return { links, unread };
 }
 
 /**
@@ -56,11 +79,15 @@ async function openDigestPull(config, gh) {
  * Returns { skipped } or { entries, markdown, sha, skippedDuplicates }.
  */
 export async function planOpportunityPr({ config, gh, findings, listed = [], now = new Date(), fetchImpl }) {
-  const open = await openDigestPull(config, gh);
+  // A preview without the App cannot list PRs, so it cannot check them.
+  const pulls = gh ? await gh.listOpenPulls(config.owner, config.repo) : [];
+  const open = openDigestPull(config, pulls);
   if (open) return { skipped: `PR #${open.number} from an earlier run is still open. Approve or reject it first.` };
 
   const today = todayInSA(now);
   const src = await readSources({ config, gh, fetchImpl });
+  const inOpenPrs = gh ? await linksInOpenPulls({ config, gh, pulls }) : { links: [], unread: 0 };
+  const inOpen = new Set(inOpenPrs.links.map(urlKey));
   const already = new Set([...linkTargets(src.opps), ...linkTargets(src.readme)].map(urlKey));
 
   // Trusted sites only, closing tomorrow or later (a PR is approved and merged after it is opened, so
@@ -74,10 +101,12 @@ export async function planOpportunityPr({ config, gh, findings, listed = [], now
   const dated = [...unique.values()]
     .filter((f) => f.closes && f.closes > today && ((f.category === 'Bursaries' && sourceOf(f.url) === 'zabursaries') || f.pass === 'employers') && entryLine(f))
     .sort((a, b) => a.closes.localeCompare(b.closes));
-  const fresh = dated.filter((f) => !already.has(urlKey(f.url)));
+  const fresh = dated.filter((f) => !already.has(urlKey(f.url)) && !inOpen.has(urlKey(f.url)));
   const skippedDuplicates = dated.length - fresh.length;
+  const skippedInOpenPrs = dated.filter((f) => !already.has(urlKey(f.url)) && inOpen.has(urlKey(f.url))).length;
+  const openPrsUnread = inOpenPrs.unread;
   if (!fresh.length) {
-    return { skipped: dated.length ? `all ${dated.length} dated leads are already listed.` : 'no lead this week had a closing date.', skippedDuplicates };
+    return { skipped: dated.length ? `all ${dated.length} dated leads are already listed or in an open PR.` : 'no lead this week had a closing date.', skippedDuplicates, skippedInOpenPrs, openPrsUnread };
   }
 
   // Our own description, never the page's or the search snippet's text. Copies, so the issue keeps its bullets.
@@ -96,12 +125,12 @@ export async function planOpportunityPr({ config, gh, findings, listed = [], now
   }
 
   return {
-    entries: picked, additions, markdown, sha: src.oppsSha, skippedDuplicates, hiddenByCap: fresh.length - picked.length,
+    entries: picked, additions, markdown, sha: src.oppsSha, skippedDuplicates, skippedInOpenPrs, openPrsUnread, hiddenByCap: fresh.length - picked.length,
     fromLists: picked.filter((f) => f.pass === 'closing-list').length,
   };
 }
 
-function prBody(entries, { skippedDuplicates, hiddenByCap, fromLists }, now) {
+function prBody(entries, { skippedDuplicates, skippedInOpenPrs = 0, openPrsUnread = 0, hiddenByCap, fromLists }, now) {
   const items = entries.map((f) => {
     const { pillar, section } = destinationOf(f);
     return `- **[${f.title.replace(/[\[\]]/g, '')}](${f.url})**: closes **${f.closes}**${f.yearAssumed ? ' ⚠️ **the page gives no year, so this one is assumed: confirm it**' : ''} · ${pillar} › ${section} · _${f.source || sourceOf(f.url)}_`;
@@ -115,7 +144,8 @@ function prBody(entries, { skippedDuplicates, hiddenByCap, fromLists }, now) {
     '',
     ...(fromLists ? [`${fromLists} of these come from zabursaries' monthly "bursaries closing in…" lists; the rest from this week's searches.`, ''] : []),
     ...(hiddenByCap ? [`${hiddenByCap} more dated lead${hiddenByCap === 1 ? '' : 's'} left for next week (at most ${MAX_ENTRIES} per PR).`, ''] : []),
-    ...(skippedDuplicates ? [`${skippedDuplicates} already listed, skipped.`, ''] : []),
+    ...(skippedDuplicates ? [`${skippedDuplicates} already listed or in another open PR, skipped${skippedInOpenPrs ? ` (${skippedInOpenPrs} of them in an open PR)` : ''}.`, ''] : []),
+    ...(openPrsUnread ? [`${openPrsUnread} other open PR${openPrsUnread === 1 ? '' : 's'} could not be checked for repeats: look for a link that is already in one.`, ''] : []),
     'Each entry hides itself on its closing date, so nothing here needs removing later. Merge is handled by the daily batch job after review.',
     '',
     '---',

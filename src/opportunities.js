@@ -584,17 +584,32 @@ function judge(result, search, now) {
  * within this run (a bursary matches several faculty queries). Earlier passes
  * win, so a trusted-source hit is never replaced by a broader one.
  */
-export async function collect({ key, searches, fetchImpl, now = new Date(), onResult, concurrency = Infinity }) {
-  // All at once by default (the weekly run is ten searches). A long local run passes a limit so Tavily is not rate-limited.
+// A timeout, a rate limit or a server error is worth another go; a bad key or a bad request is not.
+const transient = (err) => /timeout|aborted|Tavily (429|5\d\d)|fetch failed/i.test(String(err?.message || err));
+
+export async function collect({ key, searches, fetchImpl, now = new Date(), onResult, concurrency = Infinity, retries = 0, retryDelayMs = 0 }) {
+  // All at once by default (the weekly run is ten searches). A long local run passes a limit so Tavily is not
+  // rate-limited, and `retries` to try a transient failure again (the cron passes none: it must stay within its request budget).
   const settled = new Array(searches.length);
+  const retried = [];
   let next = 0;
   const worker = async () => {
     while (next < searches.length) {
       const i = next++;
-      try {
-        settled[i] = { status: 'fulfilled', value: await searchTavily({ key, search: searches[i], fetchImpl }) };
-      } catch (reason) {
-        settled[i] = { status: 'rejected', reason };
+      for (let attempt = 0; ; attempt++) {
+        try {
+          settled[i] = { status: 'fulfilled', value: await searchTavily({ key, search: searches[i], fetchImpl }) };
+          break;
+        } catch (reason) {
+          if (attempt < retries && transient(reason)) {
+            retried.push(searchLabel(searches[i]));
+            // A rate limit needs a real pause, and a longer one each time; retrying at once only makes it worse.
+            if (retryDelayMs) await sleepMs(retryDelayMs * (attempt + 1));
+            continue;
+          }
+          settled[i] = { status: 'rejected', reason };
+          break;
+        }
       }
     }
   };
@@ -628,7 +643,7 @@ export async function collect({ key, searches, fetchImpl, now = new Date(), onRe
     }
   });
 
-  return { findings, failures, searched: searches.length };
+  return { findings, failures, searched: searches.length, retried };
 }
 
 /* ------------------------------------------------------------------ *
