@@ -3,7 +3,7 @@
  * result (own domain, dated, our words), and how a lead flows into the digest and the PR.
  * Tavily and GitHub are faked: no network, no credits. Run: node test/test-employers.mjs
  */
-import { parseCompaniesCsv, domainOf, employerCategory, planEmployerSearches, otherCountry, yearlessDeadline, withPortals, planDiscovery, isAggregator, planRegistrySearches, pickRegistry, registryCsv, visibleCycleYear } from '../src/employers.js';
+import { parseCompaniesCsv, domainOf, employerCategory, planEmployerSearches, otherCountry, yearlessDeadline, withPortals, planDiscovery, isAggregator } from '../src/employers.js';
 import { collect, renderDigest, entryLine, genericDesc, searchLabel } from '../src/opportunities.js';
 import { planOpportunityPr } from '../src/opportunity-pr.js';
 import { parseReadme } from '../PUBLISH/content-parse.js';
@@ -104,6 +104,8 @@ sec('judging a result');
   const issueLine = renderDigest({ findings: [soon.finding], failures: [], searched: 1, now: NOW, employersOnly: true }).body;
   ok('the issue says the year is assumed', /closes 2026-10-22\*\* \(year assumed, confirm on the page\)/.test(issueLine));
   ok('a PDF is dropped', /PDF/.test(yl.judge(r({ url: 'https://www.absa.co.za/docs/graduate-programme-report.pdf' }), yl, NOW).reason));
+  ok('/us-en/, /ch-en/ and a country deeper in the path (nedbank zw, bmw mx) are another country; en-za and za-en are not', otherCountry('https://x.com/us-en/careers') && otherCountry('https://x.com/ch-en/careers') && otherCountry('https://personal.nedbank.co.za/content/nedbank/zw/en/group/careers.html') && otherCountry('https://www.bmwgroup.jobs/content/grpw/websites/bmwgroup_jobs/mx/en/opportunities/graduate.html') && !otherCountry('https://x.com/en-za/careers') && !otherCountry('https://x.com/za-en/careers') && !otherCountry('https://www.bmwgroup.jobs/za/en/opportunities.html'));
+  ok('en-gb and fr-ca are other countries (the language is not the country); af-za is not', otherCountry('https://x.com/en-gb/careers') && otherCountry('https://x.com/fr-ca/careers') && !otherCountry('https://x.com/af-za/careers'));
   ok('another country\'s page on a shared domain is dropped', otherCountry('https://www.deloitte.com/ke/en/careers/x.html') && !otherCountry('https://www.deloitte.com/za/en/careers/x.html') && !otherCountry('https://www.absa.co.za/careers/graduates'));
   const kenya = planEmployerSearches([{ name: 'Deloitte', domain: 'deloitte.com' }])[0];
   ok('...with that as the reason', /another country/.test(kenya.judge(r({ url: 'https://www.deloitte.com/ke/en/careers/students/graduate-programme.html' }), kenya, NOW).reason));
@@ -174,81 +176,6 @@ sec('portals and discovery');
 
   const [d] = planDiscovery(withP);
   ok('discovery leaves out the company\'s own site and every aggregator, and asks for no page text', d.exclude.includes('eskom.co.za') && d.exclude.includes('graduates24.com') && d.exclude.includes('careers24.com') && !d.rawContent && !d.include);
-}
-
-/* -------------------------------------------------------------- */
-sec('registry mode: where to look, with or without a date');
-{
-  const [rs] = planRegistrySearches([{ name: 'Absa', domain: 'absa.co.za', extraDomains: ['bursaries.absa-example.org'] }]);
-  const res = (url, o = {}) => ({ title: 'Page', url, content: 'Some text.', score: 0.8, ...o });
-  const j = (url, o) => rs.judge(res(url, o), rs, NOW);
-
-  ok('a registry search asks for no page text, has room for more than three, and is limited to the own domain and portals', rs.rawContent === false && rs.maxResults >= 6 && rs.include.join() === 'absa.co.za,bursaries.absa-example.org' && rs.pass === 'registry');
-  ok('a careers page is kept with NO closing date at all', j('https://www.absa.co.za/careers/graduates').finding?.closes === '' && j('https://www.absa.co.za/careers/graduates').finding?.score === 0.8);
-  ok('each of the asked-for words in the path or title qualifies', ['careers', 'graduate-programme', 'bursaries', 'internships', 'learnerships', 'youth-programme', 'early-careers'].every((w) => Boolean(j(`https://www.absa.co.za/people/${w}`).finding)));
-  ok('...and one in the title alone does too', Boolean(j('https://www.absa.co.za/p/123', { title: 'Our bursary programme' }).finding));
-  ok('a page that suggests none of them does not', /neither the path nor the title/.test(j('https://www.absa.co.za/personal/loans', { title: 'Home loans' }).reason));
-  ok('score 0.5 qualifies; 0.49 is kept only as a flagged low-score candidate (never in the main output); below 0.2 is dropped', j('https://www.absa.co.za/careers/a', { score: 0.5 }).finding?.lowScore === false && j('https://www.absa.co.za/careers/b', { score: 0.49 }).finding?.lowScore === true && /below even the 0\.2 floor/.test(j('https://www.absa.co.za/careers/c', { score: 0.19 }).reason));
-  ok('a careers page under /about-us/ is a careers page (the publish path\'s boilerplate rule does not apply here)', Boolean(j('https://www.absa.co.za/about-us/careers').finding) && /noise/.test(j('https://www.absa.co.za/contact/careers-desk').reason) && /noise/.test(j('https://www.absa.co.za/').reason));
-  ok('a /us-en/ style country path is another country; /za-en/ is ours', otherCountry('https://www.accenture.com/us-en/careers/x') && otherCountry('https://www.accenture.com/ch-en/careers/x') && !otherCountry('https://www.accenture.com/za-en/careers/x'));
-  ok('the own-domain rule still holds', /not on absa\.co\.za/.test(j('https://www.graduates24.com/careers/absa').reason) && /not on/.test(j('https://absa.co.za.evil.org/careers').reason));
-  ok('a portal the reviewer listed is accepted', Boolean(j('https://bursaries.absa-example.org/apply/bursary').finding));
-  ok('a PDF, another country and the home page are not recorded', /PDF/.test(j('https://www.absa.co.za/careers/graduates.pdf').reason) && /another country/.test(rs.judge(res('https://www.deloitte.com/ke/en/careers/x.html'), { ...rs, domains: ['deloitte.com'] }, NOW).reason) && /noise/.test(j('https://www.absa.co.za/').reason));
-
-  const year = (title, url) => visibleCycleYear(title, url);
-  ok('a cycle year is reported only when it is visible in the title or a path slug', year('Graduate Programme 2027', 'https://x.co.za/careers') === 2027 && year('Careers', 'https://x.co.za/bursary-2028-intake') === 2028 && year('Careers', 'https://x.co.za/careers') === null);
-  ok('a publication-date folder is not a cycle year', year('Careers', 'https://x.co.za/newsroom/2026/05/bursaries') === null && year('Careers', 'https://x.co.za/wp-content/uploads/2026/03/x') === null);
-  ok('a date at the start of a slug is a post date, not a cycle year', year('Early careers at Henkel', 'https://x.com/spotlight/2022-11-29-early-careers-at-henkel-1785966') === null && year('Careers', 'https://x.co.za/graduate-programme-2027') === 2027);
-  ok('a country deeper in the path is caught too (Nedbank Zimbabwe, BMW Mexico)', otherCountry('https://personal.nedbank.co.za/content/nedbank/zw/en/group/careers.html') && otherCountry('https://www.bmwgroup.jobs/content/grpw/websites/bmwgroup_jobs/mx/en/opportunities/graduate.html') && !otherCountry('https://www.bmwgroup.jobs/za/en/opportunities.html') && !otherCountry('https://group.nedbank.co.za/careers/graduates-and-bursaries.html'));
-  ok('an old year is reported as it is, not hidden', year('Graduate programme 2022', 'https://x.co.za/careers') === 2022);
-  const fa = j('https://www.absa.co.za/careers/graduates-2027', { content: 'Applications close 31 October. Open: 1 September.' }).finding;
-  ok('a year is never assumed from a date in the text: the cycle year here is the slug\'s, closes stays empty', fa.cycleYear === 2027 && fa.closes === '');
-  ok('with no year visible the cycle year is empty, even if the text has a year-less date', j('https://www.absa.co.za/careers/bursary', { content: 'Applications close 31 October.' }).finding.cycleYear === null);
-
-  const co = [{ name: 'A', domain: 'a.co.za' }, { name: 'B', domain: 'b.co.za' }];
-  const mk = (company, n, score) => ({ company, url: `https://${company.toLowerCase()}.co.za/careers/${n}`, title: `T ${n}`, score, cycleYear: null, closes: '' });
-  const picked = pickRegistry([mk('A', 1, 0.6), mk('A', 2, 0.9), mk('A', 3, 0.7), mk('A', 4, 0.55), mk('B', 1, 0.5)], co);
-  ok('the best three per company, highest score first, companies in list order', picked.map((r) => `${r.company}${r.url.split('/').pop()}`).join() === 'A2,A3,A1,B1');
-  ok('asking for none returns none (a company already full)', pickRegistry([mk('A', 1, 0.6)], co.slice(0, 1), 0).length === 0);
-  const csv = registryCsv([{ company: 'A, Inc', url: 'https://a.co.za/careers/1', title: 'Say "hi"', score: 0.6, cycleYear: 2027, closes: '' }, mk('B', 2, 0.5)]);
-  const lines = csv.trim().split('\n');
-  ok('the CSV header is company, url, score, cycle_year, closes, title', lines[0] === 'company,url,score,cycle_year,closes,title');
-  ok('a row with a cycle year and awkward characters is quoted properly, closes empty', lines[1] === '"A, Inc",https://a.co.za/careers/1,0.60,2027,,"Say ""hi"""', lines[1]);
-  ok('a row with no cycle year has it empty too', lines[2] === 'B,https://b.co.za/careers/2,0.50,,,T 2', lines[2]);
-  ok('a company with nothing qualifying simply has no row', !pickRegistry([mk('A', 1, 0.6)], co).some((r) => r.company === 'B'));
-
-  // the publish path is untouched by all of this: a page with no date is still not a lead
-  const [pub] = planEmployerSearches([{ name: 'Absa', domain: 'absa.co.za' }]);
-  ok('the strict dated-entry filter still holds for publishing', /no closing date/.test(pub.judge({ title: 'Graduate Programme', url: 'https://www.absa.co.za/careers/graduates', content: 'Apply now.', score: 0.9 }, pub, NOW).reason));
-  const out = await collect({ key: 'k', searches: [rs], now: NOW, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ results: [
-    res('https://www.absa.co.za/careers/graduates', { score: 0.9 }), res('https://www.absa.co.za/careers/bursary', { score: 0.7 }), res('https://www.absa.co.za/personal', { score: 0.9 }) ] }) }) });
-  ok('collect carries registry findings through (no date needed)', out.findings.length === 2 && out.findings.every((f) => f.closes === ''));
-}
-
-/* -------------------------------------------------------------- */
-sec('retrying a timeout');
-{
-  const [s] = planRegistrySearches([{ name: 'Absa', domain: 'absa.co.za' }]);
-  let tries = 0;
-  const flaky = async () => { tries++; if (tries < 3) throw new Error('The operation was aborted due to timeout'); return { ok: true, status: 200, json: async () => ({ results: [] }) }; };
-  const ok2 = await collect({ key: 'k', searches: [s], fetchImpl: flaky, now: NOW, retries: 2 });
-  ok('a timeout is retried and, once it works, is not a failure', tries === 3 && ok2.failures.length === 0 && ok2.retried.length === 2, `tries ${tries}`);
-  tries = 0;
-  const never = async () => { tries++; throw new Error('The operation was aborted due to timeout'); };
-  const bad = await collect({ key: 'k', searches: [s], fetchImpl: never, now: NOW, retries: 2 });
-  ok('after the retries it is a failure, and says so', tries === 3 && bad.failures.length === 1 && /timeout/.test(bad.failures[0]));
-  tries = 0;
-  const t0 = Date.now();
-  const limited = async () => { tries++; if (tries < 3) return { ok: false, status: 429, text: async () => 'slow down', json: async () => ({}) }; return { ok: true, status: 200, json: async () => ({ results: [] }) }; };
-  const paced = await collect({ key: 'k', searches: [s], fetchImpl: limited, now: NOW, retries: 3, retryDelayMs: 20 });
-  ok('a rate limit (429) is retried, pausing longer each time (20 ms, then 40 ms)', tries === 3 && paced.failures.length === 0 && Date.now() - t0 >= 55, `${Date.now() - t0} ms`);
-  tries = 0;
-  const noKey = async () => { tries++; return { ok: false, status: 401, text: async () => 'nope', json: async () => ({}) }; };
-  await collect({ key: 'k', searches: [s], fetchImpl: noKey, now: NOW, retries: 2 });
-  ok('a bad key is not retried', tries === 1);
-  tries = 0;
-  await collect({ key: 'k', searches: [s], fetchImpl: never, now: NOW });
-  ok('with no retries (the cron) it tries once', tries === 1);
 }
 
 /* -------------------------------------------------------------- */

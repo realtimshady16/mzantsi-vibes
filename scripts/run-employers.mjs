@@ -15,12 +15,17 @@
  *                      names containing it
  *   --portals FILE     JSON { "Company": ["careers-site.example"] }: extra domains a human has checked are the
  *                      company's own. Keep it OUT of the repo. Aggregators are refused.
- *   --registry         BUILD A REGISTRY instead of looking for something open: for each company, up to 3
- *                      own-domain (or --portals) URLs whose path or title suggests careers, graduate, bursary,
- *                      internship, learnership, youth or early careers, score >= 0.5, whether or not they state a
- *                      date. Output: company, URL, score, cycle year if one is visible in the title or URL.
- *                      closes is left empty and no year is ever assumed. Never opens or proposes anything; with
- *                      --out it writes employers-<date>-registry-N-companies.csv (+ a trace). Retries timeouts.
+ *   --registry         BUILD A REGISTRY instead of looking for something open. Per company: one primary URL and up
+ *                      to two alternates, each typed landing | programme | job-board | other, on the company's own
+ *                      domain or a --portals domain, score >= 0.5, whether or not they state a date. Dropped: job
+ *                      postings (/job/, /jobs/<id>, requisition ids), URLs with query-string tokens, apply
+ *                      endpoints, other countries' or regions' pages (us, uk, de, mx, apac, zw ...), PDFs. Global
+ *                      pages only as a flagged fallback. News, press, blog and terms pages are typed "other" and
+ *                      never preferred. A company with nothing gets one retry with variant queries (early careers,
+ *                      learnership, YES programme, bursary), including its portals. Output also has the cycle year
+ *                      when one is visible in the title or URL. closes is left empty and no year is ever assumed.
+ *                      Never opens or proposes anything; with --out it writes employers-<date>-registry-v2-N-
+ *                      companies.csv, a below-0.5 file and a trace. Timeouts and rate limits are retried.
  *   --discover         instead of searching for opportunities, suggest portal domains for these companies
  *                      (1 credit each). Prints hosts only; nothing is added until you put it in --portals.
  *   --limit N          at most N companies (default 10, up to 200: this runs on your machine, so the
@@ -37,10 +42,11 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { searchLabel, searchTavily, hostOf, sastDate, collect } from '../src/opportunities.js';
 import { runWeeklyOpportunities } from '../src/opportunity-pr.js';
+import { parseCompaniesCsv, planEmployerSearches, planDiscovery, withPortals, isAggregator } from '../src/employers.js';
 import {
-  parseCompaniesCsv, planEmployerSearches, planDiscovery, withPortals, isAggregator,
-  planRegistrySearches, pickRegistry, registryCsv, REGISTRY_MIN_SCORE, REGISTRY_FLOOR, REGISTRY_PER_COMPANY,
-} from '../src/employers.js';
+  planRegistrySearches, planVariantSearches, registryFallback, pickRegistry, registryCsv,
+  REGISTRY_MIN_SCORE, REGISTRY_FLOOR, REGISTRY_PER_COMPANY, REGISTRY_VARIANTS,
+} from '../src/registry.js';
 import { loadEnv } from './env.mjs';
 
 const argv = process.argv.slice(2);
@@ -81,6 +87,15 @@ try {
 } catch (err) {
   fail(`Could not read ${file}: ${err.message}`);
 }
+const portalsFile = value('--portals');
+if (portalsFile) {
+  try {
+    companies = withPortals(companies, JSON.parse(readFileSync(portalsFile, 'utf8')));
+  } catch (err) {
+    fail(`Could not use ${portalsFile}: ${err.message}`);
+  }
+}
+
 if (only?.length) {
   const picked = new Map();
   for (const w of only) {
@@ -93,15 +108,6 @@ if (only?.length) {
 }
 companies = companies.slice(0, limit);
 if (!companies.length) fail('No companies match.');
-
-const portalsFile = value('--portals');
-if (portalsFile) {
-  try {
-    companies = withPortals(companies, JSON.parse(readFileSync(portalsFile, 'utf8')));
-  } catch (err) {
-    fail(`Could not use ${portalsFile}: ${err.message}`);
-  }
-}
 
 if (flag('--discover')) {
   const env0 = loadEnv();
@@ -131,46 +137,69 @@ if (flag('--registry')) {
   if (!envR.TAVILY_API_KEY) fail('TAVILY_API_KEY is not set. Put it in .dev.vars (see .dev.vars.example).');
   const regSearches = planRegistrySearches(companies);
   if (flag('--list')) {
-    console.log(`${regSearches.length} registry searches (~${regSearches.length} Tavily credits)`);
+    console.log(`${regSearches.length} registry searches (~${regSearches.length} Tavily credits), plus up to ${REGISTRY_VARIANTS.length} variant searches for each company that finds nothing`);
     process.exit(0);
   }
-  console.error(`Registry: ${regSearches.length} searches (~${regSearches.length} Tavily credits; a timeout or rate limit is retried up to 3 times, pausing longer each time)…`);
+  console.error(`Registry: ${regSearches.length} searches (~${regSearches.length} Tavily credits); then variant queries for companies with nothing. Timeouts and rate limits are retried, pausing longer each time…`);
   const events = [];
-  const out = await collect({ key: envR.TAVILY_API_KEY, searches: regSearches, onResult: (e) => events.push(e), concurrency: 4, retries: 3, retryDelayMs: 5000 });
-  // Main output: score >= 0.5 only. Below that (down to the floor) goes in a separate file, for companies that have
-  // fewer than three, so the threshold can be judged from what it leaves out.
-  const rows = pickRegistry(out.findings.filter((f) => !f.lowScore), companies);
-  const spare = companies.flatMap((c) =>
-    pickRegistry(out.findings.filter((f) => f.lowScore && f.company === c.name), [c], REGISTRY_PER_COMPANY - rows.filter((r) => r.company === c.name).length));
+  const onResultR = (e) => events.push(e);
+  const retry = { concurrency: 4, retries: 3, retryDelayMs: 5000 };
 
-  const lines = [`${'company'.padEnd(34)} score  year  url`];
-  for (const r of rows) lines.push(`${r.company.slice(0, 33).padEnd(34)} ${r.score.toFixed(2)}  ${String(r.cycleYear ?? '').padEnd(4)}  ${r.url}`);
+  const first = await collect({ key: envR.TAVILY_API_KEY, searches: regSearches, onResult: onResultR, ...retry });
+  const hasPage = (list, name) => list.some((f) => f.company === name && !f.lowScore);
+  const missing = companies.filter((c) => !hasPage(first.findings, c.name));
+  console.error(`First pass: ${companies.length - missing.length} of ${companies.length} companies have a page at score ≥ ${REGISTRY_MIN_SCORE}. Retrying ${missing.length} with variant queries (${REGISTRY_VARIANTS.map((v) => v[0]).join(', ')})…`);
+  const second = await registryFallback({ key: envR.TAVILY_API_KEY, companies: missing, onResult: onResultR, ...retry });
+
+  // Merge, one entry per page (a variant can find what the first query also found).
+  const seenUrls = new Set();
+  const findings = [...first.findings, ...second.findings].filter((f) => (seenUrls.has(f.url) ? false : seenUrls.add(f.url)));
+  const failures = [...first.failures, ...second.failures];
+  const fallbackSearches = second.tried.reduce((n, t) => n + t.queries, 0);
+
+  // Main output: score >= 0.5 only, one primary and up to two alternates, typed. Below that (down to the floor) goes in
+  // a separate file, for companies with fewer than three, so the threshold can be judged from what it leaves out.
+  const rows = pickRegistry(findings.filter((f) => !f.lowScore), companies);
+  const spare = companies.flatMap((c) =>
+    pickRegistry(findings.filter((f) => f.lowScore && f.company === c.name), [c], REGISTRY_PER_COMPANY - rows.filter((r) => r.company === c.name).length)
+      .map((r) => ({ ...r, role: 'candidate', flag: [r.flag, `score below ${REGISTRY_MIN_SCORE}`].filter(Boolean).join('; ') })));
+
+  const lines = [`${'company'.padEnd(30)} ${'role'.padEnd(9)} ${'type'.padEnd(9)} score  year  url`];
+  for (const r of rows) lines.push(`${r.company.slice(0, 29).padEnd(30)} ${r.role.padEnd(9)} ${r.type.padEnd(9)} ${r.score.toFixed(2)}  ${String(r.cycleYear ?? '').padEnd(4)}  ${r.url}${r.flag ? `  [${r.flag}]` : ''}`);
   const have = new Set(rows.map((r) => r.company));
   const none = companies.filter((c) => !have.has(c.name)).map((c) => c.name);
-  const summary = `[registry] ${rows.length} URLs for ${have.size} of ${companies.length} companies (up to ${REGISTRY_PER_COMPANY} each, score ≥ ${REGISTRY_MIN_SCORE}); ` +
-    `${out.retried.length} search retries${out.retried.length ? ` (${[...new Set(out.retried)].join('; ')})` : ''}; ${out.failures.length} failed${out.failures.length ? `: ${out.failures.join('; ')}` : ''}. ` +
+  const byType = Object.entries(rows.reduce((m, r) => ({ ...m, [r.type]: (m[r.type] || 0) + 1 }), {})).map(([t, n]) => `${n} ${t}`).join(', ');
+  const rescued = second.tried.filter((t) => t.found).length;
+  const summary = `[registry] ${rows.length} URLs for ${have.size} of ${companies.length} companies ` +
+    `(${rows.filter((r) => r.role === 'primary').length} primary, ${rows.filter((r) => r.role === 'alternate').length} alternates; ${byType}; ${rows.filter((r) => r.flag).length} flagged as a global fallback). ` +
+    `The variant retry covered ${missing.length} companies with ${fallbackSearches} extra searches and found a page for ${rescued}. ` +
+    `${first.retried.length + second.retried.length} transient retries; ${failures.length} failed${failures.length ? `: ${failures.join('; ')}` : ''}. ` +
     `${spare.length} more candidates scored ${REGISTRY_FLOOR}–${REGISTRY_MIN_SCORE} (listed apart, with --out). closes left empty, no year assumed. Nothing was posted or committed.`;
   console.log(lines.join('\n'));
   console.error(`\nNo qualifying URL (${none.length}): ${none.join(', ') || '(none)'}\n\n${summary}`);
 
   if (outDir) {
     mkdirSync(outDir, { recursive: true });
-    const stem = `${outDir.replace(/\/$/, '')}/employers-${sastDate()}-registry-${companies.length}-companies`;
-    const trace = [`${summary}\n`, `No qualifying URL (${none.length}): ${none.join(', ')}\n`];
-    for (const s of regSearches) {
-      trace.push(`\n${searchLabel(s)}  (only ${s.domains.join(' + ')})`);
-      const evs = events.filter((e) => e.search === s);
+    const stem = `${outDir.replace(/\/$/, '')}/employers-${sastDate()}-registry-v2-${companies.length}-companies`;
+    const trace = [`${summary}\n`, `No qualifying URL (${none.length}): ${none.join(', ')}\n`, 'Variant retry (the companies the first pass found nothing for):'];
+    for (const t of second.tried) trace.push(`  ${t.company}: ${t.found ? 'found a page' : 'nothing'} after ${t.queries} variant search${t.queries === 1 ? '' : 'es'}`);
+    const bySearch = new Map();
+    for (const e of events) bySearch.set(e.search, [...(bySearch.get(e.search) || []), e]);
+    const show = (s, evs) => {
+      trace.push(`\n${searchLabel(s)}  (only ${s.domains.join(' + ')})  "${s.query}"`);
       if (!evs.length) trace.push('  (no results)');
       for (const e of evs) {
         if (e.error) trace.push(`  ERROR  ${e.error}`);
-        else if (e.kept) trace.push(`  KEEP   ${e.result.score?.toFixed(2)}  ${e.result.url}`);
+        else if (e.kept) trace.push(`  KEEP   ${e.result.score?.toFixed(2)}  ${e.finding.type.padEnd(9)} ${e.finding.locale.padEnd(7)} ${e.finding.url}`);
         else trace.push(`  DROP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}\n         ↳ ${e.reason}`);
       }
-    }
+    };
+    for (const s of regSearches) show(s, bySearch.get(s) || []);
+    for (const [s, evs] of bySearch) if (!regSearches.includes(s)) show(s, evs); // variant searches that returned something
     writeFileSync(`${stem}.csv`, registryCsv(rows));
     writeFileSync(`${stem}-below-${REGISTRY_MIN_SCORE}.csv`, registryCsv(spare));
     writeFileSync(`${stem}-trace.txt`, trace.join('\n') + '\n');
-    console.error(`Stored ${stem}.csv and ${stem}-trace.txt`);
+    console.error(`Stored ${stem}.csv, ${stem}-below-${REGISTRY_MIN_SCORE}.csv and ${stem}-trace.txt`);
   }
   process.exit(0);
 }

@@ -128,6 +128,8 @@ export function employerCategory({ title = '', url = '' }) {
   return null;
 }
 
+const LANGUAGE_CODES = new Set(['en', 'fr', 'de', 'es', 'it', 'pt', 'nl', 'zh', 'ja', 'ko', 'ar', 'af']);
+
 /**
  * Multinationals keep every country's careers pages on one domain (deloitte.com/ke/en/…). Only
  * South Africa's are for our readers, so a /xx/en/ path for another country is dropped.
@@ -137,8 +139,13 @@ export function otherCountry(url) {
     const path = new URL(url).pathname;
     // /ke/en/… (Deloitte) and /us-en/… (Accenture): a country, then a language.
     // The country can also sit deeper (nedbank.co.za/content/nedbank/zw/en/…), so look for "/xx/en" anywhere.
-    const m = /\/([a-z]{2})\/[a-z]{2}(?:-[a-z]{2})?(?:\/|$)/i.exec(path) || /^\/([a-z]{2})-[a-z]{2}(?:\/|$)/i.exec(path);
-    return Boolean(m) && m[1].toLowerCase() !== 'za';
+    const m = /\/([a-z]{2})\/[a-z]{2}(?:-[a-z]{2})?(?:\/|$)/i.exec(path);
+    if (m) return m[1].toLowerCase() !== 'za';
+    // /us-en/ (country first) or /en-gb/ (language first): the country is the part that is not a language.
+    const pair = /^\/([a-z]{2})[-_]([a-z]{2})(?:\/|$)/i.exec(path);
+    if (!pair) return false;
+    const [a, b] = [pair[1].toLowerCase(), pair[2].toLowerCase()];
+    return (LANGUAGE_CODES.has(a) ? b : a) !== 'za';
   } catch {
     return false;
   }
@@ -178,7 +185,7 @@ export function yearlessDeadline(text, now = new Date(), withinDays = 120) {
 }
 
 const onDomain = (host, domain) => host === domain || host.endsWith(`.${domain}`);
-const onAnyDomain = (host, search) => (search.domains || [search.domain]).some((d) => onDomain(host, d));
+export const onAnyDomain = (host, search) => (search.domains || [search.domain]).some((d) => onDomain(host, d));
 
 /** The newest year in a page title that is this year or later ("Graduate Programme 2027"). */
 function cycleYear(title, now) {
@@ -278,111 +285,6 @@ export function withPortals(companies, portals = {}) {
     }
     return { ...c, extraDomains };
   });
-}
-
-/* ------------------------------------------------------------------ *
- * Registry mode: which pages does each company keep for this?
- * ------------------------------------------------------------------ */
-
-// A different job from the publish path above. That one asks "is there something open to apply for, with a date?"
-// and so needs a closing date. This one builds a list of where to look, so it needs none: a careers or
-// bursary page is worth recording whether or not it states a date today. It never feeds a PR or the site,
-// leaves `closes` empty, and never assumes a year. A human reviews the list before anything is published.
-export const REGISTRY_PASS = 'registry';
-export const REGISTRY_MIN_SCORE = 0.5;
-export const REGISTRY_PER_COMPANY = 3;
-// Candidates between the floor and the minimum are kept but marked `lowScore`, so the run can list them apart and
-// the threshold can be judged from evidence. They are never in the main output.
-export const REGISTRY_FLOOR = 0.2;
-
-/**
- * Pages that are never the thing recorded: a site's home, on-site search and pagination, and boilerplate. Narrower than
- * isNoise (which also rejects /about…) because here "/about-us/careers" is exactly a careers page.
- */
-function isRegistryNoise(url) {
-  let u;
-  try { u = new URL(url); } catch { return true; }
-  if (u.pathname.replace(/\/+$/, '') === '') return true;
-  if (u.searchParams.has('s') || u.searchParams.has('page')) return true;
-  return /^\/(contact|privacy|privacy-policy|terms|cookie|cookies|sitemap)\b/i.test(u.pathname);
-}
-
-// What a page's path or title must suggest. The core words are the ones asked for; the variants (scholarship,
-// trainee, apprentice, students, young talent) are the same kind of page under another name.
-const REGISTRY_HINT = /\b(careers?|graduates?|bursar(?:y|ies)|scholarships?|interns?|internships?|learnerships?|youth|early[ -]careers?|trainee(?:ship)?s?|apprentice(?:ship)?s?|young talent|students?)\b/i;
-
-/**
- * The cycle year visible in a page's title, or in a path segment that is a slug with a year in it
- * ("graduate-programme-2027"). A bare /2026/03/ folder is a publication date, not a cycle, and is ignored.
- * Whatever year is shown is reported, even a past one: an old year on a page is itself worth knowing.
- */
-export function visibleCycleYear(title, url) {
-  let segments = [];
-  try { segments = new URL(url).pathname.split('/').filter(Boolean).map(decodeURIComponent); } catch { /* none */ }
-  // A date at the start of a slug (/spotlight/2022-11-29-early-careers-…) is a post date, not a cycle.
-  const slugs = segments.filter((s) => /[a-z]/i.test(s)).map((s) => s.replace(/\b20\d\d-\d\d-\d\d\b/g, ''));
-  const years = `${title} ${slugs.join(' ')}`.match(/\b20\d\d\b/g) || [];
-  return years.length ? Math.max(...years.map(Number)) : null;
-}
-
-/** Same contract as judgeEmployer: { finding } or { reason }. No date test, by design. */
-export function judgeRegistry(result, search) {
-  const url = safeUrl(result.url);
-  if (!url) return { reason: 'not a usable http(s) link' };
-  if (!onAnyDomain(hostOf(url), search)) return { reason: `not on ${(search.domains || [search.domain]).join(' or ')}, so not the company's own page` };
-  if (isRegistryNoise(url)) return { reason: 'noise page (home, search, pagination, contact…)' };
-  if (/\.pdf$/i.test(new URL(url).pathname)) return { reason: 'a PDF (reports and fact sheets, not a page to send people to)' };
-  if (otherCountry(url)) return { reason: 'another country\'s page' };
-  if (!(result.score >= REGISTRY_FLOOR)) return { reason: `relevance score ${result.score?.toFixed(3) ?? '?'} is below even the ${REGISTRY_FLOOR} floor` };
-
-  const title = oneLine(result.title, 120);
-  let path = '';
-  try { path = decodeURIComponent(new URL(url).pathname).replace(/[-_/+.]+/g, ' '); } catch { /* keep '' */ }
-  if (!REGISTRY_HINT.test(`${title} ${path}`)) return { reason: 'neither the path nor the title suggests careers, graduate, bursary, internship, learnership, youth or early careers' };
-
-  return {
-    finding: {
-      company: search.company,
-      url,
-      title,
-      score: Number(result.score),
-      cycleYear: visibleCycleYear(title, url),
-      closes: '',
-      lowScore: !(result.score >= REGISTRY_MIN_SCORE),
-      pass: REGISTRY_PASS,
-      source: search.company,
-    },
-  };
-}
-
-/** One search per company, like the publish path, but without page text: the registry needs no dates, and it is faster. */
-export function planRegistrySearches(companies) {
-  return planEmployerSearches(companies).map((s) => ({
-    ...s,
-    pass: REGISTRY_PASS,
-    query: `${s.company} careers graduate programme bursary internship learnership youth early careers South Africa`,
-    maxResults: 10, // room to find three that qualify
-    rawContent: false,
-    judge: (result, search) => judgeRegistry(result, search),
-  }));
-}
-
-/** The best REGISTRY_PER_COMPANY per company, highest score first, companies in the order given. */
-export function pickRegistry(findings, companies, perCompany = REGISTRY_PER_COMPANY) {
-  const rows = [];
-  for (const c of companies) {
-    rows.push(...findings.filter((f) => f.company === c.name).sort((a, b) => b.score - a.score).slice(0, perCompany));
-  }
-  return rows;
-}
-
-const csvCell = (v) => (/[",\n\r]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-
-/** company, url, score, cycle_year (empty if none visible), closes (always empty), title. */
-export function registryCsv(rows) {
-  const lines = ['company,url,score,cycle_year,closes,title'];
-  for (const r of rows) lines.push([r.company, r.url, r.score.toFixed(2), r.cycleYear ?? '', '', r.title].map(csvCell).join(','));
-  return lines.join('\n') + '\n';
 }
 
 /**
