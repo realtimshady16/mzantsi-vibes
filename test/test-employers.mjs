@@ -176,5 +176,27 @@ sec('portals and discovery');
   ok('discovery leaves out the company\'s own site and every aggregator, and asks for no page text', d.exclude.includes('eskom.co.za') && d.exclude.includes('graduates24.com') && d.exclude.includes('careers24.com') && !d.rawContent && !d.include);
 }
 
+/* -------------------------------------------------------------- */
+sec('a long run');
+{
+  const many = planEmployerSearches(Array.from({ length: 12 }, (_, i) => ({ name: `Co${i}`, domain: `co${i}.example` })));
+  let inFlight = 0, peak = 0, calls = 0;
+  const slow = async () => {
+    calls++; inFlight++; peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--;
+    return { ok: true, status: 200, json: async () => ({ results: [] }) };
+  };
+  const limited = await collect({ key: 'k', searches: many, fetchImpl: slow, now: NOW, concurrency: 3 });
+  ok('with a limit, never more than that many searches are in flight, and every one runs', peak === 3 && calls === 12 && limited.searched === 12, `peak ${peak}, calls ${calls}`);
+  peak = 0; calls = 0;
+  await collect({ key: 'k', searches: many, fetchImpl: slow, now: NOW });
+  ok('without one, all start at once as before (the weekly run)', peak === 12 && calls === 12, `peak ${peak}`);
+  let failed = 0;
+  const flaky = async () => { if (failed++ === 1) throw new Error('boom'); return { ok: true, status: 200, json: async () => ({ results: [] }) }; };
+  const partial = await collect({ key: 'k', searches: many.slice(0, 4), fetchImpl: flaky, now: NOW, concurrency: 2 });
+  ok('one failed search is recorded and the rest still run', partial.failures.length === 1 && /boom/.test(partial.failures[0]) && partial.searched === 4);
+}
+
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);
 process.exit(fail ? 1 : 0);

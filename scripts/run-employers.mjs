@@ -17,15 +17,19 @@
  *                      company's own. Keep it OUT of the repo. Aggregators are refused.
  *   --discover         instead of searching for opportunities, suggest portal domains for these companies
  *                      (1 credit each). Prints hosts only; nothing is added until you put it in --portals.
- *   --limit N          at most N companies (default 10)
+ *   --limit N          at most N companies (default 10, up to 200: this runs on your machine, so the
+ *                      Worker's 50-request limit does not apply. The cron will run a slice at a time.)
+ *   --out DIR          store the results in DIR (outside the repo): the issue text, the full trace of every
+ *                      result with the reason it was kept or dropped, a tally of those reasons and the PR
+ *                      preview, in files named employers-<date>-… (implies --explain)
  *   --explain          every result, with KEEP / DROP and the reason
  *   --save FILE        also write the issue text to FILE
  *
  * Reads TAVILY_API_KEY from .dev.vars or the environment.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { searchLabel, searchTavily, hostOf } from '../src/opportunities.js';
+import { searchLabel, searchTavily, hostOf, sastDate } from '../src/opportunities.js';
 import { runWeeklyOpportunities } from '../src/opportunity-pr.js';
 import { parseCompaniesCsv, planEmployerSearches, planDiscovery, withPortals, isAggregator } from '../src/employers.js';
 import { loadEnv } from './env.mjs';
@@ -44,7 +48,7 @@ const value = (n) => {
   return v;
 };
 
-const KNOWN = ['--companies', '--only', '--limit', '--explain', '--save', '--list', '--portals', '--discover', '--help', '-h'];
+const KNOWN = ['--companies', '--only', '--limit', '--explain', '--save', '--out', '--list', '--portals', '--discover', '--help', '-h'];
 const unknown = argv.filter((a) => a.startsWith('-') && !KNOWN.includes(a));
 if (unknown.length) fail(`Unknown option: ${unknown.join(' ')}  (try --help)`);
 
@@ -58,7 +62,9 @@ const file = value('--companies');
 if (!file) fail('--companies FILE is required (a CSV with "Company" and "Company website" columns, kept outside the repo).');
 const only = value('--only')?.split(',').map((w) => w.trim().toLowerCase()).filter(Boolean);
 const limit = value('--limit') ? Number(value('--limit')) : 10;
-if (!(limit >= 1 && limit <= 40)) fail('--limit must be 1 to 40 (a Worker run may make only 50 outbound requests).');
+if (!(limit >= 1 && limit <= 200)) fail('--limit must be 1 to 200.');
+const outDir = value('--out');
+const explain = flag('--explain') || Boolean(outDir);
 
 let companies;
 try {
@@ -125,7 +131,7 @@ if (!env.TAVILY_API_KEY) fail('TAVILY_API_KEY is not set. Put it in .dev.vars (s
 console.error(`Running ${searches.length} searches (~${searches.length} Tavily credits) — dry run…`);
 
 const trace = new Map();
-const onResult = flag('--explain')
+const onResult = explain
   ? (e) => {
       if (!trace.has(e.search)) trace.set(e.search, []);
       trace.get(e.search).push(e);
@@ -139,32 +145,52 @@ const result = await runWeeklyOpportunities({
   dryRun: true,
   searches,
   skipClosing: true,
+  concurrency: 8, // 144 at once would risk Tavily rate limits
   onResult,
 });
 
-if (flag('--explain')) {
-  console.error('\n=== why each result was kept or dropped ===');
+// What we print, and, with --out, what we store: the trace, a tally of reasons, the PR preview.
+const report = [];
+if (explain) {
+  report.push('=== why each result was kept or dropped ===');
+  const reasons = new Map();
   for (const s of searches) {
-    console.error(`\n${searchLabel(s)}  (only ${s.domains.join(' + ')})`);
+    report.push(`\n${searchLabel(s)}  (only ${s.domains.join(' + ')})`);
     const events = trace.get(s) || [];
-    if (!events.length) console.error('  (no results)');
+    if (!events.length) report.push('  (no results)');
     for (const e of events) {
-      if (e.error) console.error(`  ERROR  ${e.error}`);
-      else if (e.kept) console.error(`  KEEP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}  → closes ${e.finding.closes}`);
-      else console.error(`  DROP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}\n         ↳ ${e.reason}`);
+      if (e.error) report.push(`  ERROR  ${e.error}`);
+      else if (e.kept) report.push(`  KEEP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}  → closes ${e.finding.closes}${e.finding.yearAssumed ? ' (year assumed)' : ''}`);
+      else {
+        report.push(`  DROP   ${e.result.score?.toFixed(2) ?? '    '}  ${e.result.url}\n         ↳ ${e.reason}`);
+        const key = e.reason.replace(/closing date \d{4}-\d\d-\d\d has already passed/, 'closing date has already passed')
+          .replace(/the next one \(\d{4}-\d\d-\d\d\)/, 'the next one').replace(/^not on .*, so not the company's own page$/, 'not on the company\'s own domains');
+        reasons.set(key, (reasons.get(key) || 0) + 1);
+      }
     }
   }
+  report.push('\n=== tally of why results were dropped ===');
+  for (const [r, n] of [...reasons].sort((a, b) => b[1] - a[1])) report.push(`  ${String(n).padStart(4)}  ${r}`);
 }
+if (result.prPreview) {
+  report.push(`\n=== PR preview: ${result.prPreview.count} line(s) the real run would add to OPPORTUNITIES.md (nothing was opened) ===\n`);
+  for (const a of result.prPreview.entries) report.push(`  ${a.pillar} › ${a.section}\n    ${a.line}\n`);
+} else if (result.prSkipped) report.push(`\nNo PR would be opened: ${result.prSkipped}`);
+else if (result.prError) report.push(`\nPR step failed: ${result.prError}`);
+const summary = `[dry run] ${result.findings} leads, ${result.searches} searches (~${result.credits} Tavily credits), ${result.failures} failed. Nothing was posted.`;
+report.push(`\n${summary}`);
 
 const text = `# ${result.title}\n\n${result.body}`;
 console.log(text);
+console.error(report.join('\n'));
 if (flag('--save')) {
   writeFileSync(value('--save'), text);
   console.error(`Saved to ${value('--save')}`);
 }
-if (result.prPreview) {
-  console.error(`\n=== PR preview: ${result.prPreview.count} line(s) the real run would add to OPPORTUNITIES.md (nothing was opened) ===\n`);
-  for (const a of result.prPreview.entries) console.error(`  ${a.pillar} › ${a.section}\n    ${a.line}\n`);
-} else if (result.prSkipped) console.error(`\nNo PR would be opened: ${result.prSkipped}`);
-else if (result.prError) console.error(`\nPR step failed: ${result.prError}`);
-console.error(`\n[dry run] ${result.findings} leads, ${result.searches} searches (~${result.credits} Tavily credits), ${result.failures} failed. Nothing was posted.`);
+if (outDir) {
+  mkdirSync(outDir, { recursive: true });
+  const stem = `${outDir.replace(/\/$/, '')}/employers-${sastDate()}-${searches.length}-companies`;
+  writeFileSync(`${stem}-issue.md`, text + '\n');
+  writeFileSync(`${stem}-trace.txt`, `${summary}\nCompanies: ${companies.map((c) => c.name).join(', ')}\n\n${report.join('\n')}\n`);
+  console.error(`Stored ${stem}-issue.md and ${stem}-trace.txt`);
+}

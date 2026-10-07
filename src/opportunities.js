@@ -584,8 +584,21 @@ function judge(result, search, now) {
  * within this run (a bursary matches several faculty queries). Earlier passes
  * win, so a trusted-source hit is never replaced by a broader one.
  */
-export async function collect({ key, searches, fetchImpl, now = new Date(), onResult }) {
-  const settled = await Promise.allSettled(searches.map((s) => searchTavily({ key, search: s, fetchImpl })));
+export async function collect({ key, searches, fetchImpl, now = new Date(), onResult, concurrency = Infinity }) {
+  // All at once by default (the weekly run is ten searches). A long local run passes a limit so Tavily is not rate-limited.
+  const settled = new Array(searches.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < searches.length) {
+      const i = next++;
+      try {
+        settled[i] = { status: 'fulfilled', value: await searchTavily({ key, search: searches[i], fetchImpl }) };
+      } catch (reason) {
+        settled[i] = { status: 'rejected', reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, searches.length) }, worker));
 
   const seen = new Set();
   const findings = [];
@@ -753,7 +766,7 @@ export function renderDigest({ findings, failures, searched, now = new Date(), w
  * are final. It returns { lines, result }: `lines` go into the issue after its
  * opening paragraph, and `result` is merged into what this returns.
  */
-export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, closingDelayMs = ZA_CRAWL_DELAY_MS, onResult, onFindings }) {
+export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, dryRun = false, now = new Date(), searches: planned, skipClosing = false, closingDelayMs = ZA_CRAWL_DELAY_MS, onResult, onFindings, concurrency }) {
   if (!config.tavilyKey) {
     throw new Error('TAVILY_API_KEY is not set. Add it with: wrangler secret put TAVILY_API_KEY');
   }
@@ -761,7 +774,7 @@ export async function runOpportunityDigest({ config, gh, fetchImpl, fetchPage, d
   const searches = planned || planSearches();
   const [closing, collected] = await Promise.all([
     skipClosing ? [] : closingPages({ now, fetchPage, delayMs: closingDelayMs }),
-    collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult }),
+    collect({ key: config.tavilyKey, searches, fetchImpl, now, onResult, concurrency }),
   ]);
   const { failures, searched } = collected;
   const findings = [...closing, ...collected.findings];
