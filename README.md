@@ -48,6 +48,7 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 
 -   [Internships via Graduates24](https://www.graduates24.com/internshipprogrammes)
 -   [Graduate Programmes via Graduates24](https://www.graduates24.com/graduate_programmes)
+-   You should learn taxes - please see the tax section!!
 
 ## 💼 I'm Going to Work
 
