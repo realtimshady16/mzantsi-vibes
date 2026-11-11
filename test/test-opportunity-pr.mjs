@@ -19,7 +19,12 @@ const sec = (t) => console.log(`\n== ${t} ==`);
 
 const NOW = new Date('2026-10-05T05:00:00Z'); // a Monday
 const STUDY = "🎓 I'm Going to Study", WORK = "💼 I'm Going to Work";
-const skeleton = readFileSync(new URL('../OPPORTUNITIES.md', import.meta.url), 'utf8');
+/* The empty document, not the live one. This test used to read ../OPPORTUNITIES.md,
+   which meant it asserted the file had no ### sections — true until the first real
+   entries were merged, at which point five checks went red for no reason. Content
+   changes belong in their own check (see the last section); insertion logic needs a
+   skeleton that never changes. */
+const skeleton = readFileSync(new URL('./fixtures/OPPORTUNITIES.skeleton.md', import.meta.url), 'utf8');
 const L = (n, d = '2026-11-30') => `-   [${n}](https://x.org/${n.toLowerCase().replace(/\W+/g, '-')}) — About ${n}. {closes: ${d}; tags: bursary, deadline; source: x.org}`;
 const added = (before, after) => after.split('\n').filter((l, i, a) => !before.split('\n').includes(l) || (l === '' && false));
 
@@ -287,6 +292,24 @@ sec('the Worker\'s 50-request limit');
   const total = n + AUTH;
   ok('a worst-case run (50 dated leads plus 120 list rows; PR and issue both opened) stays well under the limit', out.pr?.number === 77 && out.issueUrl && out.pr.entries === MAX_ENTRIES && total <= 40, `used ${total} of 50`);
   console.log(`        (worst case used ${total} of 50)`);
+}
+
+/* -------------------------------------------------------------- */
+sec('the live file');
+{
+  /* The real OPPORTUNITIES.md, read with a date before everything so the clock hides
+     nothing: this checks the file, not today. A line the parser cannot read is a line
+     the site silently drops, which is the worst failure this file has. */
+  const real = readFileSync(new URL('../OPPORTUNITIES.md', import.meta.url), 'utf8');
+  const parsed = parseReadme(real, '2020-01-01');
+  const entries = [];
+  for (const pillar of Object.values(parsed.pillars)) for (const list of Object.values(pillar)) entries.push(...list);
+  const source = real.split('\n').filter((l) => /^-\s+\[/.test(l) && !l.includes('https://link'));
+  const names = new Set(entries.map((e) => e.name));
+  const missing = source.filter((l) => !names.has(l.slice(l.indexOf('[') + 1, l.indexOf(']'))));
+  ok(`every entry line in OPPORTUNITIES.md is readable (${source.length} lines)`, missing.length === 0, missing.slice(0, 2).join(' | '));
+  const undated = entries.filter((e) => !e.meta || !e.meta.closes).length;
+  ok('every opportunity carries a date the site can read', undated === 0, `${undated} with no readable closes`);
 }
 
 console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);
