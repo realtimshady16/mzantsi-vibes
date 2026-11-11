@@ -332,7 +332,26 @@ function renderSection(targetId, pillarKey, parsedData) {
    INTERACTIONS
    ============================================= */
 
+/* A post needs a URL that lands on the answer, not on a chooser. `?section=study`
+   opens that pillar on load, and switching rewrites the address bar so whatever
+   someone is looking at can be copied and shared. Only the four known pillars are
+   accepted — this value comes from the URL, so it is untrusted. */
+function deepLinkedSection() {
+  let wanted = null;
+  try { wanted = new URLSearchParams(location.search).get('section'); } catch { return null; }
+  return PILLAR_KEYS.includes(wanted) ? wanted : null;
+}
+
+function reflectSection(sectionId) {
+  try {
+    const url = new URL(location.href);
+    url.searchParams.set('section', sectionId);
+    history.replaceState(null, '', url);
+  } catch { /* a URL that cannot be rewritten is not worth breaking a click over */ }
+}
+
 function switchSection(sectionId, btn) {
+  reflectSection(sectionId);
   clearSearch();
   document.querySelectorAll('.content-section').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.path-card').forEach(el => el.classList.remove('active'));
@@ -394,6 +413,10 @@ async function init() {
     loadingEl.classList.add('hidden');
     document.getElementById('section-study').classList.remove('hidden');
     showDeadlineNote('deadline-note', document.querySelector('.main-content'));
+
+    /* Arriving from a shared link: open the pillar it names. */
+    const deep = deepLinkedSection();
+    if (deep) switchSection(deep, document.querySelector(`.path-card[data-section="${deep}"]`));
 
   } catch (err) {
     console.error('Mzantsi Vibes: could not load README:', err);
