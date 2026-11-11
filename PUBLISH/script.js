@@ -329,6 +329,29 @@ function renderSection(targetId, pillarKey, parsedData) {
 }
 
 /* =============================================
+   ANALYTICS
+   ============================================= */
+
+/* Umami is loaded with defer, and may be blocked, offline or not there yet, so
+   every call here is optional. Analytics must never be able to break the page. */
+function track(event, data) {
+  try { window.umami?.track(event, data); } catch { /* analytics is not worth an error */ }
+}
+
+/* A search only becomes interesting once it settles: typing "bursary" runs
+   runSearch about seven times, one letter at a time. So this waits for 900ms of
+   quiet and ignores single characters. The query is cut at 60 characters because
+   people type their own details into search boxes and that text should not be
+   kept — the useful signal is what they looked for, and whether we had it. */
+let searchTrackTimer = null;
+function trackSearch(query, hits) {
+  clearTimeout(searchTrackTimer);
+  const q = query.trim();
+  if (q.length < 2) return;
+  searchTrackTimer = setTimeout(() => track('search', { query: q.slice(0, 60), hits }), 900);
+}
+
+/* =============================================
    INTERACTIONS
    ============================================= */
 
@@ -352,6 +375,7 @@ function reflectSection(sectionId) {
 
 function switchSection(sectionId, btn) {
   reflectSection(sectionId);
+  track('section', { pillar: sectionId });
   clearSearch();
   document.querySelectorAll('.content-section').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.path-card').forEach(el => el.classList.remove('active'));
@@ -385,6 +409,17 @@ async function init() {
     if (card?.dataset.section) return switchSection(card.dataset.section, card);
     const pill = e.target.closest('.pill');
     if (pill) return togglePill(pill);
+
+    /* Did anyone act on what they found? That is the metric the project cares
+       about — a pageview says someone arrived, this says someone left for the
+       provider. Host only: full URLs carry tracking junk and entry names are
+       enough to tell which listing it was. */
+    const row = e.target.closest('a.res-row');
+    if (row) {
+      let host = '';
+      try { host = new URL(row.href).hostname.replace(/^www\./, ''); } catch { /* leave it blank */ }
+      return track('outbound', { host, name: (row.querySelector('.res-name')?.textContent || '').slice(0, 60) });
+    }
   });
 
   populateContent();
@@ -491,6 +526,7 @@ function runSearch() {
   }
 
   const hits = SearchCore.search(searchState.entries, { query, pillar, tags: [...tags] });
+  trackSearch(query, hits.length);
   const c = CONTENT.search;
   main.classList.add('hidden');
   status.textContent = hits.length ? c.results(hits.length) + (hits.length >= SearchCore.MAX_RESULTS ? '. ' + c.capped(SearchCore.MAX_RESULTS) : '') : '';
