@@ -154,7 +154,7 @@ node test/test-entry-meta.mjs # 36 checks — {closes; tags} blocks: parser, sit
 node test/test-index.mjs      # 39 checks — search index, /api/index.json (cache, failures), ranking
 node test/test-opportunity-pr.mjs # 62 checks — the PR of dated leads: file insertion, limits, the whole job, all faked
 node test/test-opportunities.mjs # 173 checks — opportunity digest, Tavily and GitHub faked
-node test/browser/run.mjs      # 154 checks — the six pages in headless Chromium (needs Chromium; skips without it)
+node test/browser/run.mjs      # 169 checks — the seven pages in headless Chromium (needs Chromium; skips without it)
 ```
 
 `test-integration.mjs` reads the real README from GitHub. The repo is public so
