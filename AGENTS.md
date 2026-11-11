@@ -67,10 +67,10 @@ No `package.json`, nothing to install. Node 18+ only. Do not add dependencies.
 for t in test test-hardening test-auth test-admin test-review test-opportunities test-normalize test-integration test-entry-meta test-index test-opportunity-pr; do node test/$t.mjs | tail -3; done
 ```
 
-All eleven must pass before a PR (59, 50, 48, 43, 75, 173, 23, 39, 36, 39 and 62 checks as of writing).
+All eleven must pass before a PR (59, 61, 48, 43, 75, 173, 23, 39, 36, 39 and 64 checks as of writing).
 `test-integration` fetches from GitHub without a login, which GitHub limits per IP address: if it reports "rate limit exhausted", wait an hour rather than re-running it.
 ```bash
-node test/browser/run.mjs      # the six page tests, in headless Chromium (154 checks)
+node test/browser/run.mjs      # the seven page tests, in headless Chromium (169 checks)
 ```
 
 The browser tests start their own preview server and drive the real pages: the editor, filters,
