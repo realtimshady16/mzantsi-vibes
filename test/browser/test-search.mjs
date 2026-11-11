@@ -9,7 +9,7 @@ import { skipWithoutChromium, start } from './lib.mjs';
 import { buildIndex } from '../../src/content-index.js';
 
 skipWithoutChromium('test-search.mjs');
-const { send, ev, key, ok, sec, errors, done, sleep, base } = await start({ preview: true });
+const { send, ev, key, ok, sec, errors, done, sleep, waitFor, base } = await start({ preview: true });
 
 const day = (n) => new Date(Date.now() + 2 * 3600e3 + n * 86400e3).toISOString().slice(0, 10);
 const README = `# T\n\n## 🎓 I'm Going to Study\n\n### Paying for It\n\n-   [NSFAS](https://my.nsfas.org.za/) — Financial aid for students.\n\n## 💼 I'm Going to Work\n\n### Jobs\n\n-   [Learnerships](https://l.org) — Free learnership databases. {tags: learnership}\n-   [<img src=x onerror=window.__pwned=1>](https://evil.org) — "><script>window.__pwned=1</script> bursary trap.\n`;
@@ -29,7 +29,7 @@ const load = async ({ index = INDEX, theme = 'light', width }) => {
   last = r.result.identifier;
   if (width) await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: base + '/' });
-  await sleep(1600);
+  await waitFor(`document.getElementById('loading-state')?.classList.contains('hidden')`);
 };
 const type = async (text) => { await ev(`(()=>{const i=document.getElementById('search-input');i.focus();i.value=${JSON.stringify(text)};i.dispatchEvent(new Event('input',{bubbles:true}))})()`); await sleep(350); };
 const names = () => ev(`[...document.querySelectorAll('#search-results .res-name')].map(n=>n.textContent.trim())`);
