@@ -8,6 +8,13 @@ const GITHUB_API_URL   = 'https://api.github.com/repos/realtimshady16/mzantsi-vi
 const ALL_STARS_URL    = 'https://raw.githubusercontent.com/realtimshady16/mzantsi-vibes/main/ALL-STARS.md';
 const GITHUB_REPO_URL  = 'https://github.com/realtimshady16/mzantsi-vibes';
 
+/* A broken avatar removes itself rather than leaving a broken-image glyph. Error
+   events don't bubble, so this listens in the capture phase — the CSP allows no
+   inline handlers, so the markup can't do it. */
+document.addEventListener('error', (e) => {
+  if (e.target instanceof HTMLImageElement) e.target.remove();
+}, true);
+
 /* ---- THE TILE ----
    The design's avatar: a rounded square with two nested diamonds. Colours are picked
    from the five pastels, deterministically from a seed, so the same person always
@@ -49,7 +56,7 @@ async function loadGithubContributors() {
     const cards = humans.map(c => `
       <a class="star-card" href="${escHtml(c.html_url)}" target="_blank" rel="noopener">
         <span class="tile" style="${tileStyle(c.login)}">
-          <img src="${escHtml(c.avatar_url)}&s=144" alt="" width="72" height="72" loading="lazy" onerror="this.remove()" />
+          <img src="${escHtml(c.avatar_url)}&s=144" alt="" width="72" height="72" loading="lazy" />
         </span>
         <span class="star-name">@${escHtml(c.login)}</span>
         <span class="star-role">${c.contributions} contribution${c.contributions !== 1 ? 's' : ''}</span>

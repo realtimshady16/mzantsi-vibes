@@ -6,6 +6,12 @@
  *   node scripts/preview.mjs --port 9000
  *   node scripts/preview.mjs --no-api      static files only
  *   node scripts/preview.mjs --sample      add fake time-sensitive entries (see /__content below)
+ *   node scripts/preview.mjs --csp         send the production Content-Security-Policy
+ *
+ * --csp reads the CSP out of PUBLISH/_headers, so the preview enforces exactly what
+ * production does: an inline onclick= or a new third-party origin shows up here as a
+ * blocked script instead of on the live site. PREVIEW_CSP=1 does the same, which is how
+ * the browser suite runs under the real policy.
  *
  * It serves PUBLISH/ the way the Worker does, with two differences that matter
  * when you are iterating on the look:
@@ -35,6 +41,16 @@ const argv = process.argv.slice(2);
 const port = argv.includes('--port') ? Number(argv[argv.indexOf('--port') + 1]) : 8000;
 const withApi = !argv.includes('--no-api');
 const sample = argv.includes('--sample');
+const withCsp = argv.includes('--csp') || process.env.PREVIEW_CSP === '1';
+
+/* The production policy, read from the file the deploy uses — never a copy. */
+const CSP = (() => {
+  if (!withCsp) return null;
+  const headers = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8');
+  const line = headers.split('\n').find((l) => /^\s*Content-Security-Policy:/i.test(l));
+  if (!line) throw new Error('--csp: PUBLISH/_headers has no Content-Security-Policy');
+  return line.slice(line.indexOf(':') + 1).trim();
+})();
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -137,7 +153,9 @@ function content(file) {
 }
 
 const send = (res, status, body, type = 'application/json') => {
-  res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Preview-Mock': '1' });
+  const headers = { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Preview-Mock': '1' };
+  if (CSP) headers['Content-Security-Policy'] = CSP;
+  res.writeHead(status, headers);
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 };
 
@@ -187,7 +205,7 @@ http.createServer((req, res) => {
   if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
     // Like the Worker: /contribute -> /contribute/
     if (!pathname.endsWith('/')) {
-      res.writeHead(307, { Location: pathname + '/', 'Cache-Control': 'no-store' });
+      res.writeHead(307, { Location: pathname + '/', 'Cache-Control': 'no-store', ...(CSP ? { 'Content-Security-Policy': CSP } : {}) });
       return res.end();
     }
     target = path.join(target, 'index.html');

@@ -205,7 +205,7 @@ function populateContent() {
       <div class="question-group">
         <p class="question-text">${escHtml(q.text)}</p>
         <div class="pill-group">
-          ${q.options.map(o => `<button class="pill" onclick="togglePill(this)">${escHtml(o)}</button>`).join('')}
+          ${q.options.map(o => `<button class="pill">${escHtml(o)}</button>`).join('')}
         </div>
       </div>
     `).join('');
@@ -350,6 +350,16 @@ function togglePill(el) {
    ============================================= */
 
 async function init() {
+  /* One listener for the controls the page draws itself: the CSP has no
+     'unsafe-inline' for scripts, so nothing in the markup may run script by
+     clicking alone. Delegation also covers markup rendered after load. */
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.path-card');
+    if (card?.dataset.section) return switchSection(card.dataset.section, card);
+    const pill = e.target.closest('.pill');
+    if (pill) return togglePill(pill);
+  });
+
   populateContent();
 
   const loadingEl = document.getElementById('loading-state');

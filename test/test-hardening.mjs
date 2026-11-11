@@ -157,7 +157,23 @@ sec('deploy config');
   ok('the Worker only runs first for the API and review links', /"run_worker_first":\s*\["\/api\/\*",\s*"\/action"\]/.test(wrangler));
   const headers = fs.readFileSync(new URL('../PUBLISH/_headers', import.meta.url), 'utf8');
   for (const h of ['X-Content-Type-Options: nosniff', 'X-Frame-Options: DENY', 'Strict-Transport-Security', 'Content-Security-Policy', 'Referrer-Policy']) ok(`_headers sets ${h.split(':')[0]}`, headers.includes(h));
-  ok('no script-src limit yet (pages still use inline onclick)', !/script-src/.test(headers));
+  const csp = (headers.split('\n').find((l) => /Content-Security-Policy:/i.test(l)) || '').split(':').slice(1).join(':');
+  ok('the CSP limits scripts to our own origin', /script-src[^;]*'self'/.test(csp) && !/script-src[^;]*unsafe-inline/.test(csp));
+  ok('and falls back for anything not named', /default-src 'self'/.test(csp));
+  ok('styles may be inline (tiles and the editor), scripts may not', /style-src[^;]*'unsafe-inline'/.test(csp) && !/script-src[^;]*unsafe-inline/.test(csp));
+
+  /* The policy above is only real if no page runs script from markup. */
+  const pages = ['index.html', 'tasks/index.html', 'allstars/index.html', 'contribute/index.html'];
+  const inlineHandler = /\son[a-z]+\s*=\s*"[^"]*"/i;
+  for (const page of pages) {
+    const html = fs.readFileSync(new URL(`../PUBLISH/${page}`, import.meta.url), 'utf8');
+    ok(`${page} has no inline event handler`, !inlineHandler.test(html), (html.match(inlineHandler) || [''])[0]);
+  }
+  const scripts = ['script.js', 'tasks/script.js', 'allstars/script.js', 'contribute/script.js', 'contribute/convert.js'];
+  for (const file of scripts) {
+    const js = fs.readFileSync(new URL(`../PUBLISH/${file}`, import.meta.url), 'utf8');
+    ok(`${file} writes no inline handler into the page`, !inlineHandler.test(js), (js.match(inlineHandler) || [''])[0]);
+  }
 }
 
 console.log(`\n${'='.repeat(46)}\n  ${pass} passed, ${fail} failed\n${'='.repeat(46)}`);

@@ -167,7 +167,7 @@ function renderAll() {
   });
 
   if (filtered.length === 0) {
-    container.innerHTML = `<p class="empty-state">No tasks match those filters. <button type="button" class="link-btn" onclick="resetFilters()">Clear filters</button></p>`;
+    container.innerHTML = `<p class="empty-state">No tasks match those filters. <button type="button" class="link-btn" data-action="clear-filters">Clear filters</button></p>`;
     if (countEl) countEl.textContent = '';
     return;
   }
@@ -219,7 +219,20 @@ function resetFilters() {
 
 /* ---- INIT ---- */
 
+/* The CSP has no 'unsafe-inline' for scripts, so the filter pills carry data
+   attributes and one delegated listener does the work — including the "Clear
+   filters" button, which is drawn after a filter comes back empty. */
+function wireFilters() {
+  document.addEventListener('click', (e) => {
+    const pill = e.target.closest('.filter-pill');
+    if (pill && pill.dataset.filter) return applyFilter(pill);
+    if (e.target.closest('[data-action="clear-filters"]')) return resetFilters();
+  });
+}
+
 async function init() {
+  wireFilters();
+
   const loadingEl = document.getElementById('loading-state');
   const errorEl   = document.getElementById('error-state');
 
