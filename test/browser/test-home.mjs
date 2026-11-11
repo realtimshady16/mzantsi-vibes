@@ -20,7 +20,7 @@ const OPPS = `# O\n\n## 🎓 I'm Going to Study\n\n### Paying for It\n\n` +
   `-   [Undated](https://f.org) — No deadline. {tags: evergreen}\n`;
 
 let last = null;
-const load = async ({ opps, theme = 'light' }) => {
+const load = async ({ opps, theme = 'light', query = '' }) => {
   if (last) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: last });
   const r = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(function(){try{localStorage.setItem('mv-theme','${theme}')}catch(e){}
     var real=window.fetch, R=${JSON.stringify(README)}, O=${JSON.stringify(opps)};
@@ -29,7 +29,7 @@ const load = async ({ opps, theme = 'light' }) => {
       if(u.includes('/__content/OPPORTUNITIES.md')) return O===null ? Promise.resolve(new Response('nope',{status:404})) : Promise.resolve(new Response(O,{status:200}));
       return real(u,o); };})();` });
   last = r.result.identifier;
-  await send('Page.navigate', { url: base + '/' });
+  await send('Page.navigate', { url: base + '/' + query });
   await waitFor(`document.getElementById('loading-state')?.classList.contains('hidden')`);
 };
 const names = () => ev(`[...document.querySelectorAll('#study-content .res-name')].map(n=>n.textContent.trim())`);
@@ -66,4 +66,20 @@ ok('the README still renders', JSON.stringify(await names()) === JSON.stringify(
 ok('with no deadline on the page, there is no disclaimer', (await ev(note)).shown === false);
 ok('no script errors', errors.length === 0, JSON.stringify(errors));
 
-await done();
+await sec('A shared link opens the pillar it names');
+await load({ opps: OPPS, query: '?section=unsure' });
+ok('?section=unsure shows the unsure pillar', await ev(`!document.getElementById('section-unsure').classList.contains('hidden')`));
+ok('and hides the others', await ev(`document.getElementById('section-study').classList.contains('hidden')`));
+ok('the card for it is marked active', await ev(`document.querySelector('.path-card[data-section="unsure"]').classList.contains('active')`));
+await sleep(200);
+const top = await ev(`document.getElementById('section-unsure').getBoundingClientRect().top`);
+ok('and scrolls to the section instead of leaving it below the hero', Math.abs(top) < 80, String(top));
+await ev(`document.querySelector('.path-card[data-section="work"]').click()`);
+await sleep(150);
+ok('switching rewrites the URL so it can be shared', (await ev(`location.search`)) === '?section=work', await ev(`location.search`));
+await load({ opps: OPPS, query: '?section=nonsense' });
+ok('an unknown section is ignored and study stays open', await ev(`!document.getElementById('section-study').classList.contains('hidden')`));
+await load({ opps: OPPS, query: '?section=study<script>' });
+ok('and a hostile value is ignored too, not echoed into the page', await ev(`!document.getElementById('section-study').classList.contains('hidden') && !document.body.innerHTML.includes('section=study<script>')`));
+
+done();
