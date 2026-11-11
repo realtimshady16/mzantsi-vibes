@@ -75,9 +75,14 @@ export async function start({ preview = true, width = 1100, height = 900 } = {})
   const server = preview ? await startPreview() : null;
   const port = await freePort();
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'mv-chrome-'));
-  const chrome = spawn(
-    findChromium(),
-    ['--headless=new', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'],
+  /* Run Chromium through a shell that switches core dumps off for it.
+     Headless Chromium aborts in its own shutdown path when the harness kills it
+     (SIGABRT, si_code SI_TKILL — its shutdown CHECKs), and every abort made
+     systemd-coredump write a core and raise a "Process crashed" notification:
+     six per suite run, which looks alarmingly like the browser is broken. Nothing
+     here needs a core dump, so the limit is zero for this process and its children. */
+  const chrome = spawn('/bin/sh', ['-c', 'ulimit -c 0; exec "$0" "$@"', findChromium(),
+    '--headless=new', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'],
     { stdio: 'ignore' }
   );
 
@@ -117,6 +122,20 @@ export async function start({ preview = true, width = 1100, height = 900 } = {})
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk });
   };
 
+  /* Wait for a condition instead of guessing with a fixed sleep. Rendering is
+     asynchronous (a fetch, then a parse, then innerHTML), so `sleep(1500)` is a
+     coin toss on a loaded machine — it showed up as an empty result list and a
+     failed suite that passed when run alone. This polls, and throws with the
+     condition when it gives up, so a real failure says what it was waiting for. */
+  const waitFor = async (expression, { timeout = 10000, every = 50 } = {}) => {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      if (await ev(expression)) return true;
+      if (Date.now() > deadline) throw new Error(`waitFor: timed out after ${timeout}ms waiting for ${expression}`);
+      await sleep(every);
+    }
+  };
+
   await send('Runtime.enable');
   await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -130,12 +149,12 @@ export async function start({ preview = true, width = 1100, height = 900 } = {})
 
   const done = async () => {
     console.log(`\n==============================================\n  ${pass} passed, ${fail} failed\n==============================================`);
-    chrome.kill();
+    chrome.kill('SIGKILL');
     ws.close();
     server?.stop();
     fs.rmSync(profile, { recursive: true, force: true });
     process.exit(fail ? 1 : 0);
   };
 
-  return { send, ev, key, ok, sec, errors, done, sleep, base: server?.base };
+  return { send, ev, key, ok, sec, errors, done, sleep, waitFor, base: server?.base };
 }

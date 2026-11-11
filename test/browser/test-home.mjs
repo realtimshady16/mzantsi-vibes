@@ -7,7 +7,7 @@
 import { skipWithoutChromium, start } from './lib.mjs';
 
 skipWithoutChromium('test-home.mjs');
-const { send, ev, ok, sec, errors, done, sleep, base } = await start({ preview: true });
+const { send, ev, ok, sec, errors, done, sleep, waitFor, base } = await start({ preview: true });
 
 const day = (n) => new Date(Date.now() + 2 * 3600e3 + n * 86400e3).toISOString().slice(0, 10);
 const README = `# T\n\n## 🎓 I'm Going to Study\n\n### Paying for It\n\n-   [NSFAS](https://my.nsfas.org.za/) — Financial aid.\n`;
@@ -30,7 +30,7 @@ const load = async ({ opps, theme = 'light' }) => {
       return real(u,o); };})();` });
   last = r.result.identifier;
   await send('Page.navigate', { url: base + '/' });
-  await sleep(1500);
+  await waitFor(`document.getElementById('loading-state')?.classList.contains('hidden')`);
 };
 const names = () => ev(`[...document.querySelectorAll('#study-content .res-name')].map(n=>n.textContent.trim())`);
 

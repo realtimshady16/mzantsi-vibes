@@ -1,7 +1,21 @@
+# Headers for the static pages. The Worker answers /api/* and /action itself; these
+# apply to everything served from the assets layer.
+#
+# The CSP has no 'unsafe-inline' for scripts, so no page may run script from markup
+# (no onclick=, no onerror=). Controls carry data attributes and each page wires one
+# delegated listener. A new page must load its script with src= and wire it there.
+#
+# 'unsafe-inline' under style-src is deliberate: the tiles set CSS custom properties
+# as style attributes, and the rich-text editor (Quill) styles what it inserts.
+# Allowing inline *style* is a much smaller risk than inline *script*.
+#
+# The sources below are the ones the pages actually use: Google Fonts (styles and
+# files), Umami analytics, and GitHub's hosts for the All Stars page. A new origin
+# must be added here or the browser will block it.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Strict-Transport-Security: max-age=31536000
-  Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cloud.umami.is; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://avatars.githubusercontent.com; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://cloud.umami.is; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'
