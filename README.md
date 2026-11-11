@@ -23,18 +23,12 @@ Most resources online assume you have fast internet, a credit card, and grew up 
 
 -   [NSFAS](https://my.nsfas.org.za/) — If you qualify, NSFAS covers tuition, accommodation, and a living allowance.
 -   [More Bursaries](https://www.zabursaries.co.za/) — A broad database of bursaries across all fields of study.
--   Commerce Bursaries — _coming soon_
--   Engineering Bursaries — _coming soon_
--   Science Bursaries — _coming soon_
--   Health Sciences Bursaries — _coming soon_
--   Humanities Bursaries — _coming soon_
--   Law Bursaries — _coming soon_
 
 ### Getting There
 
--   [Commerce Faculty](https://uct.ac.za/students/study-uct-degrees-diplomas-commerce/commerce-undergraduate) — _coming soon_
--   [Engineering Faculty](https://ebe.uct.ac.za/) — _coming soon_
--   [Science Faculty](https://science.uct.ac.za/) — _coming soon_
+-   [Commerce Faculty](https://uct.ac.za/students/study-uct-degrees-diplomas-commerce/commerce-undergraduate) — UCT's Commerce faculty: the degrees it offers.
+-   [Engineering Faculty](https://ebe.uct.ac.za/) — UCT's Engineering faculty: departments and degrees.
+-   [Science Faculty](https://science.uct.ac.za/) — UCT's Science faculty: departments and degrees.
 -   Health Sciences Faculty — _coming soon_
 -   Humanities Faculty — _coming soon_
 -   Law Faculty — _coming soon_
