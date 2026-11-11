@@ -356,7 +356,15 @@ function switchSection(sectionId, btn) {
   document.querySelectorAll('.content-section').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.path-card').forEach(el => el.classList.remove('active'));
   const target = document.getElementById('section-' + sectionId);
-  if (target) target.classList.remove('hidden');
+  if (target) {
+    target.classList.remove('hidden');
+
+    /* The hero, the search box and the four path cards sit above the content, so on
+       a phone the section starts roughly 1,500px down. Someone following a link that
+       promises a list should land on the list, not scroll past the sign. Just after
+       load this is instant; the address bar is already right. */
+    target.scrollIntoView({ block: 'start' });
+  }
   if (btn) btn.classList.add('active');
 }
 
